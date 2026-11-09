@@ -61,6 +61,8 @@ public final class ClientHarness {
 *///?}
 
 
+    private static boolean playerSeen;
+
     private ClientHarness() {
     }
 
@@ -185,6 +187,11 @@ public final class ClientHarness {
                 fail("world did not load");
             }
             return;
+        }
+        // Count setup ticks from the first tick with a player: slow world loads must not skip the setup ticks below.
+        if (!playerSeen) {
+            playerSeen = true;
+            ticks = 1;
         }
         if (ticks == 40) {
             showCape(client);
