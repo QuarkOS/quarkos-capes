@@ -173,6 +173,7 @@
   "text.quarkos_capes.site.search": "Search",
   "text.quarkos_capes.site.signin": "Sign in to Minecraft to use this action.",
   "text.quarkos_capes.site.source_unavailable": "Some sources are unavailable. Other results are still shown.",
+  "text.quarkos_capes.site.source_disabled": "Some sources are disabled by the site. Other results are still shown.",
   "text.quarkos_capes.site.unwear": "Unwear",
   "text.quarkos_capes.site.unworn": "Cape removed.",
   "text.quarkos_capes.site.wear": "Wear",

@@ -76,8 +76,10 @@ Provider reads, used only when offline mode is off, show-others is on, and that 
 - Cosmetica `https://api.cosmetica.cc/users/{uuid}/cape`
 - Cloaks+ `http://161.35.130.99/capes/{name}.png`
 
-The user agent is `QuarkOS-Capes/1.0.0`. Website wearing references take priority over legacy accepted capes, followed by enabled providers. The Mojang access token is sent only to `https://sessionserver.mojang.com/session/minecraft/join` during publish login. It is not logged and not sent to a cape host.
+The user agent is `QuarkOS-Capes/1.0.0`. Website wearing references take priority over legacy accepted capes, followed by enabled providers. The Mojang access token is sent only to `https://sessionserver.mojang.com/session/minecraft/join` during authenticated service login. It is not logged and not sent to a cape host.
 
 ## Credits
 
 See [CREDITS.md](CREDITS.md). A draft listing for Modrinth and CurseForge is in [DISTRIBUTION.md](DISTRIBUTION.md). Nothing in this repository is uploaded there.
+
+Release preparation: [checklist](docs/RELEASE-CHECKLIST.md) · [privacy](docs/PRIVACY.md). Set the packaged service default with `-PserviceUrl=<production URL>`; local parent validation builds require `-PallowLocalService=true` until that URL exists.

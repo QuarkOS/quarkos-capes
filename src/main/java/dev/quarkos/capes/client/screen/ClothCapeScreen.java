@@ -52,18 +52,18 @@ final class ClothCapeScreen {
     static Screen create(Screen parent) {
         parentScreen = parent;
         ClientSettings settings = ClientSettings.get();
+        Held held = new Held();
         ConfigBuilder builder = ConfigBuilder.create()
                 .setParentScreen(parent)
                 .setTitle(Component.translatable("text.quarkos_capes.title"))
                 .setDoesConfirmSave(false)
                 .setAlwaysShowTabs(true)
                 .setTransparentBackground(true)
-                .setSavingRunnable(() -> CapeBoard.save(value -> note = value));
+                .setSavingRunnable(() -> { held.edits.apply(); CapeBoard.save(value -> note = value); });
         ConfigEntryBuilder fields = builder.entryBuilder();
-        Held held = new Held();
         ConfigCategory mine = category(builder, "text.quarkos_capes.tab.mine");
         for (String sample : List.of("bands", "slide", "cloak")) mine.addEntry(new SampleRow(sample));
-        mine.addEntry(new ActionRow("text.quarkos_capes.button.save", () -> CapeBoard.save(value -> note = value)));
+        mine.addEntry(new ActionRow("text.quarkos_capes.button.save", () -> { held.edits.apply(); CapeBoard.save(value -> note = value); }));
         mine.addEntry(new ActionRow("text.quarkos_capes.button.publish", () -> CapeBoard.publish(value -> note = value)));
         mine.addEntry(new ActionRow("text.quarkos_capes.button.unpublish", () -> CapeBoard.unpublish(value -> note = value)));
 
@@ -111,9 +111,28 @@ final class ClothCapeScreen {
                 .setDefaultValue(dev.quarkos.capes.client.net.CapeCalls.DEFAULT_SERVICE_URL)
                 .setErrorSupplier(value -> dev.quarkos.capes.client.net.ServiceUrl.valid(value) ? Optional.empty()
                         : Optional.of(Component.translatable("text.quarkos_capes.status.invalid_url")))
-                .setSaveConsumer(CapeBoard::baseUrl)
                 .build();
         advanced.addEntry(held.baseUrl);
+
+        held.edits.track(held.style::getValue, value -> CapeBoard.style(CapeChoices.id(value)));
+        held.edits.track(held.animation::getValue, CapeBoard::animation);
+        held.edits.track(held.showBack::getValue, value -> CapeBook.previewBack = value);
+        held.edits.track(held.movement::getValue, CapeBoard::movement);
+        held.edits.track(held.mesh::getValue, CapeBoard::mesh);
+        held.edits.track(held.wind::getValue, CapeBoard::wind);
+        held.edits.track(held.gravity::getValue, CapeBoard::gravity);
+        held.edits.track(held.height::getValue, CapeBoard::height);
+        held.edits.track(held.strafe::getValue, CapeBoard::strafe);
+        held.edits.track(held.vector::getValue, CapeBoard::gravityVector);
+        held.edits.track(held.others::getValue, CapeBoard::showOthers);
+        held.edits.track(held.offline::getValue, CapeBoard::localOnly);
+        held.edits.track(held.elytra::getValue, CapeBoard::elytra);
+        held.edits.track(held.baseUrl::getValue, CapeBoard::baseUrl);
+        held.edits.track(held.optifine::getValue, value -> CapeBoard.provider("optifine", value));
+        held.edits.track(held.labymod::getValue, value -> CapeBoard.provider("labymod", value));
+        held.edits.track(held.minecraftCapes::getValue, value -> CapeBoard.provider("minecraftcapes", value));
+        held.edits.track(held.cosmetica::getValue, value -> CapeBoard.provider("cosmetica", value));
+        held.edits.track(held.cloaks::getValue, value -> CapeBoard.provider("cloaksplus", value));
 
         category(builder, "text.quarkos_capes.site.browse").addEntry(fields.startTextDescription(Component.translatable("text.quarkos_capes.site.browse")).build());
 
@@ -160,8 +179,6 @@ final class ClothCapeScreen {
                 .setDefaultValue(fallback)
                 .setTooltipSupplier(() -> compactHelp(Component.translatable(key.contains(".sample.") ? "text.quarkos_capes.tooltip.equip" : key.contains(".button.") ? key : "text.quarkos_capes.tooltip." + key.substring(key.lastIndexOf('.') + 1))))
                 .setYesNoTextSupplier(value -> CapeBoard.state(name, Boolean.TRUE.equals(value)))
-                .setSaveConsumer(value -> {
-                })
                 .build();
         category.addEntry(entry);
         return entry;
@@ -172,14 +189,13 @@ final class ClothCapeScreen {
                 .setDefaultValue(fallback)
                 .setTextGetter(current -> Component.translatable(name).append(" " + current))
                 .setTooltipSupplier(() -> compactHelp(Component.translatable("text.quarkos_capes.tooltip." + name.substring(name.lastIndexOf('.') + 1))))
-                .setSaveConsumer(current -> {
-                })
                 .build();
         category.addEntry(entry);
         return entry;
     }
 
     private static final class Held {
+        private final SettingsEdits edits = new SettingsEdits();
         private EnumListEntry<CapeChoices.Style> style;
         private EnumListEntry<WaveCloth.Movement> movement;
         private EnumListEntry<WaveCloth.Mesh> mesh;
@@ -253,36 +269,9 @@ final class ClothCapeScreen {
             if (busy) {
                 return;
             }
-            boolean dirty = false;
-            if (held.style.getValue() != CapeChoices.style()) {
-                CapeBoard.style(CapeChoices.id(held.style.getValue()));
-                dirty = true;
-            } else CapeBoard.animation(Boolean.TRUE.equals(held.animation.getValue()));
-            CapeBoard.movement(held.movement.getValue());
-            CapeBoard.mesh(held.mesh.getValue());
-            CapeBoard.wind(held.wind.getValue());
-            if (held.gravity.getValue() != ClientSettings.get().cloth.gravity()) {
-                CapeBoard.gravity(held.gravity.getValue());
-            }
-            if (held.height.getValue() != ClientSettings.get().cloth.heightMultiplier()) {
-                CapeBoard.height(held.height.getValue());
-            }
-            if (held.strafe.getValue() != ClientSettings.get().cloth.straveMultiplier()) {
-                CapeBoard.strafe(held.strafe.getValue());
-            }
-            if (Boolean.TRUE.equals(held.vector.getValue()) != ClientSettings.get().cloth.computeGravityVector()) {
-                CapeBoard.gravityVector(Boolean.TRUE.equals(held.vector.getValue()));
-            }
-            CapeBoard.provider("optifine", Boolean.TRUE.equals(held.optifine.getValue()));
-            CapeBoard.provider("labymod", Boolean.TRUE.equals(held.labymod.getValue()));
-            CapeBoard.provider("minecraftcapes", Boolean.TRUE.equals(held.minecraftCapes.getValue()));
-            CapeBoard.provider("cosmetica", Boolean.TRUE.equals(held.cosmetica.getValue()));
-            CapeBoard.provider("cloaksplus", Boolean.TRUE.equals(held.cloaks.getValue()));
-            CapeBoard.showOthers(Boolean.TRUE.equals(held.others.getValue()));
-            CapeBoard.localOnly(Boolean.TRUE.equals(held.offline.getValue()));
-            CapeBoard.elytra(Boolean.TRUE.equals(held.elytra.getValue()));
-            CapeBoard.baseUrl(held.baseUrl.getValue());
-            CapeBook.previewBack = Boolean.TRUE.equals(held.showBack.getValue());
+            CapeChoices.Style style = CapeChoices.style();
+            held.edits.apply();
+            boolean dirty = style != CapeChoices.style();
             CapeBook.preview = true;
             if (dirty) {
                 busy = true;

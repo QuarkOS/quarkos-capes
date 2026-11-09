@@ -39,7 +39,6 @@ import net.minecraft.resources.Identifier;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.function.Consumer;
 import java.util.function.UnaryOperator;
 
 /** Cloth settings with seven tabs and a responsive player preview. */
@@ -47,6 +46,7 @@ public final class CapeScreen {
     public static Screen current;
     private static Screen parent;
     private static boolean rebuilding;
+    private static SettingsEdits edits;
     private static String note = "";
     private static String query = "";
     private static int requestGeneration;
@@ -82,6 +82,7 @@ public final class CapeScreen {
 
     public static Screen create(Screen parentScreen, Component select) {
         parent = parentScreen;
+        edits = new SettingsEdits();
         ClientSettings settings = ClientSettings.get();
         OwnerCape cape = OwnerCape.get();
         ConfigBuilder builder = ConfigBuilder.create()
@@ -112,8 +113,8 @@ public final class CapeScreen {
 
         ConfigCategory styleCategory = builder.getOrCreateCategory(style);
         styleChoice = choice(fields, "style", CapeChoices.Style.class, CapeChoices.style());
-        animation = toggle(fields, "text.quarkos_capes.toggle.animation", cape.animateFrames, value -> OwnerCape.get().animateFrames = value);
-        showBack = toggle(fields, "text.quarkos_capes.preview.back", CapeBook.previewBack, value -> CapeBook.previewBack = value);
+        animation = toggle(fields, "text.quarkos_capes.toggle.animation", cape.animateFrames);
+        showBack = toggle(fields, "text.quarkos_capes.preview.back", CapeBook.previewBack);
         styleCategory.addEntry(styleChoice);
         styleCategory.addEntry(animation);
         styleCategory.addEntry(showBack);
@@ -126,7 +127,7 @@ public final class CapeScreen {
         gravity = slider(fields, "text.quarkos_capes.physics.gravity", cloth.gravity(), 5, 32);
         height = slider(fields, "text.quarkos_capes.physics.height", cloth.heightMultiplier(), 4, 16);
         strave = slider(fields, "text.quarkos_capes.physics.strafe", cloth.straveMultiplier(), 1, 8);
-        gravityVector = toggle(fields, "text.quarkos_capes.toggle.gravity_vector", cloth.computeGravityVector(), value -> clothSet(settings().cloth.movement(), settings().cloth.mesh(), settings().cloth.wind(), settings().cloth.gravity(), settings().cloth.heightMultiplier(), settings().cloth.straveMultiplier(), value));
+        gravityVector = toggle(fields, "text.quarkos_capes.toggle.gravity_vector", cloth.computeGravityVector());
         physicsCategory.addEntry(modelChoice);
         physicsCategory.addEntry(lookChoice);
         physicsCategory.addEntry(windChoice);
@@ -136,11 +137,11 @@ public final class CapeScreen {
         physicsCategory.addEntry(gravityVector);
 
         ConfigCategory sourcesCategory = builder.getOrCreateCategory(sources);
-        optifine = toggle(fields, "text.quarkos_capes.toggle.optifine", settings.enableOptifine, value -> settings().enableOptifine = value);
-        laby = toggle(fields, "text.quarkos_capes.toggle.labymod", settings.enableLabyMod, value -> settings().enableLabyMod = value);
-        minecraftCapes = toggle(fields, "text.quarkos_capes.toggle.minecraftcapes", settings.enableMinecraftCapesMod, value -> settings().enableMinecraftCapesMod = value);
-        cosmetica = toggle(fields, "text.quarkos_capes.toggle.cosmetica", settings.enableCosmetica, value -> settings().enableCosmetica = value);
-        cloaks = toggle(fields, "text.quarkos_capes.toggle.cloaksplus", settings.enableCloaksPlus, value -> settings().enableCloaksPlus = value);
+        optifine = toggle(fields, "text.quarkos_capes.toggle.optifine", settings.enableOptifine);
+        laby = toggle(fields, "text.quarkos_capes.toggle.labymod", settings.enableLabyMod);
+        minecraftCapes = toggle(fields, "text.quarkos_capes.toggle.minecraftcapes", settings.enableMinecraftCapesMod);
+        cosmetica = toggle(fields, "text.quarkos_capes.toggle.cosmetica", settings.enableCosmetica);
+        cloaks = toggle(fields, "text.quarkos_capes.toggle.cloaksplus", settings.enableCloaksPlus);
         sourcesCategory.addEntry(fields.startTextDescription(Component.translatable("text.quarkos_capes.sources.help")).build());
         sourcesCategory.addEntry(optifine);
         sourcesCategory.addEntry(laby);
@@ -203,15 +204,35 @@ public final class CapeScreen {
         }
 
         ConfigCategory advancedCategory = builder.getOrCreateCategory(advanced);
-        showOthers = toggle(fields, "text.quarkos_capes.toggle.show_others", settings.showOthers, value -> settings().showOthers = value);
-        localOnly = toggle(fields, "text.quarkos_capes.toggle.local_only", settings.localOnly, value -> settings().localOnly = value);
-        elytra = toggle(fields, "text.quarkos_capes.toggle.elytra", settings.enableElytraTexture, value -> settings().enableElytraTexture = value);
+        showOthers = toggle(fields, "text.quarkos_capes.toggle.show_others", settings.showOthers);
+        localOnly = toggle(fields, "text.quarkos_capes.toggle.local_only", settings.localOnly);
+        elytra = toggle(fields, "text.quarkos_capes.toggle.elytra", settings.enableElytraTexture);
         baseUrl = fields.startStrField(Component.translatable("text.quarkos_capes.field.base_url"), settings.baseUrl).setDefaultValue(settings.baseUrl)
                 .setErrorSupplier(value -> dev.quarkos.capes.client.net.ServiceUrl.valid(value) ? Optional.empty() : Optional.of(Component.translatable("text.quarkos_capes.status.invalid_url"))).build();
         advancedCategory.addEntry(showOthers);
         advancedCategory.addEntry(localOnly);
         advancedCategory.addEntry(elytra);
         advancedCategory.addEntry(baseUrl);
+
+        edits.track(styleChoice::getValue, value -> CapeBoard.style(CapeChoices.id(value)));
+        edits.track(animation::getValue, CapeBoard::animation);
+        edits.track(showBack::getValue, value -> CapeBook.previewBack = value);
+        edits.track(modelChoice::getValue, CapeBoard::movement);
+        edits.track(lookChoice::getValue, CapeBoard::mesh);
+        edits.track(windChoice::getValue, CapeBoard::wind);
+        edits.track(gravity::getValue, CapeBoard::gravity);
+        edits.track(height::getValue, CapeBoard::height);
+        edits.track(strave::getValue, CapeBoard::strafe);
+        edits.track(gravityVector::getValue, CapeBoard::gravityVector);
+        edits.track(showOthers::getValue, CapeBoard::showOthers);
+        edits.track(localOnly::getValue, CapeBoard::localOnly);
+        edits.track(elytra::getValue, CapeBoard::elytra);
+        edits.track(optifine::getValue, value -> CapeBoard.provider("optifine", value));
+        edits.track(laby::getValue, value -> CapeBoard.provider("labymod", value));
+        edits.track(minecraftCapes::getValue, value -> CapeBoard.provider("minecraftcapes", value));
+        edits.track(cosmetica::getValue, value -> CapeBoard.provider("cosmetica", value));
+        edits.track(cloaks::getValue, value -> CapeBoard.provider("cloaksplus", value));
+        edits.track(baseUrl::getValue, CapeBoard::baseUrl);
 
         builder.getOrCreateCategory(Component.translatable("text.quarkos_capes.site.browse"))
                 .addEntry(new ActionRow(Component.translatable("text.quarkos_capes.site.browse"),
@@ -339,57 +360,13 @@ public final class CapeScreen {
         if (rebuilding) {
             return;
         }
-        OwnerCape cape = OwnerCape.get();
-        if (styleChoice != null && CapeChoices.style() != styleChoice.getValue()) {
-            CapeBoard.style(CapeChoices.id(styleChoice.getValue()));
-            reopen(Component.translatable("text.quarkos_capes.tab.style"));
-            return;
-        }
-        if (animation != null) {
-            cape.animateFrames = Boolean.TRUE.equals(animation.getValue());
-        }
-        if (showBack != null) {
-            CapeBook.previewBack = Boolean.TRUE.equals(showBack.getValue());
-        }
-        WaveCloth.Settings cloth = settings().cloth;
-        if (modelChoice != null) movement(modelChoice.getValue());
-        if (lookChoice != null) mesh(lookChoice.getValue());
-        if (windChoice != null) wind(windChoice.getValue());
-        cloth = settings().cloth;
-        int gravityValue = gravity == null ? cloth.gravity() : gravity.getValue();
-        int heightValue = height == null ? cloth.heightMultiplier() : height.getValue();
-        int straveValue = strave == null ? cloth.straveMultiplier() : strave.getValue();
-        boolean vector = gravityVector != null && Boolean.TRUE.equals(gravityVector.getValue());
-        clothSet(cloth.movement(), cloth.mesh(), cloth.wind(), gravityValue, heightValue, straveValue, vector);
-        if (showOthers != null) {
-            settings().showOthers = Boolean.TRUE.equals(showOthers.getValue());
-        }
-        if (localOnly != null && settings().localOnly != Boolean.TRUE.equals(localOnly.getValue())) {
-            settings().localOnly = Boolean.TRUE.equals(localOnly.getValue());
-            Component category = current instanceof ClothConfigScreen config ? config.getSelectedCategory() : Component.translatable("text.quarkos_capes.tab.my_cape");
+        CapeChoices.Style style = CapeChoices.style();
+        boolean offline = settings().localOnly;
+        edits.apply();
+        if (style != CapeChoices.style() || offline != settings().localOnly) {
+            Component category = current instanceof ClothConfigScreen config ? config.getSelectedCategory()
+                    : Component.translatable("text.quarkos_capes.tab.my_cape");
             reopen(category);
-            return;
-        }
-        if (elytra != null) {
-            settings().enableElytraTexture = Boolean.TRUE.equals(elytra.getValue());
-        }
-        if (optifine != null) {
-            settings().enableOptifine = Boolean.TRUE.equals(optifine.getValue());
-        }
-        if (laby != null) {
-            settings().enableLabyMod = Boolean.TRUE.equals(laby.getValue());
-        }
-        if (minecraftCapes != null) {
-            settings().enableMinecraftCapesMod = Boolean.TRUE.equals(minecraftCapes.getValue());
-        }
-        if (cosmetica != null) {
-            settings().enableCosmetica = Boolean.TRUE.equals(cosmetica.getValue());
-        }
-        if (cloaks != null) {
-            settings().enableCloaksPlus = Boolean.TRUE.equals(cloaks.getValue());
-        }
-        if (baseUrl != null && baseUrl.getValue() != null && !baseUrl.getValue().isBlank()) {
-            CapeBoard.baseUrl(baseUrl.getValue());
         }
     }
 
@@ -433,12 +410,11 @@ public final class CapeScreen {
                 .setTooltipSupplier(selected -> help(CapeChoices.help(selected))).build();
     }
 
-    private static BooleanListEntry toggle(ConfigEntryBuilder fields, String key, boolean value, Consumer<Boolean> save) {
+    private static BooleanListEntry toggle(ConfigEntryBuilder fields, String key, boolean value) {
         return fields.startBooleanToggle(Component.translatable(key), value)
                 .setDefaultValue(value)
                 .setYesNoTextSupplier(on -> Component.translatable(on ? "options.on" : "options.off"))
                 .setTooltipSupplier(() -> help(Component.translatable("text.quarkos_capes.tooltip." + key.substring(key.lastIndexOf('.') + 1))))
-                .setSaveConsumer(save)
                 .build();
     }
 
@@ -453,25 +429,6 @@ public final class CapeScreen {
     private static void save() {
         pull();
         CapeBoard.save(CapeScreen::statusNote);
-    }
-
-    private static void movement(WaveCloth.Movement movement) {
-        WaveCloth.Settings cloth = settings().cloth;
-        clothSet(movement, cloth.mesh(), cloth.wind(), cloth.gravity(), cloth.heightMultiplier(), cloth.straveMultiplier(), cloth.computeGravityVector());
-    }
-
-    private static void mesh(WaveCloth.Mesh mesh) {
-        WaveCloth.Settings cloth = settings().cloth;
-        clothSet(cloth.movement(), mesh, cloth.wind(), cloth.gravity(), cloth.heightMultiplier(), cloth.straveMultiplier(), cloth.computeGravityVector());
-    }
-
-    private static void wind(WaveCloth.Wind wind) {
-        WaveCloth.Settings cloth = settings().cloth;
-        clothSet(cloth.movement(), cloth.mesh(), wind, cloth.gravity(), cloth.heightMultiplier(), cloth.straveMultiplier(), cloth.computeGravityVector());
-    }
-
-    private static void clothSet(WaveCloth.Movement movement, WaveCloth.Mesh mesh, WaveCloth.Wind wind, int gravityValue, int heightValue, int straveValue, boolean vector) {
-        settings().cloth = new WaveCloth.Settings(movement, mesh, wind, gravityValue, heightValue, straveValue, vector).clamped();
     }
 
     private static ClientSettings settings() {

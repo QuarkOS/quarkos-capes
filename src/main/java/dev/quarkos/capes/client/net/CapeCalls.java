@@ -13,8 +13,20 @@ import java.util.UUID;
  */
 public final class CapeCalls {
     public static final String USER_AGENT = "QuarkOS-Capes/1.0.0";
-    public static final String DEFAULT_SERVICE_URL = "http://127.0.0.1:8787";
+    public static final String DEFAULT_SERVICE_URL = defaultServiceUrl();
     public static final String DEFAULT_BASE = DEFAULT_SERVICE_URL;
+
+    private static String defaultServiceUrl() {
+        try (var stream = CapeCalls.class.getResourceAsStream("/quarkos_capes-service.properties")) {
+            if (stream != null) {
+                var properties = new java.util.Properties();
+                properties.load(new java.io.InputStreamReader(stream, StandardCharsets.UTF_8));
+                String value = properties.getProperty("serviceUrl");
+                if (ServiceUrl.valid(value)) return value.trim();
+            }
+        } catch (java.io.IOException ignored) { }
+        return "http://127.0.0.1:8787";
+    }
 
     public enum Kind {
         HEALTH,

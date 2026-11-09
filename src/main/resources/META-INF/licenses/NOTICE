@@ -1,0 +1,26 @@
+QuarkOS Capes 1.0.0 — third-party notices
+
+The mod's MIT license applies to original QuarkOS Capes code. Bundled libraries
+retain their own licenses and remain separate nested jars.
+
+OkHttp 3.14.9 and Okio 1.17.5
+Copyright Square, Inc. and contributors. Apache License, Version 2.0.
+License: Apache-2.0.txt
+Source: https://github.com/square/okhttp/tree/parent-3.14.9
+Source: https://github.com/square/okio/tree/okio-parent-1.17.5
+OkHttp's public suffix data has its own notice and MPL-2.0 terms:
+OkHttp-PublicSuffix-NOTICE.txt and MPL-2.0.txt.
+
+Cloth Config, by shedaniel and contributors
+Fabric 1.21.1 / Forge 1.21.1: 15.0.140; Fabric 1.21.11: 21.11.153.
+GNU Lesser General Public License, version 3.0 (LGPL-3.0-only).
+License: Cloth-Config-LGPL-3.0.md, with GPL-3.0.txt incorporated by reference.
+Source: https://github.com/shedaniel/cloth-config
+Published source artifacts: me.shedaniel.cloth:cloth-config-fabric:<version>:sources
+and me.shedaniel.cloth:cloth-config-forge:15.0.140:sources, at
+https://maven.shedaniel.me/
+Cloth Config is redistributed without source modifications. Its license is also
+preserved in the nested jar. Forge 1.21.11 does not bundle Cloth Config.
+
+Mod Menu is optional and is not bundled. Gson is supplied by Minecraft and is
+not bundled again. Build tools are not runtime dependencies.

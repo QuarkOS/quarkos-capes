@@ -168,4 +168,27 @@ class CatalogClientTest {
         } finally { settings.baseUrl = previous; }
     }
 
+    @Test void disabledOrUnavailableSourcesNeverProduceBrowsableTextures() {
+        for (String status : List.of("disabled", "unavailable")) {
+            var page = CatalogClient.page("{\"items\":[{\"source\":\"ours\",\"id\":\"local\"},{\"source\":\"labymod\",\"id\":\"cloak:abc\"}],"
+                    + "\"nextCursor\":\"more\",\"sources\":{\"ours\":\"available\",\"labymod\":\"" + status + "\"}}");
+            assertEquals(List.of("ours"), page.items().stream().map(CatalogClient.Item::source).toList());
+            assertEquals("more", page.nextCursor());
+            assertFalse(CatalogClient.sourceAvailable(page.sources(), "labymod"));
+        }
+        assertTrue(CatalogClient.sourceAvailable(Map.of(), "ours"));
+    }
+
+    @Test void serverDisableDoesNotFallBackToCachedDetail() throws Exception {
+        AtomicInteger calls = new AtomicInteger();
+        var client = new CatalogClient((m,u,b,e,p) -> calls.incrementAndGet() == 1
+                ? reply(200, "{\"source\":\"labymod\",\"id\":\"cloak:abc\"}", "tag")
+                : reply(503, "{\"error\":\"source_disabled\"}", null));
+        assertEquals("labymod", client.detail("http://local", "labymod", "cloak:abc").source());
+        var failure = assertThrows(CatalogClient.Failure.class,
+                () -> client.detail("http://local", "labymod", "cloak:abc"));
+        assertEquals(503, failure.status);
+        assertEquals(2, calls.get());
+    }
+
 }

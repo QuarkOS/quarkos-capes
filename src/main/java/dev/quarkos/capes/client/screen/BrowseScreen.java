@@ -137,6 +137,7 @@ public final class BrowseScreen extends Screen {
         }, error -> { if (minecraft.screen==this && request==generation) { loading.remove(key); failedImages.add(key); note=error; } });
     }
     private void select(CatalogClient.Item item) {
+        if (!CatalogClient.sourceAvailable(page.sources(), item.source())) return;
         selected=item; draft=null; int request=++selection;
         note=SiteApi.message("loading"); rebuild();
         SiteApi.detail(item,detail -> {
@@ -151,6 +152,7 @@ public final class BrowseScreen extends Screen {
     private void reset() { cursor=""; history.clear(); offset=0; load(); }
     private void load() {
         int request=++generation;
+        selection++; selected=null; draft=null;
         if (ClientSettings.get().localOnly) {
             busy=false; note=""; selected=null; draft=null; clearImages();
             page=new CatalogClient.Page(List.of(),null,Map.of()); rebuild(); return;
@@ -164,6 +166,7 @@ public final class BrowseScreen extends Screen {
             page=result; offset=0; busy=false;
             note=result.items().isEmpty()?SiteApi.message(result.nextCursor()==null?"empty":"empty_page"):"";
             if (result.sources().containsValue("unavailable")) note=SiteApi.message("source_unavailable");
+            if (result.sources().containsValue("disabled")) note=SiteApi.message("source_disabled");
             rebuild();
         },error -> { if (request==generation && minecraft.screen==this) { busy=false; note(error); } });
     }

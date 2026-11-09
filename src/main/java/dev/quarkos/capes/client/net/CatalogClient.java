@@ -99,7 +99,11 @@ public final class CatalogClient {
         if (doc.get("items") instanceof List<?> list) for (Object value : list) { Item item = item(value); if (item != null) items.add(item); }
         Map<String, String> sources = new LinkedHashMap<>();
         if (doc.get("sources") instanceof Map<?, ?> map) map.forEach((k,v) -> { if (k instanceof String a && v instanceof String b) sources.put(a,b); });
+        items.removeIf(item -> !sourceAvailable(sources, item.source()));
         return new Page(List.copyOf(items), string(doc, "nextCursor", null), Map.copyOf(sources));
+    }
+    public static boolean sourceAvailable(Map<String, String> sources, String source) {
+        return "available".equals(sources.getOrDefault(source, "available"));
     }
     public static Item item(Object value) {
         if (!(value instanceof Map<?, ?>)) return null;

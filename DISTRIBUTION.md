@@ -6,7 +6,7 @@ Do not upload this file. It is the description to paste later.
 
 QuarkOS Capes 1.0.0 is a Fabric and Forge client mod for Minecraft 1.21.1 and 1.21.11. Pick a local cape, play a frame strip, sim cloth, or wear a cube cloak. Read public cape APIs when you turn a provider on. Share a cape through your own gallery service. Browse the website catalog, wear or unwear a cape, claim a website link code, and display other players’ website wearing references. Animated capes are free.
 
-The seven tabs are My Cape, Style, Physics, Sources, Gallery, Advanced, and Browse. Offline mode is on by default; Browse and Gallery offer Go online. The default service URL is `http://127.0.0.1:8787` until the production URL is known (`CapeCalls.DEFAULT_SERVICE_URL`).
+The seven tabs are My Cape, Style, Physics, Sources, Gallery, Advanced, and Browse. Offline mode is on by default; Browse and Gallery offer Go online. Set the production default with `-PserviceUrl=<URL>`; `CapeCalls.DEFAULT_SERVICE_URL` reads the generated jar resource. `verifyReleaseJar` rejects localhost/example defaults unless `-PallowLocalService=true` is explicitly supplied for local validation. See [the release checklist](docs/RELEASE-CHECKLIST.md) and [privacy disclosure](docs/PRIVACY.md).
 
 ## Required
 

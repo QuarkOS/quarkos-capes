@@ -9,10 +9,10 @@ Capes for everyone, no paywall. Pick a cape, make it move the way you like, and 
 
 - **Your own cape, your way.** Flat like vanilla, an animated frame strip, a cloth cape that waves, or a 3D model cloak.
 - **Physics you can tune.** Classic vanilla movement or cloth simulation (soft or stiff), smooth or blocky look, wind on or off, and a gravity slider.
-- **Live preview.** The settings screen shows your player wearing the cape on every tab. Show back turns the preview so you see the cape.
+- **Live preview.** Settings and Browse show your player wearing the cape when the window has room; compact layouts hide the preview. Show back turns the preview so you see the cape.
 - **Browse in game.** The Browse tab lists capes and cloaks from the QuarkOS Capes site. Search, filter by source and kind, sort by Popular, Newest or Name, preview on your player, then Wear or Unwear.
-- **One-click wear.** Wearing a cape from Browse saves it to your account on the site, so other players with the mod see it too.
-- **See other players' capes.** Players who use the mod see each other's capes. Optional read-only sources (OptiFine, LabyMod, MinecraftCapes, Cosmetica, Cloaks+) can be switched on in Sources.
+- **One-click wear.** Wearing a cape from Browse saves a reference for your authenticated Minecraft identity on the site. Other online players with the mod and Show others enabled can see it; LabyMod references also require their LabyMod source switch.
+- **See other players' capes.** Online players with Show others enabled can see website-worn and published capes. Local samples and edits stay local until shared. Optional read-only sources (OptiFine, LabyMod, MinecraftCapes, Cosmetica, Cloaks+) can be switched on in Sources.
 - **Link your website account** from in game with a short code from the site.
 - **Share your own cape** to the gallery, search it, and unpublish it any time.
 - **Elytra support.** A 2:1 cape image also shows on your elytra.
@@ -38,4 +38,6 @@ Client-side only. Servers do not need it.
 - No textures from Mojang, Minecon or Migrator ship in the jar.
 - Source: [PLACEHOLDER: source URL] · Issues: [PLACEHOLDER: issues URL] · Website: [PLACEHOLDER: site URL]
 
-License: MIT. Made by Emilio Schwaiger (QuarkOS).
+Original mod code: MIT; bundled libraries retain their licenses. Made by Emilio Schwaiger (QuarkOS).
+
+Website features require an available configured service and online mode; Wear/Unwear, Link and publishing require Minecraft authentication. LabyMod Name sorting applies within discovery windows, and Newest follows upstream order. See the release checklist before publishing these claims.
