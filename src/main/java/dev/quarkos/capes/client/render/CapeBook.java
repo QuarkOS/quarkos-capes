@@ -63,6 +63,8 @@ public final class CapeBook {
 
     public static void remote(UUID id, Remote meta) {
         if (meta == null) {
+            String key = TEXTURE_KEYS.remove(id);
+            if (key != null) CapeTextures.clear(key);
             REMOTE.remove(id);
             REMOTE_SOURCES.remove(id);
         } else {

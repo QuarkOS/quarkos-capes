@@ -18,6 +18,8 @@ public final class SiteApi {
     public static final CatalogClient CLIENT = new CatalogClient(CapeHttp::siteExchange);
     private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
     private static final Map<UUID, String> REMOTE = new ConcurrentHashMap<>();
+    private static final Map<UUID, String> PENDING_IMAGES = new ConcurrentHashMap<>();
+    private static int remoteGeneration;
     private static int tick;
     private static String config = "";
     private static volatile String lastError = "No HTTP error recorded; waiting for UI/render observation";
@@ -27,7 +29,7 @@ public final class SiteApi {
                 ? message(f.key) + (f.status > 0 ? " (HTTP " + f.status + ")" : "")
                 : message("error") + " (" + error.getClass().getSimpleName() + ")";
         lastError = message;
-        return message;
+        return error instanceof CatalogClient.Failure f ? message(f.key) : message("error");
     }
     private static Object world;
     private SiteApi() { }
@@ -104,9 +106,7 @@ public final class SiteApi {
         String base = ClientSettings.get().baseUrl;
         if (!CapeHttp.download(() -> {
             try {
-                var response = CapeHttp.siteExchange("GET", item.textureUrl(),null,null,null);
-                if (response.status()/100 != 2) throw new CatalogClient.Failure(response.status(),"image_error");
-                byte[] bytes = response.bytes();
+                byte[] bytes = CapeHttp.siteImage(item.textureUrl());
                 if (!item.sha256().isBlank()) {
                     String hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
                     if (!hash.equalsIgnoreCase(item.sha256())) throw new java.io.IOException("hash");
@@ -119,11 +119,12 @@ public final class SiteApi {
         })) fail.accept(message("busy"));
     }
     public static void tick(Minecraft client) {
-        if (world != client.level) { world = client.level; REMOTE.clear(); tick = 0; }
+        if (world != client.level) { world = client.level; REMOTE.clear(); PENDING_IMAGES.clear(); remoteGeneration++; tick = 0; }
         REMOTE.keySet().removeIf(id -> PlayerFacts.byUuid(id) == null);
+        PENDING_IMAGES.keySet().removeIf(id -> PlayerFacts.byUuid(id) == null);
         ClientSettings s = ClientSettings.get();
         String now = s.baseUrl + s.localOnly + s.showOthers + s.enableLabyMod;
-        if (!now.equals(config)) { config = now; tick = 0; REMOTE.clear(); CapeBook.clearPlayers(); }
+        if (!now.equals(config)) { config = now; tick = 0; REMOTE.clear(); PENDING_IMAGES.clear(); remoteGeneration++; CapeBook.clearPlayers(); }
         if (client.level == null || s.localOnly || !s.showOthers || tick++ % 600 != 0) return;
         List<UUID> ids = new ArrayList<>();
         for (var player : client.level.players()) if (player != client.player) ids.add(player.getUUID());
@@ -142,14 +143,18 @@ public final class SiteApi {
         ClientSettings s = ClientSettings.get();
         if (s.localOnly || !s.showOthers || PlayerFacts.byUuid(id) == null) return;
         if (item == null || (item.source().equals("labymod") && !s.enableLabyMod)) {
-            if (REMOTE.remove(id) != null) { CapeBook.remote(id,null); CapeTextures.clear(CapeBook.textureKey(id)); }
+            PENDING_IMAGES.remove(id);
+            if (REMOTE.remove(id) != null) CapeBook.remote(id,null);
             return;
         }
         String identity = item.source() + "/" + item.id() + "/" + item.sha256() + "/" + item.textureUrl()
                 + "/" + item.style() + item.animateFrames() + "/" + item.frameCount() + "/" + item.frameWidth() + "/" + item.frameHeight()
                 + "/" + Arrays.toString(item.delays()) + "/" + item.modelJson();
         if (identity.equals(REMOTE.get(id)) && CapeBook.remote(id)!=null && CapeTextures.get(CapeBook.textureKey(id))!=null) return;
+        if (identity.equals(PENDING_IMAGES.put(id, identity))) return;
+        int request = remoteGeneration;
         image(item, png -> {
+            if (request != remoteGeneration || !PENDING_IMAGES.remove(id, identity)) return;
             ClientSettings latest = ClientSettings.get();
             if (PlayerFacts.byUuid(id) == null || !latest.showOthers || latest.localOnly || (item.source().equals("labymod") && !latest.enableLabyMod)) return;
             OwnerCape cape = owner(item,png);
@@ -157,6 +162,6 @@ public final class SiteApi {
             if (texture == null) return;
             CapeBook.remote(id,new CapeBook.Remote(cape.style,cape.animateFrames,cape.frameCount,cape.frameWidth,cape.frameHeight,cape.frameDelayMs,cape.modelJson,"accepted"));
             CapeBook.remoteSource(id,item.source()); REMOTE.put(id,identity);
-        }, ignored -> { });
+        }, ignored -> { if (request == remoteGeneration) PENDING_IMAGES.remove(id, identity); });
     }
 }

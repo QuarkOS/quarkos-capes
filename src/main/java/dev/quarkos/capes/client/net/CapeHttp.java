@@ -96,6 +96,8 @@ public final class CapeHttp {
         return bearer;
     }
 
+    private static final ServiceBackoff HEALTH = new ServiceBackoff();
+
     public static CatalogClient.Reply siteExchange(String method, String url, String token, String etag, byte[] body) throws Exception {
         if (ClientSettings.get().localOnly) throw new CatalogClient.Failure(0, "offline");
         Request.Builder request = new Request.Builder().url(url).header("User-Agent", CapeCalls.USER_AGENT);
@@ -103,6 +105,7 @@ public final class CapeHttp {
         if (etag != null) request.header("If-None-Match", etag);
         request.method(method, method.equals("GET") || method.equals("DELETE") ? null
                 : RequestBody.create(JSON, body == null ? new byte[0] : body));
+        HEALTH.before(url);
         sent++;
         try (Response response = HTTP.newCall(request.build()).execute()) {
             ResponseBody payload = response.body();
@@ -110,7 +113,11 @@ public final class CapeHttp {
             byte[] bytes = payload == null ? new byte[0] : payload.byteStream().readNBytes(8 * 1024 * 1024 + 1);
             if (bytes.length > 8 * 1024 * 1024) throw new IOException("response too large");
             if (response.code() == 401 && token != null && token.equals(bearer)) bearer = null;
+            validateResponse(url, response.code(), bytes, response.header("Retry-After"));
             return new CatalogClient.Reply(response.code(), bytes, response.header("ETag"), response.header("Retry-After"));
+        } catch (Exception failure) {
+            if (!(failure instanceof CatalogClient.Failure f && (f.status == 429 || f.status >= 500))) HEALTH.failed(url, null);
+            throw failure;
         }
     }
 
@@ -288,18 +295,24 @@ public final class CapeHttp {
             return;
         }
         // Keep legacy worn uploads as a fallback. A resolved site reference takes priority.
+        String base = settings.baseUrl;
         List<UUID> legacy = facts.stream().map(PlayerFacts.Fact::id).filter(id -> !SiteApi.hasReference(id)).toList();
         for (List<UUID> chunk : CatalogClient.chunks(legacy)) {
             try {
                 String ids = String.join(",", chunk.stream().map(UUID::toString).toList());
-                Reply response = raw("GET", URI.create(settings.baseUrl.replaceAll("/+$", "") + "/v1/capes?uuids=" + ids), null, false);
+                Reply response = raw("GET", URI.create(base.replaceAll("/+$", "") + "/v1/capes?uuids=" + ids), null, false);
                 if (response != null && response.status / 100 == 2) {
-                    Map<String, Object> doc = JsonValues.object(JsonValues.parse(response.text()));
-                    if (doc.get("capes") instanceof Map<?, ?> capes) for (UUID id : chunk) {
-                        Object value = capes.get(id.toString());
-                        if (!SiteApi.hasReference(id) && (!(value instanceof Map<?,?> meta) || !"accepted".equals(meta.get("status")))) CapeBook.remote(id,null);
-                    }
-                    readBatch(response.text());
+                    String body = response.text();
+                    Minecraft.getInstance().execute(() -> {
+                        ClientSettings current = ClientSettings.get();
+                        if (current.localOnly || !current.showOthers || !base.equals(current.baseUrl)) return;
+                        Map<String, Object> doc = JsonValues.object(JsonValues.parse(body));
+                        if (doc.get("capes") instanceof Map<?, ?> capes) for (UUID id : chunk) {
+                            Object value = capes.get(id.toString());
+                            if (!SiteApi.hasReference(id) && (!(value instanceof Map<?,?> meta) || !"accepted".equals(meta.get("status")))) CapeBook.remote(id,null);
+                        }
+                        readBatch(body);
+                    });
                 }
             } catch (Exception ignored) { /* Providers remain available when the service is down. */ }
         }
@@ -360,13 +373,15 @@ public final class CapeHttp {
             return;
         }
         try {
+            String base = ClientSettings.get().baseUrl;
             Reply response = sendBytes(CapeCalls.Kind.GET_ASSET, uuid.toString());
             if (response == null || response.status / 100 != 2) {
                 return;
             }
             byte[] png = response.bytes;
             Minecraft.getInstance().execute(() -> {
-                if (!ClientSettings.get().localOnly && PlayerFacts.byUuid(uuid) != null && !SiteApi.hasReference(uuid))
+                if (!ClientSettings.get().localOnly && ClientSettings.get().showOthers && base.equals(ClientSettings.get().baseUrl)
+                        && PlayerFacts.byUuid(uuid) != null && !SiteApi.hasReference(uuid))
                     CapeTextures.upload(CapeBook.textureKey(uuid), png, false, false);
             });
         } catch (Exception ignored) {
@@ -617,12 +632,61 @@ public final class CapeHttp {
             MediaType type = "PUT".equals(method) ? FORM : JSON;
             builder.method(method, RequestBody.create(type, body));
         }
+        String url = uri.toString();
+        HEALTH.before(url);
         sent++;
         try (Response response = HTTP.newCall(builder.build()).execute()) {
             ResponseBody responseBody = response.body();
-            byte[] bytes = responseBody == null ? new byte[0] : responseBody.bytes();
+            byte[] bytes = responseBody == null ? new byte[0] : responseBody.byteStream().readNBytes(8 * 1024 * 1024 + 1);
+            if (bytes.length > 8 * 1024 * 1024) throw new IOException("response too large");
+            validateResponse(url, response.code(), bytes, response.header("Retry-After"));
             return new Reply(response.code(), bytes, response.header("Content-Type", ""));
+        } catch (Exception failure) {
+            if (!(failure instanceof CatalogClient.Failure f && (f.status == 429 || f.status >= 500))) HEALTH.failed(url, null);
+            throw failure;
         }
+    }
+
+    private static void validateResponse(String url, int status, byte[] bytes, String retryAfter) throws CatalogClient.Failure {
+        if (status == 429 || status >= 500) {
+            HEALTH.failed(url, retryAfter);
+            throw new CatalogClient.Failure(status, CatalogClient.errorKey(status));
+        }
+        if (status / 100 == 2 && status != 204) {
+            String path = URI.create(url).getPath();
+            boolean imageRoute = path.endsWith("/asset") || path.endsWith(".png");
+            boolean serviceJson = path.contains("/v1/") && !imageRoute;
+            if (imageRoute || (!serviceJson && ServiceBackoff.png(bytes))) validateImage(bytes);
+            else {
+                ServiceBackoff.validateContract(url, bytes);
+                if (serviceJson) {
+                    Object api = JsonValues.object(JsonValues.parse(new String(bytes, StandardCharsets.UTF_8))).get("api");
+                    if (!(api instanceof Long version) || version != 1L) throw new CatalogClient.Failure(0, "error");
+                }
+            }
+        }
+        if (status / 100 == 2) HEALTH.success(url);
+    }
+
+    private static void validateImage(byte[] bytes) throws CatalogClient.Failure {
+        if (!ServiceBackoff.png(bytes) || bytes.length < 24) throw new CatalogClient.Failure(0, "image_error");
+        var header = java.nio.ByteBuffer.wrap(bytes);
+        int width = header.getInt(16), height = header.getInt(20);
+        if (width < 1 || height < 1 || width > 8192 || height > 8192 || (long)width * height > 16_777_216L)
+            throw new CatalogClient.Failure(0, "image_error");
+        try (var image = com.mojang.blaze3d.platform.NativeImage.read(new java.io.ByteArrayInputStream(bytes))) {
+            if (image.getWidth() != width || image.getHeight() != height) throw new CatalogClient.Failure(0, "image_error");
+        } catch (Exception invalid) { throw new CatalogClient.Failure(0, "image_error"); }
+    }
+
+    public static byte[] siteImage(String url) throws Exception {
+        CatalogClient.Reply response = siteExchange("GET", url, null, null, null);
+        if (response.status() / 100 != 2) throw new CatalogClient.Failure(response.status(), "image_error");
+        if (!ServiceBackoff.png(response.bytes())) {
+            HEALTH.failed(url, null);
+            throw new CatalogClient.Failure(0, "image_error");
+        }
+        return response.bytes();
     }
 
     private static byte[] multipart(OwnerCape cape) {

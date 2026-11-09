@@ -22,6 +22,10 @@ Press O in game, or use Mod Menu when it is installed, to open the settings scre
 
 Offline mode is on by default. While it is on, the client makes no HTTP call, including provider reads and the gallery. Browse and Gallery offer a Go online button while offline. My Cape offers the bundled samples (bands, slide, and the cloak). Equipping a shared cape, once you are online, copies it locally and does not change who published it.
 
+Capes yields cape drawing when Capes by CaelTheColher (`capes`), WaveyCapes (`waveycapes`), or MinecraftCapes (`minecraftcapes`) is installed, and logs one warning. The other mod controls the visible cape; Capes settings, saving and website features remain available. Remove the other cape renderer to display Capes samples and custom geometry. 3D Skin Layers (`skinlayers3d`) does not disable cape drawing.
+
+Advanced accepts HTTP or HTTPS service URLs and keeps the last valid URL while an invalid edit is shown. Service failures appear in the screen status; retries back off exponentially (up to one minute, or up to five minutes for a server Retry-After).
+
 ## Libraries
 
 Our code stays MIT. These libraries are not relicensed.

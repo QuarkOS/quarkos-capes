@@ -128,7 +128,37 @@ public final class FlowHarness {
             return;
         }
         *///?}
-        CapeBoard.equipSample(sample);
+        Object row = entry("text.quarkos_capes.sample." + sample);
+        require(row instanceof ContainerEventHandler, "Missing Cloth sample row: " + sample);
+        var button = ((ContainerEventHandler) row).children().stream().filter(child -> child instanceof Button).findFirst();
+        require(button.isPresent(), "Missing Cloth Equip button: " + sample);
+        Button equip = (Button) button.get();
+        if (!CapeBoard.sampleOn(sample)) McBridge.press(equip);
+        require(CapeBoard.sampleOn(sample), "Cloth Equip did not equip: " + sample);
+    }
+    private static String actionNote() {
+        //? if fabric {
+        return dev.quarkos.capes.client.screen.CapeScreen.note();
+        //?} else {
+        /*String type = mc.screen.getClass().getName().contains("ClothConfig")
+                ? "dev.quarkos.capes.client.screen.ClothCapeScreen" : mc.screen.getClass().getName();
+        try {
+            var field = Class.forName(type).getDeclaredField("note"); field.setAccessible(true);
+            return String.valueOf(field.get(mc.screen.getClass().getName().contains("ClothConfig") ? null : mc.screen));
+        } catch (ReflectiveOperationException failure) { throw new IllegalStateException(failure); }
+        *///?}
+    }
+    private static void action(String shot, String key, String progress, String expected) {
+        waitFor(shot, () -> {
+            Object row = entry(key);
+            if (row instanceof ContainerEventHandler container) {
+                var button = container.children().stream().filter(child -> child instanceof Button b && b.active).findFirst();
+                require(button.isPresent(), "Missing Cloth action button: " + key);
+                McBridge.press((Button) button.get());
+            } else click(net.minecraft.network.chat.Component.translatable(key).getString());
+        },
+                () -> !actionNote().equals(status(progress)),
+                () -> require(actionNote().equals(status(expected)), "Action status: " + actionNote()));
     }
     private static void localDraw() { require(CapeBook.draws(mc.player.getUUID())>0,"Local cape did not draw"); }
     private static void build(int number) {
@@ -149,7 +179,8 @@ public final class FlowHarness {
                 },FlowHarness::localDraw);
             }
             case 10 -> {
-                async(null,done->{open(5);savedSettings=ClientSettings.get().json();LocalFiles.saveAsync(done::accept);},value->require(Boolean.TRUE.equals(value),"Save failed"));
+                scene(null, () -> { open(0); savedSettings=ClientSettings.get().json(); }, () -> {});
+                action(null, "text.quarkos_capes.button.save", "saving", "saved");
                 scene("main",()->{LocalFiles.load();open(5);},()->require(savedSettings.equals(ClientSettings.get().json()),"Settings round trip changed values"));
             }
             case 11 -> {
@@ -178,12 +209,14 @@ public final class FlowHarness {
                 async(null,done->CapeBoard.save(done::accept),value->require(value.equals(status("saved")),String.valueOf(value)));
             }
             case 13 -> {
-                async("published",done->{CapeBoard.equipSample("bands");open(0);CapeBoard.publish(done::accept);},value->require(value.equals(status("published")),String.valueOf(value)));
-                async("main",done->CapeBoard.unpublish(done::accept),value->require(value.equals(status("unpublished")),String.valueOf(value)));
+                scene(null, () -> { open(0); equipSample("bands"); }, () -> {});
+                action("published", "text.quarkos_capes.button.publish", "publishing", "published");
+                action("main", "text.quarkos_capes.button.unpublish", "unpublishing", "unpublished");
             }
             case 14 -> {
                 // Re-publish the fixture after flow 13 proved unpublish, so search has a public item to find.
-                async(null,done->CapeBoard.publish(done::accept),value->require(value.equals(status("published")),String.valueOf(value)));
+                scene(null, () -> open(0), () -> {});
+                action(null, "text.quarkos_capes.button.publish", "publishing", "published");
                 async(null,done->CapeHttp.gallery("","",50,"",done::accept,failure()),value->{
                     var page=(GalleryPages.Page)value;var item=page.entries().stream().filter(e->e.id().equals(ownId)).findFirst();
                     require(item.isPresent(),"Published cape missing from gallery");publishedTitle=item.get().title();

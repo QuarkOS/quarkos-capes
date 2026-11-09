@@ -20,6 +20,7 @@ public final class BrowseScreen extends Screen {
     private final Screen parent;
     private final Map<String,byte[]> images = new HashMap<>();
     private final Set<String> loading = new HashSet<>();
+    private final Set<String> failedImages = new HashSet<>();
     private final List<String> history = new ArrayList<>();
     private CatalogClient.Page page = new CatalogClient.Page(List.of(),null,Map.of());
     private CatalogClient.Item selected, wearing;
@@ -28,6 +29,7 @@ public final class BrowseScreen extends Screen {
     private int source, kind, sort, offset, generation, selection;
     private boolean loaded, busy, writing;
     private EditBox search;
+    private int headerLeft, headerRight;
     public BrowseScreen(Screen parent) { super(text("browse_title")); this.parent = parent; }
     public BrowseScreen(Screen parent,String source) { this(parent); this.source=source.equals("ours")?1:source.equals("labymod")?2:0; }
     public static Component text(String key) { return Component.translatable("text.quarkos_capes.site." + key); }
@@ -69,11 +71,23 @@ public final class BrowseScreen extends Screen {
         clearWidgets();
         int left = divider(), right = width-left-8;
         boolean offline = ClientSettings.get().localOnly;
-        button("back",8,6,Math.min(80,left-16),this::onClose);
-        button("link",width-88,6,80,() -> minecraft.setScreen(new LinkScreen(this)));
-        search = addRenderableWidget(new EditBox(font,8,30,width-94,20,text("search")));
+        int backWidth = Math.min(font.width(text("back")) + 16, (width - 32) / 3);
+        Component linkLabel = text("link");
+        int linkWidth = font.width(linkLabel) + 16;
+        if (linkWidth > (width - font.width(getTitle()) - 32) / 2) {
+            linkLabel = text("link_short"); linkWidth = font.width(linkLabel) + 16;
+        }
+        if (linkWidth > (width - 32) / 3) {
+            linkLabel = text("link_minimal"); linkWidth = font.width(linkLabel) + 16;
+        }
+        linkWidth = Math.min(linkWidth, (width - 32) / 3);
+        button("back",8,6,backWidth,this::onClose);
+        addRenderableWidget(Button.builder(linkLabel,b -> minecraft.setScreen(new LinkScreen(this))).bounds(width-8-linkWidth,6,linkWidth,20).tooltip(Tooltip.create(text("link"))).build());
+        headerLeft = 16 + backWidth; headerRight = width - 16 - linkWidth;
+        int searchWidth = Math.min(font.width(text("search")) + 16, (width - 24) / 3);
+        search = addRenderableWidget(new EditBox(font,8,30,width-24-searchWidth,20,text("search")));
         search.setMaxLength(48); search.setValue(query); search.setResponder(value -> query=value);
-        button("search",width-82,30,74,this::reset);
+        button("search",width-8-searchWidth,30,searchWidth,this::reset);
         String[] sources = {"all_sources","ours","labymod"}, kinds={"all_kinds","cape","cloak"}, sorts={"popular","newest","name"};
         int chip = (width-16)/3;
         button(sources[source],8,54,chip-2,() -> { source=(source+1)%3; reset(); });
@@ -82,8 +96,8 @@ public final class BrowseScreen extends Screen {
         if (!offline) for (int i=offset;i<Math.min(page.items().size(),offset+capacity());i++) {
             CatalogClient.Item item = page.items().get(i); int cell=i-offset;
             int x=8+cell%columns()*((left-16)/columns()), y=80+cell/columns()*50;
-            Button tile=addRenderableWidget(Button.builder(Component.literal(font.plainSubstrByWidth(item.title(),(left-16)/columns()-8)),b -> select(item))
-                    .bounds(x,y,(left-16)/columns()-4,46).tooltip(Tooltip.create(Component.literal(item.title()).append("\n").append(credit(item)).append(item.source().equals("labymod") ? Component.literal("\n").append(text("non_affiliation")) : Component.empty()))).build());
+            Button tile=addRenderableWidget(Button.builder(Component.literal(ellipsis(item.title(),(left-16)/columns()-12)),b -> select(item))
+                    .bounds(x,y,(left-16)/columns()-4,46).tooltip(Tooltip.create(Component.literal(item.title()).append("\n").append(text(item.source()).copy().append(" · ").append(item.author().isBlank() ? credit(item) : Component.literal(item.author()))).append(item.source().equals("labymod") ? Component.literal("\n").append(text("non_affiliation")) : Component.empty()))).build());
             thumbnail(item);
         }
         button("previous",8,height-56,Math.max(50,(left-20)/2),this::previous);
@@ -115,12 +129,12 @@ public final class BrowseScreen extends Screen {
     private Component credit(CatalogClient.Item item) { return item.source().equals("labymod") ? text("credit") : Component.literal(item.author()); }
     private void thumbnail(CatalogClient.Item item) {
         String key=key(item);
-        if (images.containsKey(key) || !loading.add(key)) return;
+        if (images.containsKey(key) || failedImages.contains(key) || !loading.add(key)) return;
         int request=generation;
         SiteApi.image(item,png -> {
             if (minecraft.screen!=this || request!=generation) return;
             loading.remove(key); images.put(key,png); CapeTextures.upload("browse/"+key,png,false,false);
-        }, error -> { if (request==generation) { loading.remove(key); note=error; } });
+        }, error -> { if (minecraft.screen==this && request==generation) { loading.remove(key); failedImages.add(key); note=error; } });
     }
     private void select(CatalogClient.Item item) {
         selected=item; draft=null; int request=++selection;
@@ -182,7 +196,8 @@ public final class BrowseScreen extends Screen {
         graphics.fill(0,0,width,height,0xFF1A2029);
         super.render(graphics,mouseX,mouseY,delta);
         int left=divider();
-        graphics.drawCenteredString(font,getTitle(),width/2,12,0xFFFFFFFF);
+        int titleWidth = Math.max(1, Math.min(width / 2 - headerLeft, headerRight - width / 2) * 2);
+        graphics.drawCenteredString(font,Component.literal(ellipsis(getTitle().getString(),titleWidth)),width/2,12,0xFFFFFFFF);
         if (ClientSettings.get().localOnly) {
             graphics.drawCenteredString(font,text("offline_title"),left/2,emptyY(),0xFFFFFFFF);
             graphics.drawCenteredString(font,Component.literal(font.plainSubstrByWidth(text("offline_help").getString(),left-16)),left/2,emptyY()+14,0xFFB6C8DD);
@@ -209,7 +224,14 @@ public final class BrowseScreen extends Screen {
         }
         graphics.drawString(font,font.plainSubstrByWidth(note,width-16),8,height-30,0xFFFFD980);
     }
-    private void clearImages() { for (String key:images.keySet()) CapeTextures.clear("browse/"+key); images.clear(); loading.clear(); }
+    private String ellipsis(String value, int available) {
+        if (font.width(value) <= available) return value;
+        String cut = font.plainSubstrByWidth(value,Math.max(0,available-font.width("…"))).stripTrailing();
+        int word = cut.lastIndexOf(' ');
+        if (word > 0 && cut.length() < value.length() && value.charAt(cut.length()) != ' ') cut = cut.substring(0,word);
+        return cut + "…";
+    }
+    private void clearImages() { for (String key:images.keySet()) CapeTextures.clear("browse/"+key); images.clear(); loading.clear(); failedImages.clear(); }
     @Override public void removed() { clearImages(); generation++; selection++; }
     @Override public void onClose() { CapeBook.draft=null; CapeBook.preview=false; minecraft.setScreen(CapeScreens.refreshed(parent)); }
 }

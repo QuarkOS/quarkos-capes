@@ -206,7 +206,8 @@ public final class CapeScreen {
         showOthers = toggle(fields, "text.quarkos_capes.toggle.show_others", settings.showOthers, value -> settings().showOthers = value);
         localOnly = toggle(fields, "text.quarkos_capes.toggle.local_only", settings.localOnly, value -> settings().localOnly = value);
         elytra = toggle(fields, "text.quarkos_capes.toggle.elytra", settings.enableElytraTexture, value -> settings().enableElytraTexture = value);
-        baseUrl = fields.startStrField(Component.translatable("text.quarkos_capes.field.base_url"), settings.baseUrl).setDefaultValue(settings.baseUrl).build();
+        baseUrl = fields.startStrField(Component.translatable("text.quarkos_capes.field.base_url"), settings.baseUrl).setDefaultValue(settings.baseUrl)
+                .setErrorSupplier(value -> dev.quarkos.capes.client.net.ServiceUrl.valid(value) ? Optional.empty() : Optional.of(Component.translatable("text.quarkos_capes.status.invalid_url"))).build();
         advancedCategory.addEntry(showOthers);
         advancedCategory.addEntry(localOnly);
         advancedCategory.addEntry(elytra);
@@ -388,7 +389,7 @@ public final class CapeScreen {
             settings().enableCloaksPlus = Boolean.TRUE.equals(cloaks.getValue());
         }
         if (baseUrl != null && baseUrl.getValue() != null && !baseUrl.getValue().isBlank()) {
-            settings().baseUrl = baseUrl.getValue();
+            CapeBoard.baseUrl(baseUrl.getValue());
         }
     }
 
@@ -445,6 +446,7 @@ public final class CapeScreen {
         return fields.startIntSlider(Component.translatable(key), value, min, max)
                 .setDefaultValue(value)
                 .setTextGetter(number -> Component.literal(Integer.toString(number)))
+                .setTooltipSupplier(() -> help(Component.translatable("text.quarkos_capes.tooltip." + key.substring(key.lastIndexOf('.') + 1))))
                 .build();
     }
 
@@ -658,13 +660,19 @@ public final class CapeScreen {
         @Override
         public void render(GuiGraphics graphics, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float delta) {
             Minecraft minecraft = Minecraft.getInstance();
+            if (texture != null) {
+                String sample = texture.equals(CapeTextures.bandsTexture()) ? "bands" : texture.equals(CapeTextures.slideTexture()) ? "slide" : "cloak";
+                equip.active = !CapeBoard.sampleOn(sample);
+                equip.setMessage(Component.translatable(equip.active ? "text.quarkos_capes.gallery.equip" : "text.quarkos_capes.gallery.equipped"));
+                equip.setWidth(80);
+            }
             if (tag.isEmpty()) {
                 graphics.drawString(minecraft.font, getFieldName(), x, y + 8, 0xFFFFFFFF);
                 if (texture != null) {
                     McBridge.capeThumb(graphics, texture, x + 80, y + 8, 20, 32, textureWidth, textureHeight, width, height);
                 }
                 if (equip != null) {
-                    equip.setX(Math.max(x, Math.min(x + 148, previewLeft(minecraft.screen) - 68)));
+                    equip.setX(Math.max(x, Math.min(x + 148, previewLeft(minecraft.screen) - 88)));
                     equip.setY(y + 12);
                     equip.render(graphics, mouseX, mouseY, delta);
                 }
@@ -775,6 +783,7 @@ public final class CapeScreen {
 
         @Override
         public void render(GuiGraphics graphics, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float delta) {
+            button.setWidth(Math.min(140, entryWidth));
             button.setX(x);
             button.setY(y);
             button.render(graphics, mouseX, mouseY, delta);

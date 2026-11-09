@@ -203,7 +203,7 @@ public final class CapeBoard {
     }
 
     public static void baseUrl(String url) {
-        if (url != null && !url.isBlank()) {
+        if (dev.quarkos.capes.client.net.ServiceUrl.valid(url)) {
             settings().baseUrl = url.trim();
         }
     }

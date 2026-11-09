@@ -103,7 +103,69 @@ class CatalogClientTest {
     @Test void writesSendJsonAndDoNotShareGetCache() throws Exception {
         AtomicReference<String> method=new AtomicReference<>();
         var client=new CatalogClient((m,u,b,e,p)->{method.set(m);assertEquals("bearer",b);assertNull(e);
-            assertEquals("ours",JsonValues.object(JsonValues.parse(new String(p,StandardCharsets.UTF_8))).get("source"));return reply(200,"{}",null);});
+            assertEquals("ours",JsonValues.object(JsonValues.parse(new String(p,StandardCharsets.UTF_8))).get("source"));return reply(200,fixture("wearing"),null);});
         client.request("http://local","PUT","/v1/me/wearing","bearer",Map.of("source","ours","id","x"));assertEquals("PUT",method.get());
     }
+    @Test void unreachableTransportBacksOffExponentiallyAndRecovers() throws Exception {
+        AtomicLong time = new AtomicLong(); AtomicInteger calls = new AtomicInteger();
+        var client = new CatalogClient((m,u,b,e,p) -> {
+            if (calls.incrementAndGet() < 3) throw new java.io.IOException("unreachable");
+            return reply(200, "{}", null);
+        }, time::get);
+        assertThrows(java.io.IOException.class, () -> client.request("http://local", "GET", "/x", null, null));
+        time.set(1999);
+        assertThrows(CatalogClient.Failure.class, () -> client.request("http://local", "GET", "/x", null, null));
+        assertEquals(1, calls.get());
+        time.set(2000);
+        assertThrows(java.io.IOException.class, () -> client.request("http://local", "GET", "/x", null, null));
+        time.set(5999);
+        assertThrows(CatalogClient.Failure.class, () -> client.request("http://local", "GET", "/x", null, null));
+        assertEquals(2, calls.get());
+        time.set(6000); assertEquals(200, client.request("http://local", "GET", "/x", null, null).status());
+        assertEquals(200, client.request("http://local", "GET", "/x", null, null).status());
+        assertEquals(4, calls.get());
+    }
+    @Test void malformedSuccessIsNotCachedAndUsesBackoff() throws Exception {
+        for (String body : List.of("<html>proxy error</html>", "garbage", "[]", "{}", "{broken")) {
+            AtomicLong time = new AtomicLong(); AtomicInteger calls = new AtomicInteger();
+            var client = new CatalogClient((m,u,b,e,p) -> {
+                assertNull(e);
+                return reply(200, calls.incrementAndGet() == 1 ? body : "{\"items\":[]}", "bad-tag");
+            }, time::get);
+            assertThrows(CatalogClient.Failure.class, () -> client.page("http://local", new CatalogClient.Query("ours", "", "", "", "", "", "", 8)));
+            assertThrows(CatalogClient.Failure.class, () -> client.page("http://local", new CatalogClient.Query("ours", "", "", "", "", "", "", 8)));
+            assertEquals(1, calls.get()); time.set(2000);
+            assertTrue(client.page("http://local", new CatalogClient.Query("ours", "", "", "", "", "", "", 8)).items().isEmpty());
+            assertEquals(2, calls.get());
+        }
+    }
+    @Test void sharedOriginBackoffCoversOtherEndpointsAndHonorsRetryAfter() throws Exception {
+        AtomicLong time = new AtomicLong();
+        var backoff = new dev.quarkos.capes.client.net.ServiceBackoff(time::get);
+        backoff.failed("https://service.test/v1/catalog", "30");
+        assertThrows(CatalogClient.Failure.class, () -> backoff.before("https://service.test/v1/auth/challenge"));
+        backoff.before("https://other.test/v1/catalog");
+        time.set(29999); assertThrows(CatalogClient.Failure.class, () -> backoff.before("https://service.test/image.png"));
+        time.set(30000); backoff.before("https://service.test/image.png");
+        backoff.failed("https://service.test/image.png", null);
+        time.set(33999); assertThrows(CatalogClient.Failure.class, () -> backoff.before("https://service.test/v1/catalog"));
+        time.set(34000); backoff.before("https://service.test/v1/catalog");
+        backoff.success("https://service.test/v1/catalog");
+        backoff.failed("https://service.test/image.png", "999999999999999999999");
+        time.set(36000); backoff.before("https://service.test/v1/catalog");
+    }
+    @Test void invalidServiceUrlsKeepLastValidSetting() {
+        var settings = dev.quarkos.capes.client.local.ClientSettings.get(); String previous = settings.baseUrl;
+        try {
+            for (String value : List.of("", "http://", "garbage", "file:///etc/config", "ftp://service.test", "https://user:secret@service.test", "https://service.test?x=1", "https://service.test/#fragment", "http://service.test:70000")) {
+                dev.quarkos.capes.client.screen.CapeBoard.baseUrl(value);
+                assertEquals(previous, settings.baseUrl, value);
+            }
+            dev.quarkos.capes.client.screen.CapeBoard.baseUrl(" https://service.test/api ");
+            assertEquals("https://service.test/api", settings.baseUrl);
+            assertTrue(dev.quarkos.capes.client.net.ServiceUrl.valid("http://127.0.0.1:8787"));
+            assertTrue(dev.quarkos.capes.client.net.ServiceUrl.valid("http://[::1]:8787"));
+        } finally { settings.baseUrl = previous; }
+    }
+
 }

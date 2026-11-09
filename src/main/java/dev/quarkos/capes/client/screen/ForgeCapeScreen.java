@@ -121,7 +121,11 @@ public final class ForgeCapeScreen extends Screen {
                             Component.translatable("text.quarkos_capes.field.base_url")));
                     service.setMaxLength(2048);
                     service.setValue(ClientSettings.get().baseUrl);
-                    service.setResponder(CapeBoard::baseUrl);
+                    service.setResponder(value -> {
+                        if (dev.quarkos.capes.client.net.ServiceUrl.valid(value)) {
+                            CapeBoard.baseUrl(value); note = "";
+                        } else note = Component.translatable("text.quarkos_capes.status.invalid_url").getString();
+                    });
                     service.setTooltip(Tooltip.create(Component.translatable("text.quarkos_capes.field.base_url")));
                 }
             }
@@ -206,7 +210,8 @@ public final class ForgeCapeScreen extends Screen {
         int row = rowIndex++;
         if (row / rowLimit != page) return y + 22;
         y = 56 + row % rowLimit * 22;
-        addRenderableWidget(new NamedSlider(x, y, width, name, value, min, max, changed));
+        var slider = addRenderableWidget(new NamedSlider(x, y, width, name, value, min, max, changed));
+        slider.setTooltip(Tooltip.create(Component.translatable("text.quarkos_capes.tooltip." + name.substring(name.lastIndexOf('.') + 1))));
         return y + 22;
     }
 

@@ -19,20 +19,22 @@ import java.util.UUID;
 /** One draw path for the world and the picker preview. */
 public final class CapeDraw {
     private static byte[] localPng;
+    private static byte[] rejectedPng;
 
     private CapeDraw() {
     }
 
     public static void syncLocal() {
         OwnerCape cape = CapeBook.preview && CapeBook.draft != null ? CapeBook.draft : OwnerCape.get();
-        if (cape.png == localPng && (cape.png.length == 0 || CapeTextures.get("local") != null)) {
+        if (cape.png == localPng && (cape.png.length == 0 || CapeTextures.get("local") != null || cape.png == rejectedPng)) {
             return;
         }
         localPng = cape.png;
         if (cape.png.length == 0) { CapeTextures.clear("local"); return; }
         if (CapeTextures.upload("local", cape.png, false, false) == null) {
+            rejectedPng = cape.png;
             CapeTextures.clear("local");
-        }
+        } else rejectedPng = null;
     }
 
     public static void emit(PoseStack.Pose pose, VertexConsumer consumer, int light, UUID id, CapeBook.Choice choice, boolean preview) {
