@@ -190,8 +190,8 @@ public final class McBridge {
             player.yHeadRot = player.yHeadRotO = 0f;
             Quaternionf pose = new Quaternionf().rotateZ((float) Math.PI);
             // Inventory's upright basis faces the camera. Turn it to expose the cape.
+            // Below 1.21.11 the inventory basis already shows the back; 1.21.11 (bodyRot 180) shows the front.
             //? if <1.21.11 {
-            // <1.21.11: the inventory basis already shows the back; 1.21.11 (bodyRot 180) shows the front.
             /*pose.rotateY((float) Math.toRadians(dev.quarkos.capes.client.render.CapeBook.previewBack ? 25 : 155));
             *///?} else {
             pose.rotateY((float) Math.toRadians(dev.quarkos.capes.client.render.CapeBook.previewBack ? 155 : 25));
