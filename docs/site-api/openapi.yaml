@@ -1,0 +1,1970 @@
+"openapi": "3.1.0"
+"info":
+  "title": "QuarkOS Capes API"
+  "version": "1.0.0"
+  "description": "Self-hosted catalog and cape reference service. See API.md for authentication, source ordering, rate limits, and compatibility details. No upstream image relay."
+"servers":
+  -
+    "url": "http://127.0.0.1:8787"
+    "description": "Local default; set CAPES_PUBLIC_URL in hosting"
+"paths":
+  "/v1/health":
+    "get":
+      "summary": "Service health"
+      "operationId": "getV1Health"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "ok":
+                    "type": "boolean"
+                "required":
+                  - "api"
+                  - "ok"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+  "/v1/catalog":
+    "get":
+      "summary": "Browse the unified catalog"
+      "operationId": "getV1Catalog"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Catalog"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "source"
+          "in": "query"
+          "required": false
+          "schema":
+            "enum":
+              - ""
+              - "ours"
+              - "labymod"
+        -
+          "name": "kind"
+          "in": "query"
+          "required": false
+          "schema":
+            "enum":
+              - ""
+              - "cape"
+              - "cloak"
+        -
+          "name": "q"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+            "maxLength": 48
+        -
+          "name": "sort"
+          "in": "query"
+          "required": false
+          "schema":
+            "enum":
+              - "popular"
+              - "newest"
+              - "name"
+            "default": "popular"
+        -
+          "name": "style"
+          "in": "query"
+          "required": false
+          "schema":
+            "enum":
+              - ""
+              - "flat"
+              - "frames"
+              - "wave"
+              - "model"
+        -
+          "name": "tag"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+            "maxLength": 48
+        -
+          "name": "cursor"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+        -
+          "name": "limit"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "integer"
+            "minimum": 1
+            "maximum": 50
+            "default": 20
+      "description": "LabyMod metadata is fetched live with a bounded TTL cache; textures are never relayed. Name sort is alphabetical per fixed 50-item upstream discovery window. Newest preserves upstream order where timestamps are unavailable. Empty pages may carry a nextCursor. See API.md for merge semantics."
+  "/v1/catalog/{source}/{id}":
+    "get":
+      "summary": "Get a uniform item"
+      "operationId": "getV1CatalogSourceId"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/ItemDetail"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "source"
+          "in": "path"
+          "required": true
+          "schema":
+            "enum":
+              - "ours"
+              - "labymod"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+  "/v1/catalog/{source}/{id}/report":
+    "post":
+      "summary": "Report an item"
+      "operationId": "postV1CatalogSourceIdReport"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "stored":
+                    "type": "boolean"
+                  "id":
+                    "type": "string"
+                    "format": "uuid"
+                "required":
+                  - "api"
+                  - "stored"
+                  - "id"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "source"
+          "in": "path"
+          "required": true
+          "schema":
+            "enum":
+              - "ours"
+              - "labymod"
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+      "security":
+        - {}
+        -
+          "webSession": []
+          "csrf": []
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "reason":
+                  "type": "string"
+                  "minLength": 1
+                  "maxLength": 280
+              "required":
+                - "reason"
+  "/v1/me/wearing":
+    "put":
+      "summary": "Equip an item by reference"
+      "operationId": "putV1MeWearing"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Wearing"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "description": "Web users must link Minecraft first (409 minecraft_not_linked). Repeated identical equips do not increment wear counts."
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+          "csrf": []
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "$ref": "#/components/schemas/WearReference"
+    "get":
+      "summary": "Get your active reference"
+      "operationId": "getV1MeWearing"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Wearing"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+    "delete":
+      "summary": "Remove your active reference"
+      "operationId": "deleteV1MeWearing"
+      "responses":
+        "204":
+          "description": "No content"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+          "csrf": []
+  "/v1/players/{uuid}/wearing":
+    "get":
+      "summary": "Resolve a player’s active cape"
+      "operationId": "getV1PlayersUuidWearing"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Wearing"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+        "304":
+          "description": "ETag matches"
+      "parameters":
+        -
+          "name": "uuid"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+        -
+          "name": "If-None-Match"
+          "in": "header"
+          "required": false
+          "schema":
+            "type": "string"
+  "/v1/players/wearing":
+    "get":
+      "summary": "Resolve up to 50 players in request order"
+      "operationId": "getV1PlayersWearing"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "players":
+                    "type": "array"
+                    "maxItems": 50
+                    "items":
+                      "$ref": "#/components/schemas/Wearing"
+                "required":
+                  - "api"
+                  - "players"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+        "304":
+          "description": "ETag matches"
+      "parameters":
+        -
+          "name": "uuids"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+            "description": "Comma-separated UUIDs, up to 50; empty is allowed."
+        -
+          "name": "If-None-Match"
+          "in": "header"
+          "required": false
+          "schema":
+            "type": "string"
+  "/v1/link/code":
+    "post":
+      "summary": "Create an eight-character one-time link code"
+      "operationId": "postV1LinkCode"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "code":
+                    "type": "string"
+                    "pattern": "^[A-F0-9]{8}$"
+                  "expiresAt":
+                    "type": "string"
+                    "format": "date-time"
+                "required":
+                  - "api"
+                  - "code"
+                  - "expiresAt"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        -
+          "webSession": []
+          "csrf": []
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties": {}
+              "required": []
+  "/v1/link/claim":
+    "post":
+      "summary": "Claim a web code using a Mojang-authenticated bearer"
+      "operationId": "postV1LinkClaim"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Claim"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        -
+          "minecraftBearer": []
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "code":
+                  "type": "string"
+                  "pattern": "^[A-Fa-f0-9]{8}$"
+              "required":
+                - "code"
+  "/v1/account/register":
+    "post":
+      "summary": "Register a local account"
+      "operationId": "postV1AccountRegister"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Account"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "description": "Sets a seven-day HttpOnly SameSite=Lax cookie, Secure when public origin uses HTTPS. Any supplied Origin must match CAPES_PUBLIC_URL."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "username":
+                  "type": "string"
+                  "pattern": "^[A-Za-z0-9_]{3,24}$"
+                "password":
+                  "type": "string"
+                  "minLength": 10
+                  "maxLength": 128
+                  "writeOnly": true
+              "required":
+                - "username"
+                - "password"
+  "/v1/account/login":
+    "post":
+      "summary": "Login a local account"
+      "operationId": "postV1AccountLogin"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Account"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "description": "Sets a seven-day HttpOnly SameSite=Lax cookie, Secure when public origin uses HTTPS. Any supplied Origin must match CAPES_PUBLIC_URL."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "username":
+                  "type": "string"
+                  "pattern": "^[A-Za-z0-9_]{3,24}$"
+                "password":
+                  "type": "string"
+                  "minLength": 10
+                  "maxLength": 128
+                  "writeOnly": true
+              "required":
+                - "username"
+                - "password"
+  "/v1/account":
+    "get":
+      "summary": "Read web identity and CSRF token"
+      "operationId": "getV1Account"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Account"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        - {}
+        -
+          "webSession": []
+    "delete":
+      "summary": "Sign out this web session"
+      "operationId": "deleteV1Account"
+      "responses":
+        "204":
+          "description": "No content"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        -
+          "webSession": []
+          "csrf": []
+  "/v1/auth/challenge":
+    "post":
+      "summary": "Issue a two-minute Minecraft challenge"
+      "operationId": "postV1AuthChallenge"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "serverId":
+                    "type": "string"
+                  "expiresAt":
+                    "type": "string"
+                    "format": "date-time"
+                "required":
+                  - "api"
+                  - "serverId"
+                  - "expiresAt"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties": {}
+              "required": []
+  "/v1/auth/complete":
+    "post":
+      "summary": "Verify Mojang hasJoined and issue a 12-hour bearer"
+      "operationId": "postV1AuthComplete"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "token":
+                    "type": "string"
+                  "uuid":
+                    "type": "string"
+                    "format": "uuid"
+                  "name":
+                    "type": "string"
+                  "expiresAt":
+                    "type": "string"
+                    "format": "date-time"
+                "required":
+                  - "api"
+                  - "token"
+                  - "uuid"
+                  - "name"
+                  - "expiresAt"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "description": "Never send an accessToken to this endpoint. Dev1 signed bearers remain supported only in explicit loopback dev mode."
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "username":
+                  "type": "string"
+                "serverId":
+                  "type": "string"
+              "required":
+                - "username"
+                - "serverId"
+  "/v1/auth/session":
+    "delete":
+      "summary": "Revoke a Minecraft session"
+      "operationId": "deleteV1AuthSession"
+      "responses":
+        "204":
+          "description": "No content"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        -
+          "minecraftBearer": []
+  "/v1/uploads/{id}":
+    "put":
+      "summary": "Publish a cleaned cape"
+      "operationId": "putV1UploadsId"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Item"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+          "csrf": []
+      "requestBody":
+        "required": true
+        "content":
+          "multipart/form-data":
+            "schema":
+              "type": "object"
+              "properties":
+                "file":
+                  "type": "string"
+                  "format": "binary"
+                  "description": "PNG/GIF <=1 MiB. Frames: 64x32 or 22x17 integer multiples, <=512x256, <=32 frames, <=4,194,304 pixels."
+                "title":
+                  "type": "string"
+                  "minLength": 1
+                  "maxLength": 48
+                "tags":
+                  "type": "string"
+                  "description": "JSON array, <=5 tags, each <=24 characters"
+                "style":
+                  "enum":
+                    - "flat"
+                    - "frames"
+                    - "wave"
+                    - "model"
+                "animateFrames":
+                  "enum":
+                    - "true"
+                    - "false"
+                "frameCount":
+                  "type": "integer"
+                  "minimum": 1
+                  "maximum": 32
+                "frameWidth":
+                  "type": "integer"
+                "frameHeight":
+                  "type": "integer"
+                "frameDelayMs":
+                  "type": "string"
+                  "description": "JSON array of 50–1000 ms integers"
+                "model":
+                  "type": "string"
+                  "description": "JSON encoded Model, required with model style, <=16 KiB"
+              "required":
+                - "file"
+                - "title"
+                - "style"
+                - "animateFrames"
+    "patch":
+      "summary": "Edit metadata and re-enter moderation"
+      "operationId": "patchV1UploadsId"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Item"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+          "csrf": []
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "title":
+                  "type": "string"
+                  "minLength": 1
+                  "maxLength": 48
+                "tags":
+                  "type": "array"
+                  "maxItems": 5
+                  "items":
+                    "type": "string"
+                    "maxLength": 24
+              "required":
+                - "title"
+                - "tags"
+    "post":
+      "summary": "Unpublish while keeping files"
+      "operationId": "postV1UploadsId"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "ok":
+                    "type": "boolean"
+                "required":
+                  - "api"
+                  - "ok"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+          "csrf": []
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "action":
+                  "const": "unpublish"
+              "required":
+                - "action"
+    "delete":
+      "summary": "Delete an owned upload"
+      "operationId": "deleteV1UploadsId"
+      "responses":
+        "204":
+          "description": "No content"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+          "csrf": []
+  "/v1/me/capes":
+    "get":
+      "summary": "List all your uploads including held or unpublished items"
+      "operationId": "getV1MeCapes"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "items":
+                    "type": "array"
+                    "items":
+                      "$ref": "#/components/schemas/Item"
+                "required":
+                  - "api"
+                  - "items"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+  "/v1/admin":
+    "get":
+      "summary": "Read reports and non-public upload queue"
+      "operationId": "getV1Admin"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "reports":
+                    "type": "array"
+                    "items":
+                      "type": "object"
+                  "items":
+                    "type": "array"
+                    "items":
+                      "$ref": "#/components/schemas/Item"
+                "required":
+                  - "api"
+                  - "reports"
+                  - "items"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        -
+          "adminBearer": []
+        -
+          "webSession": []
+  "/v1/admin/action":
+    "post":
+      "summary": "Moderate an item, publishing access, or report"
+      "operationId": "postV1AdminAction"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "ok":
+                    "type": "boolean"
+                "required":
+                  - "api"
+                  - "ok"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "security":
+        -
+          "adminBearer": []
+        -
+          "webSession": []
+          "csrf": []
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "action":
+                  "enum":
+                    - "approve"
+                    - "restore"
+                    - "takedown"
+                    - "hold"
+                    - "ban"
+                    - "resolve"
+                "source":
+                  "enum":
+                    - "ours"
+                    - "labymod"
+                "id":
+                  "type": "string"
+                "username":
+                  "type": "string"
+                "banned":
+                  "type": "boolean"
+                "reportId":
+                  "type": "string"
+                  "format": "uuid"
+              "required":
+                - "action"
+  "/v1/gallery":
+    "get":
+      "summary": "Legacy gallery list"
+      "operationId": "getV1Gallery"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "items":
+                    "type": "array"
+                    "items":
+                      "$ref": "#/components/schemas/GalleryRecord"
+                  "nextCursor":
+                    "anyOf":
+                      -
+                        "type": "string"
+                      -
+                        "type": "null"
+                "required":
+                  - "api"
+                  - "items"
+                  - "nextCursor"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "q"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+        -
+          "name": "style"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+        -
+          "name": "limit"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+        -
+          "name": "cursor"
+          "in": "query"
+          "required": false
+          "schema":
+            "type": "string"
+  "/v1/gallery/{id}":
+    "get":
+      "summary": "Legacy gallery get"
+      "operationId": "getV1GalleryId"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/GalleryRecord"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+    "put":
+      "summary": "Legacy gallery put"
+      "operationId": "putV1GalleryId"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/GalleryRecord"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+          "csrf": []
+      "requestBody":
+        "required": true
+        "content":
+          "multipart/form-data":
+            "schema":
+              "type": "object"
+              "properties":
+                "file":
+                  "type": "string"
+                  "format": "binary"
+                  "description": "PNG/GIF <=1 MiB. Frames: 64x32 or 22x17 integer multiples, <=512x256, <=32 frames, <=4,194,304 pixels."
+                "title":
+                  "type": "string"
+                  "minLength": 1
+                  "maxLength": 48
+                "style":
+                  "enum":
+                    - "flat"
+                    - "frames"
+                    - "wave"
+                    - "model"
+                "animateFrames":
+                  "enum":
+                    - "true"
+                    - "false"
+                "frameCount":
+                  "type": "integer"
+                  "minimum": 1
+                  "maximum": 32
+                "frameWidth":
+                  "type": "integer"
+                "frameHeight":
+                  "type": "integer"
+                "frameDelayMs":
+                  "type": "string"
+                  "description": "JSON array of 50–1000 ms integers"
+                "model":
+                  "type": "string"
+                  "description": "JSON encoded Model, required with model style, <=16 KiB"
+              "required":
+                - "file"
+                - "style"
+                - "animateFrames"
+    "delete":
+      "summary": "Legacy gallery delete"
+      "operationId": "deleteV1GalleryId"
+      "responses":
+        "204":
+          "description": "No content"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "security":
+        -
+          "minecraftBearer": []
+        -
+          "webSession": []
+          "csrf": []
+  "/v1/gallery/{id}/asset":
+    "get":
+      "summary": "Cleaned PNG asset"
+      "operationId": "getV1GalleryIdAsset"
+      "responses":
+        "200":
+          "description": "Cleaned PNG"
+          "content":
+            "image/png":
+              "schema":
+                "type": "string"
+                "format": "binary"
+        "304":
+          "description": "ETag matches"
+        "404":
+          "description": "Not public or absent"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+  "/v1/gallery/{id}/report":
+    "post":
+      "summary": "Legacy report"
+      "operationId": "postV1GalleryIdReport"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "stored":
+                    "type": "boolean"
+                  "id":
+                    "type": "string"
+                "required":
+                  - "api"
+                  - "stored"
+                  - "id"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "reason":
+                  "type": "string"
+              "required":
+                - "reason"
+  "/v1/gallery/{id}/takedown":
+    "post":
+      "summary": "Legacy admin takedown"
+      "operationId": "postV1GalleryIdTakedown"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/GalleryRecord"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$"
+      "security":
+        -
+          "adminBearer": []
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties": {}
+              "required": []
+  "/v1/capes/{uuid}":
+    "get":
+      "summary": "Legacy player cape get"
+      "operationId": "getV1CapesUuid"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/CapeRecord"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "uuid"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+    "put":
+      "summary": "Legacy player cape put"
+      "operationId": "putV1CapesUuid"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/CapeRecord"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "uuid"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "security":
+        -
+          "minecraftBearer": []
+      "requestBody":
+        "required": true
+        "content":
+          "multipart/form-data":
+            "schema":
+              "type": "object"
+              "properties":
+                "file":
+                  "type": "string"
+                  "format": "binary"
+                  "description": "PNG/GIF <=1 MiB. Frames: 64x32 or 22x17 integer multiples, <=512x256, <=32 frames, <=4,194,304 pixels."
+                "style":
+                  "enum":
+                    - "flat"
+                    - "frames"
+                    - "wave"
+                    - "model"
+                "animateFrames":
+                  "enum":
+                    - "true"
+                    - "false"
+                "frameCount":
+                  "type": "integer"
+                  "minimum": 1
+                  "maximum": 32
+                "frameWidth":
+                  "type": "integer"
+                "frameHeight":
+                  "type": "integer"
+                "frameDelayMs":
+                  "type": "string"
+                  "description": "JSON array of 50–1000 ms integers"
+                "model":
+                  "type": "string"
+                  "description": "JSON encoded Model, required with model style, <=16 KiB"
+              "required":
+                - "file"
+                - "style"
+                - "animateFrames"
+    "delete":
+      "summary": "Legacy player cape delete"
+      "operationId": "deleteV1CapesUuid"
+      "responses":
+        "204":
+          "description": "No content"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "uuid"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "security":
+        -
+          "minecraftBearer": []
+  "/v1/capes/{uuid}/asset":
+    "get":
+      "summary": "Legacy cleaned player PNG"
+      "operationId": "getV1CapesUuidAsset"
+      "responses":
+        "200":
+          "description": "Cleaned PNG"
+          "content":
+            "image/png":
+              "schema":
+                "type": "string"
+                "format": "binary"
+        "304":
+          "description": "ETag matches"
+        "404":
+          "description": "Not public or absent"
+      "parameters":
+        -
+          "name": "uuid"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+  "/v1/capes/{uuid}/moderation":
+    "post":
+      "summary": "Legacy player cape moderation"
+      "operationId": "postV1CapesUuidModeration"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/CapeRecord"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "uuid"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+            "format": "uuid"
+      "security":
+        -
+          "adminBearer": []
+      "requestBody":
+        "required": true
+        "content":
+          "application/json":
+            "schema":
+              "type": "object"
+              "properties":
+                "status":
+                  "enum":
+                    - "accepted"
+                    - "pending"
+                    - "rejected"
+              "required":
+                - "status"
+  "/v1/capes":
+    "get":
+      "summary": "Legacy batch player metadata"
+      "operationId": "getV1Capes"
+      "responses":
+        "200":
+          "description": "Success"
+          "content":
+            "application/json":
+              "schema":
+                "type": "object"
+                "properties":
+                  "api":
+                    "type": "integer"
+                    "const": 1
+                  "capes":
+                    "type": "array"
+                    "items":
+                      "$ref": "#/components/schemas/CapeRecord"
+                "required":
+                  - "api"
+                  - "capes"
+        "default":
+          "description": "Error (400, 401, 403, 404, 405, 409, 413, 415, 422, 429, 503)"
+          "content":
+            "application/json":
+              "schema":
+                "$ref": "#/components/schemas/Error"
+      "parameters":
+        -
+          "name": "uuids"
+          "in": "query"
+          "required": true
+          "schema":
+            "type": "string"
+  "/v1/admin/items/{id}/asset":
+    "get":
+      "summary": "Admin preview of a non-public cleaned PNG"
+      "operationId": "getAdminItemAsset"
+      "security":
+        -
+          "adminBearer": []
+        -
+          "webSession": []
+      "parameters":
+        -
+          "name": "id"
+          "in": "path"
+          "required": true
+          "schema":
+            "type": "string"
+      "responses":
+        "200":
+          "description": "Cleaned PNG"
+          "content":
+            "image/png":
+              "schema":
+                "type": "string"
+                "format": "binary"
+        "401":
+          "description": "Authentication required"
+        "403":
+          "description": "Admin role required"
+        "404":
+          "description": "No upload"
+"components":
+  "securitySchemes":
+    "minecraftBearer":
+      "type": "http"
+      "scheme": "bearer"
+      "description": "12-hour Mojang hasJoined session"
+    "adminBearer":
+      "type": "http"
+      "scheme": "bearer"
+      "description": "CAPES_ADMIN_TOKEN, moderation only"
+    "webSession":
+      "type": "apiKey"
+      "in": "cookie"
+      "name": "capes_session"
+    "csrf":
+      "type": "apiKey"
+      "in": "header"
+      "name": "X-CSRF-Token"
+      "description": "Required for cookie-authenticated writes, omitted on reads"
+  "schemas":
+    "Error":
+      "type": "object"
+      "properties":
+        "api":
+          "type": "integer"
+          "const": 1
+        "error":
+          "type": "string"
+        "message":
+          "type": "string"
+      "required":
+        - "api"
+        - "error"
+        - "message"
+    "Item":
+      "type": "object"
+      "properties":
+        "id":
+          "type": "string"
+        "source":
+          "enum":
+            - "ours"
+            - "labymod"
+        "kind":
+          "enum":
+            - "cape"
+            - "cloak"
+        "title":
+          "type": "string"
+        "author":
+          "type": "string"
+        "tags":
+          "type": "array"
+          "items":
+            "type": "string"
+        "uses":
+          "type": "integer"
+          "minimum": 0
+        "style":
+          "enum":
+            - "flat"
+            - "frames"
+            - "wave"
+            - "model"
+        "frameCount":
+          "type": "integer"
+          "minimum": 1
+          "maximum": 32
+        "frameWidth":
+          "type": "integer"
+        "frameHeight":
+          "type": "integer"
+        "frameDelayMs":
+          "type": "array"
+          "items":
+            "type": "integer"
+            "minimum": 50
+            "maximum": 1000
+        "animateFrames":
+          "type": "boolean"
+        "model":
+          "anyOf":
+            -
+              "$ref": "#/components/schemas/Model"
+            -
+              "type": "null"
+        "textureUrl":
+          "type": "string"
+          "format": "uri"
+        "previewUrl":
+          "type": "string"
+          "format": "uri"
+        "creditUrl":
+          "type": "string"
+          "format": "uri"
+        "sha256":
+          "type": "string"
+          "pattern": "^[a-f0-9]{64}$"
+        "owner":
+          "type": "string"
+          "format": "uuid"
+        "status":
+          "enum":
+            - "accepted"
+            - "pending"
+            - "rejected"
+            - "unpublished"
+        "revision":
+          "type": "integer"
+        "updatedAt":
+          "type": "string"
+          "format": "date-time"
+      "required":
+        - "id"
+        - "source"
+        - "kind"
+        - "title"
+        - "tags"
+        - "uses"
+        - "style"
+        - "frameCount"
+        - "frameWidth"
+        - "frameHeight"
+        - "textureUrl"
+    "ItemDetail":
+      "allOf":
+        -
+          "$ref": "#/components/schemas/Item"
+        -
+          "type": "object"
+          "properties":
+            "api":
+              "type": "integer"
+              "const": 1
+          "required":
+            - "api"
+    "Catalog":
+      "type": "object"
+      "properties":
+        "api":
+          "type": "integer"
+          "const": 1
+        "items":
+          "type": "array"
+          "items":
+            "$ref": "#/components/schemas/Item"
+        "nextCursor":
+          "anyOf":
+            -
+              "type": "string"
+            -
+              "type": "null"
+        "sources":
+          "type": "object"
+          "additionalProperties":
+            "enum":
+              - "available"
+              - "unavailable"
+              - "disabled"
+      "required":
+        - "api"
+        - "items"
+        - "nextCursor"
+        - "sources"
+    "Wearing":
+      "type": "object"
+      "properties":
+        "api":
+          "type": "integer"
+          "const": 1
+        "uuid":
+          "type": "string"
+          "format": "uuid"
+        "wearing":
+          "anyOf":
+            -
+              "$ref": "#/components/schemas/Item"
+            -
+              "type": "null"
+      "required":
+        - "api"
+        - "uuid"
+        - "wearing"
+    "WearReference":
+      "type": "object"
+      "properties":
+        "source":
+          "enum":
+            - "ours"
+            - "labymod"
+        "id":
+          "type": "string"
+      "required":
+        - "source"
+        - "id"
+      "additionalProperties": false
+    "Claim":
+      "type": "object"
+      "properties":
+        "api":
+          "type": "integer"
+          "const": 1
+        "linked":
+          "type": "boolean"
+          "const": true
+        "uuid":
+          "type": "string"
+          "format": "uuid"
+        "name":
+          "type": "string"
+      "required":
+        - "api"
+        - "linked"
+        - "uuid"
+        - "name"
+    "Model":
+      "type": "object"
+      "properties":
+        "cubes":
+          "type": "array"
+          "maxItems": 64
+          "items":
+            "type": "object"
+            "properties":
+              "x":
+                "type": "integer"
+                "minimum": -32
+                "maximum": 32
+              "y":
+                "type": "integer"
+                "minimum": -32
+                "maximum": 32
+              "z":
+                "type": "integer"
+                "minimum": -32
+                "maximum": 32
+              "w":
+                "type": "integer"
+                "minimum": 1
+                "maximum": 32
+              "h":
+                "type": "integer"
+                "minimum": 1
+                "maximum": 32
+              "d":
+                "type": "integer"
+                "minimum": 1
+                "maximum": 32
+              "u":
+                "type": "integer"
+                "minimum": 0
+                "maximum": 512
+              "v":
+                "type": "integer"
+                "minimum": 0
+                "maximum": 512
+            "required":
+              - "x"
+              - "y"
+              - "z"
+              - "w"
+              - "h"
+              - "d"
+              - "u"
+              - "v"
+      "required":
+        - "cubes"
+    "User":
+      "type": "object"
+      "properties":
+        "id":
+          "type": "string"
+          "format": "uuid"
+        "username":
+          "type": "string"
+        "minecraftUuid":
+          "anyOf":
+            -
+              "type": "string"
+              "format": "uuid"
+            -
+              "type": "null"
+        "minecraftName":
+          "anyOf":
+            -
+              "type": "string"
+            -
+              "type": "null"
+        "admin":
+          "type": "boolean"
+        "banned":
+          "type": "boolean"
+      "required":
+        - "id"
+        - "username"
+        - "minecraftUuid"
+        - "minecraftName"
+        - "admin"
+        - "banned"
+    "Account":
+      "type": "object"
+      "properties":
+        "api":
+          "type": "integer"
+          "const": 1
+        "user":
+          "anyOf":
+            -
+              "$ref": "#/components/schemas/User"
+            -
+              "type": "null"
+        "csrf":
+          "anyOf":
+            -
+              "type": "string"
+            -
+              "type": "null"
+      "required":
+        - "api"
+        - "user"
+        - "csrf"
+    "GalleryRecord":
+      "type": "object"
+      "properties":
+        "api":
+          "type": "integer"
+          "const": 1
+        "id":
+          "type": "string"
+        "owner":
+          "type": "string"
+          "format": "uuid"
+        "title":
+          "anyOf":
+            -
+              "type": "string"
+            -
+              "type": "null"
+        "revision":
+          "type": "integer"
+        "updatedAt":
+          "type": "string"
+          "format": "date-time"
+        "status":
+          "type": "string"
+        "style":
+          "type": "string"
+        "animateFrames":
+          "type": "boolean"
+        "frameCount":
+          "type": "integer"
+        "frameWidth":
+          "type": "integer"
+        "frameHeight":
+          "type": "integer"
+        "frameDelayMs":
+          "type": "array"
+          "items":
+            "type": "integer"
+        "model":
+          "anyOf":
+            -
+              "$ref": "#/components/schemas/Model"
+            -
+              "type": "null"
+        "sha256":
+          "type": "string"
+        "assetPath":
+          "type": "string"
+      "required":
+        - "api"
+        - "id"
+        - "owner"
+        - "title"
+        - "revision"
+        - "updatedAt"
+        - "status"
+        - "style"
+        - "animateFrames"
+        - "frameCount"
+        - "frameWidth"
+        - "frameHeight"
+        - "frameDelayMs"
+        - "model"
+        - "sha256"
+        - "assetPath"
+    "CapeRecord":
+      "type": "object"
+      "properties":
+        "api":
+          "type": "integer"
+          "const": 1
+        "revision":
+          "type": "integer"
+        "updatedAt":
+          "type": "string"
+          "format": "date-time"
+        "status":
+          "type": "string"
+        "style":
+          "type": "string"
+        "animateFrames":
+          "type": "boolean"
+        "frameCount":
+          "type": "integer"
+        "frameWidth":
+          "type": "integer"
+        "frameHeight":
+          "type": "integer"
+        "frameDelayMs":
+          "type": "array"
+          "items":
+            "type": "integer"
+        "model":
+          "anyOf":
+            -
+              "$ref": "#/components/schemas/Model"
+            -
+              "type": "null"
+        "sha256":
+          "type": "string"
+        "assetPath":
+          "type": "string"
+        "uuid":
+          "type": "string"
+          "format": "uuid"
+      "required":
+        - "api"
+        - "revision"
+        - "updatedAt"
+        - "status"
+        - "style"
+        - "animateFrames"
+        - "frameCount"
+        - "frameWidth"
+        - "frameHeight"
+        - "frameDelayMs"
+        - "model"
+        - "sha256"
+        - "assetPath"
+        - "uuid"

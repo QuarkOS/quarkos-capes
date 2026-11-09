@@ -1,0 +1,26 @@
+modLoader = "javafml"
+loaderVersion = "[${forge_spec},)"
+license = "MIT"
+clientSideOnly = true
+
+[[mods]]
+modId = "quarkos_capes"
+version = "${version}"
+displayName = "QuarkOS Capes"
+authors = "Emilio Schwaiger"
+description = '''A cape you pick, with frames, cloth, and a cube model, plus read-only public cape APIs and a shared gallery. Animated capes are free. The 1.21.1 Forge jar bundles Cloth Config by shedaniel (LGPL-3.0-only) with Jar-in-Jar.'''
+
+[[dependencies.quarkos_capes]]
+modId = "forge"
+mandatory = true
+versionRange = "[${forge_dep},)"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.quarkos_capes]]
+modId = "minecraft"
+mandatory = true
+versionRange = "[${minecraft}]"
+ordering = "NONE"
+side = "CLIENT"
+${cloth_dependency}

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "id": "${id}",
+  "version": "${version}",
+  "name": "${name}",
+  "description": "A cape you pick, with frames, cloth, and a cube model, plus read-only public cape APIs and a shared gallery.",
+  "authors": ["Emilio Schwaiger"],
+  "license": "MIT",
+  "icon": "assets/quarkos_capes/icon.png",
+  "environment": "client",
+  "accessWidener": "quarkos_capes.accesswidener",
+  "entrypoints": {
+    "client": ["dev.quarkos.capes.QuarkosCapes"],
+    "modmenu": ["dev.quarkos.capes.client.ModMenuHook"]
+  },
+  "mixins": ["quarkos_capes.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "${minecraft}",
+    "java": "${java}",
+    "fabric-api": "*",
+    "cloth-config": "*"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}

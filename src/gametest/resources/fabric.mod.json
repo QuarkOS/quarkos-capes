@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 1,
+  "id": "quarkos_capes_test",
+  "version": "1.0.0",
+  "name": "QuarkOS Capes Test",
+  "environment": "client",
+  "entrypoints": {
+    "fabric-client-gametest": [
+      "dev.quarkos.capes.gametest.CapeLayerClientGameTest",
+      "dev.quarkos.capes.gametest.CapePickerClientGameTest"
+    ]
+  },
+  "depends": {
+    "fabricloader": "*",
+    "minecraft": "*",
+    "fabric-api": "*",
+    "quarkos_capes": "*"
+  }
+}
