@@ -7,6 +7,7 @@ import dev.quarkos.capes.client.render.CapeDraw;
 import dev.quarkos.capes.client.render.CapeLayerWatch;
 import dev.quarkos.capes.client.render.PlayerFacts;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.renderer.entity.layers.CapeLayer;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.PlayerModelPart;
 import org.spongepowered.asm.mixin.Mixin;
@@ -15,26 +16,33 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 //? if <1.21.11 {
-/*import net.minecraft.client.player.AbstractClientPlayer;
-import net.minecraft.client.renderer.MultiBufferSource;
-import net.minecraft.client.renderer.entity.layers.CapeLayer;
+/*import net.minecraft.client.renderer.MultiBufferSource;
 *///?} else {
 import net.minecraft.client.renderer.SubmitNodeCollector;
-import net.minecraft.client.renderer.entity.layers.CapeLayer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 import net.minecraft.core.ClientAsset;
 import net.minecraft.world.entity.player.PlayerSkin;
 //?}
+//? if <1.21.2 {
+/*import net.minecraft.client.player.AbstractClientPlayer;
+*///?} else if <1.21.11 {
+/*import net.minecraft.client.renderer.entity.state.PlayerRenderState;
+import net.minecraft.client.resources.PlayerSkin;
+*///?}
 
 @Mixin(CapeLayer.class)
 public class CapeLayerMixin {
-    //? if <1.21.11 {
+    //? if <1.21.2 {
     /*@Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private void quarkosCapes(PoseStack pose, MultiBufferSource buffers, int light, AbstractClientPlayer player, float limbSwing, float limbSwingAmount, float partial, float age, float yaw, float pitch, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
         boolean local = client.player == player;
         if (player.isInvisible() || player.isSpectator()) { ci.cancel(); return; }
+        //? if <1.21 {
+        Identifier vanilla = player.getCloakTextureLocation();
+        //?} else {
         Identifier vanilla = player.getSkin() == null ? null : player.getSkin().capeTexture();
+        //?}
         CapeBook.Choice choice = CapeDraw.resolve(player.getUUID(), local, vanilla);
         CapeLayerWatch.textureOverride = null;
         if (local) {
@@ -43,7 +51,6 @@ public class CapeLayerMixin {
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
             return;
         }
-        // A flat cape is the vanilla cloak. Cancelling here drew a sheet on the body and the skin still had no cape.
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1) {
             CapeLayerWatch.textureOverride = choice.texture();
             return;
@@ -71,10 +78,59 @@ public class CapeLayerMixin {
         return player.isModelPartShown(part);
     }
 
+    //? if <1.21 {
+    @Redirect(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/AbstractClientPlayer;getCloakTextureLocation()Lnet/minecraft/resources/Identifier;"))
+    private Identifier quarkosCapeTexture(AbstractClientPlayer player) {
+        Identifier ours = CapeLayerWatch.textureOverride;
+        return ours != null ? ours : player.getCloakTextureLocation();
+    }
+    //?} else {
     @Redirect(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/resources/PlayerSkin;capeTexture()Lnet/minecraft/resources/Identifier;"))
     private Identifier quarkosCapeTexture(net.minecraft.client.resources.PlayerSkin skin) {
         Identifier ours = CapeLayerWatch.textureOverride;
         return ours != null ? ours : skin.capeTexture();
+    }
+    //?}
+    *///?} else if <1.21.11 {
+    /*@Inject(method = "render", at = @At("HEAD"), cancellable = true)
+    private void quarkosCapes(PoseStack pose, MultiBufferSource buffers, int light, PlayerRenderState state, float yRot, float xRot, CallbackInfo ci) {
+        Minecraft client = Minecraft.getInstance();
+        boolean local = client.player != null && client.player.getId() == state.id;
+        if (state.isInvisible || state.isSpectator) { ci.cancel(); return; }
+        PlayerFacts.Fact fact = PlayerFacts.byEntity(state.id);
+        java.util.UUID id = fact != null ? fact.id() : (local ? client.player.getUUID() : null);
+        if (id == null) {
+            if (local) {
+                CapeLayerWatch.local(null);
+            }
+            return;
+        }
+        Identifier vanilla = state.skin == null ? null : state.skin.capeTexture();
+        CapeBook.Choice choice = CapeDraw.resolve(id, local, vanilla);
+        if (local) {
+            CapeLayerWatch.local(choice.texture());
+        }
+        if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
+            return;
+        }
+        if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1 && state.skin != null) {
+            state.showCape = true;
+            Identifier cape = choice.texture();
+            state.skin = new PlayerSkin(state.skin.texture(), state.skin.textureUrl(), cape, state.skin.elytraTexture(), state.skin.model(), state.skin.secure());
+            if (CapeBook.preview) {
+                CapeBook.draws++;
+            }
+            return;
+        }
+        int bright = CapeBook.preview ? 15728880 : light;
+        java.util.UUID drawn = id;
+        pose.pushPose();
+        pose.translate(0.0F, state.isCrouching ? 0.2F : 0.0F, state.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
+        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(state.isCrouching ? 31.0F : 6.0F));
+        var consumer = buffers.getBuffer(McBridge.cutout(choice.texture()));
+        CapeDraw.emit(pose.last(), consumer, bright, drawn, choice);
+        pose.popPose();
+        ci.cancel();
     }
     *///?} else {
     @Inject(method = "submit", at = @At("HEAD"), cancellable = true)

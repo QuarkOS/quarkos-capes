@@ -23,7 +23,6 @@ import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.gui.screens.worldselection.WorldCreationUiState;
 import net.minecraft.network.chat.Component;
-import net.minecraft.world.entity.player.PlayerModelPart;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
 
 import java.nio.file.Files;
@@ -74,7 +73,9 @@ public final class ClientHarness {
             armed = true;
             client.options.pauseOnLostFocus = false;
             client.options.onboardAccessibility = false;
+            //? if >=1.21 {
             client.options.menuBackgroundBlurriness().set(0);
+            //?}
             client.options.guiScale().set(Integer.getInteger("quarkos_capes.guiScale", 2));
             client.options.renderDistance().set(2);
             client.options.simulationDistance().set(5);
@@ -114,7 +115,11 @@ public final class ClientHarness {
         if (screen != null && !(screen instanceof TitleScreen)) {
             String name = screen.getClass().getName().toLowerCase();
             if (name.contains("accessibility")) {
+                //? if <1.21 {
+                /*client.options.onboardAccessibility = false;
+                *///?} else {
                 client.options.onboardingAccessibilityFinished();
+                //?}
                 McBridge.setScreen(client, new TitleScreen());
                 return;
             }
@@ -152,7 +157,7 @@ public final class ClientHarness {
         }
         WorldCreationUiState ui = create.getUiState();
         ui.setGameMode(WorldCreationUiState.SelectedGameMode.CREATIVE);
-        ui.setAllowCommands(true);
+        McBridge.allowCommands(ui);
         ui.setName("capes");
         presets.stream().filter(entry -> entry.preset().is(WorldPresets.FLAT)).findFirst().ifPresent(ui::setWorldType);
         create.onCreate();
@@ -632,11 +637,7 @@ public final class ClientHarness {
     }
 
     private static void showCape(Minecraft client) {
-        //? if <1.21.11 {
-        /*client.options.toggleModelPart(PlayerModelPart.CAPE, true);
-        *///?} else {
-        client.options.setModelPart(PlayerModelPart.CAPE, true);
-        //?}
+        McBridge.showCape(client.options);
         client.options.broadcastOptions();
     }
 

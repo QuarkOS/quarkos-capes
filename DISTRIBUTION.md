@@ -4,11 +4,11 @@ Do not upload this file. It is the description to paste later.
 
 ## Summary
 
-QuarkOS Capes is a Fabric client mod for Minecraft 1.21.1 and 1.21.11. Pick a local cape, play a frame strip, sim cloth, or wear a cube cloak. Read public cape APIs when you turn a provider on. Share a cape through your own gallery service. Animated capes are free.
+QuarkOS Capes is a Fabric and Forge client mod for Minecraft 1.20.1, 1.21.1, 1.21.4, 1.21.8, and 1.21.11. Pick a local cape, play a frame strip, sim cloth, or wear a cube cloak. Read public cape APIs when you turn a provider on. Share a cape through your own gallery service. Animated capes are free. The per-file game versions and loaders are in `docs/RELEASE.md`.
 
 ## Required
 
-- Minecraft 1.21.1 or 1.21.11
+- Minecraft 1.20.1, 1.21.1, 1.21.4, 1.21.8, or 1.21.11, matching the jar
 - Fabric Loader 0.16.0 or newer
 - Fabric API
 - Java 21

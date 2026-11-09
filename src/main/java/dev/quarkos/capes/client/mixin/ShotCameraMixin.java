@@ -1,6 +1,5 @@
 package dev.quarkos.capes.client.mixin;
 
-import dev.quarkos.capes.client.harness.ShotView;
 import net.minecraft.client.Camera;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.phys.Vec3;
@@ -24,8 +23,13 @@ public abstract class ShotCameraMixin {
     @Shadow
     protected abstract void setPosition(double x, double y, double z);
 
+    //? if <1.21 {
+    /*@Shadow
+    protected abstract void move(double x, double y, double z);
+    *///?} else {
     @Shadow
     protected abstract void move(float x, float y, float z);
+    //?}
 
     //? if <1.21.11 {
     /*@Inject(method = "setup", at = @At("RETURN"))
@@ -40,12 +44,19 @@ public abstract class ShotCameraMixin {
     //?}
 
     private void orbit(Entity entity, float partial) {
-        if (!ShotView.active() || entity == null) {
+        if (!dev.quarkos.capes.DevFlags.HARNESS || entity == null) {
             return;
         }
-        setRotation(entity.getViewYRot(partial) + ShotView.yaw(), ShotView.pitch());
+        if (!dev.quarkos.capes.client.harness.ShotView.active()) {
+            return;
+        }
+        setRotation(entity.getViewYRot(partial) + dev.quarkos.capes.client.harness.ShotView.yaw(), dev.quarkos.capes.client.harness.ShotView.pitch());
         Vec3 eye = entity.getEyePosition(partial);
-        setPosition(eye.x, eye.y + ShotView.lift(), eye.z);
-        move(-ShotView.distance(), 0f, 0f);
+        setPosition(eye.x, eye.y + dev.quarkos.capes.client.harness.ShotView.lift(), eye.z);
+        //? if <1.21 {
+        /*move(-dev.quarkos.capes.client.harness.ShotView.distance(), 0.0, 0.0);
+        *///?} else {
+        move(-dev.quarkos.capes.client.harness.ShotView.distance(), 0f, 0f);
+        //?}
     }
 }

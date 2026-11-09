@@ -9,7 +9,7 @@ public final class CapeScreens {
 
     public static Screen open(Screen parent) {
         //? if forge {
-        /*//? if =1.21.1 {
+        /*//? if <1.21.2 {
         return ClothCapeScreen.create(parent);
         //?} else {
         return new ForgeCapeScreen(parent);
@@ -25,7 +25,7 @@ public final class CapeScreens {
                 ? "text.quarkos_capes.tab.my_cape" : CapeBoard.TABS[tab]));
         //?} else {
         /*if (tab == 4) return new CapeGalleryScreen(parent);
-        //? if =1.21.1 {
+        //? if <1.21.2 {
         Screen screen = ClothCapeScreen.create(parent);
         if (screen instanceof me.shedaniel.clothconfig2.gui.ClothConfigScreen cloth) cloth.selectedCategoryIndex = tab;
         return screen;

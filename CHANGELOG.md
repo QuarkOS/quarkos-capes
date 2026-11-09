@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.0
+
+- Fabric and Forge for 1.20.1, 1.21.1, 1.21.4, 1.21.8, and 1.21.11. The file list, store versions, and loaders are in `docs/RELEASE.md`.
+- Release jars (`scripts/release.sh`) omit the dev harness and the LabyMod try-on catalog.
+- NeoForge is not built.
+
 ## 0.1.0
 
 - Fabric client for Minecraft 1.21.1 and 1.21.11.

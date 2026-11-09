@@ -92,7 +92,7 @@ public final class ForgeCapeScreen extends Screen {
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.toggle.minecraftcapes", ClientSettings.get().enableMinecraftCapesMod, () -> CapeBoard.provider("minecraftcapes", !ClientSettings.get().enableMinecraftCapesMod));
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.toggle.cosmetica", ClientSettings.get().enableCosmetica, () -> CapeBoard.provider("cosmetica", !ClientSettings.get().enableCosmetica));
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.toggle.cloaksplus", ClientSettings.get().enableCloaksPlus, () -> CapeBoard.provider("cloaksplus", !ClientSettings.get().enableCloaksPlus));
-                if (LabyCatalog.enabled()) {
+                if (dev.quarkos.capes.DevFlags.CATALOG && LabyCatalog.enabled()) {
                     if (!LabyBrowse.status().isBlank()) {
                         note = LabyBrowse.status();
                     }

@@ -67,11 +67,7 @@ public final class ShotView {
     }
 
     private static void hideHat(Minecraft client) {
-        //? if <1.21.11 {
-        /*client.options.toggleModelPart(PlayerModelPart.HAT, false);
-        *///?} else {
-        client.options.setModelPart(PlayerModelPart.HAT, false);
-        //?}
+        McBridge.modelPart(client.options, PlayerModelPart.HAT, false);
     }
 
     //? if >=1.21.11 {

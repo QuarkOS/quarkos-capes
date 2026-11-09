@@ -65,11 +65,7 @@ public final class CapeDraw {
                     frames,
                     choice.vertical(),
                     settings.mesh() == WaveCloth.Mesh.BLOCKY,
-                    //? if <1.21.11 {
-                    /*Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false)
-                    *///?} else {
-                    Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false)
-                    //?}
+                    McBridge.partialTick()
             );
             ClothSim.markDrawn(id);
         } else {
@@ -95,7 +91,7 @@ public final class CapeDraw {
             if (!capeOn || (fact != null && fact.elytra())) {
                 return CapeBook.none();
             }
-            if (LabyWear.showing()) {
+            if (dev.quarkos.capes.DevFlags.CATALOG && LabyWear.showing()) {
                 return LabyWear.choice();
             }
             return CapeBook.local(cape, image);

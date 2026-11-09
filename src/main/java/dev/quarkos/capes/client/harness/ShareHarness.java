@@ -43,7 +43,9 @@ public final class ShareHarness {
             armed = true;
             client.options.pauseOnLostFocus = false;
             client.options.onboardAccessibility = false;
+            //? if >=1.21 {
             client.options.menuBackgroundBlurriness().set(0);
+            //?}
             client.options.guiScale().set(2);
             client.options.renderDistance().set(8);
             client.options.simulationDistance().set(8);
@@ -120,7 +122,11 @@ public final class ShareHarness {
         if (screen != null && !(screen instanceof TitleScreen)) {
             String name = screen.getClass().getName().toLowerCase();
             if (name.contains("accessibility")) {
+                //? if <1.21 {
+                /*client.options.onboardAccessibility = false;
+                *///?} else {
                 client.options.onboardingAccessibilityFinished();
+                //?}
                 McBridge.setScreen(client, new TitleScreen());
                 return;
             }
@@ -140,8 +146,13 @@ public final class ShareHarness {
             return;
         }
         String address = System.getProperty("quarkos_capes.server", "127.0.0.1:25599");
+        //? if <1.21 {
+        /*ServerData data = new ServerData("capes", address, false);
+        ConnectScreen.startConnecting(new TitleScreen(), client, ServerAddress.parseString(address), data, false);
+        *///?} else {
         ServerData data = new ServerData("capes", address, ServerData.Type.OTHER);
         ConnectScreen.startConnecting(new TitleScreen(), client, ServerAddress.parseString(address), data, false, null);
+        //?}
         state = State.WAIT_PLAYER;
         ticks = 0;
     }

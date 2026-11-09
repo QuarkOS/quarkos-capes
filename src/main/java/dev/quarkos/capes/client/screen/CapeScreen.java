@@ -166,7 +166,7 @@ public final class CapeScreen {
         sourcesCategory.addEntry(minecraftCapes);
         sourcesCategory.addEntry(cosmetica);
         sourcesCategory.addEntry(cloaks);
-        if (LabyCatalog.enabled()) {
+        if (dev.quarkos.capes.DevFlags.CATALOG && LabyCatalog.enabled()) {
             Component sourcesTab = sources;
             sourcesCategory.addEntry(new ActionRow(Component.translatable("text.quarkos_capes.laby.previous"), () -> LabyBrowse.previous(() -> reopen(sourcesTab))));
             sourcesCategory.addEntry(new ActionRow(Component.translatable("text.quarkos_capes.laby.next"), () -> LabyBrowse.next(() -> reopen(sourcesTab))));

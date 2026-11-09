@@ -1,6 +1,6 @@
 # QuarkOS Capes
 
-Fabric client for Minecraft 1.21.1 and 1.21.11. It draws a cape you pick — flat, a frame strip, cloth, or cubes — and can read public cape APIs plus a shared gallery. The mod id is `quarkos_capes`. Author: Emilio Schwaiger. License: MIT.
+Fabric and Forge client for Minecraft 1.20.1, 1.21.1, 1.21.4, 1.21.8, and 1.21.11. It draws a cape you pick — flat, a frame strip, cloth, or cubes — and can read public cape APIs plus a shared gallery. The mod id is `quarkos_capes`. Author: Emilio Schwaiger. License: MIT. The 1.0.0 file list is in [docs/RELEASE.md](docs/RELEASE.md).
 
 No file in this tree is copied from Capes, Wavey Capes, or Better Capes. Those mods were read so the behavior could be reimplemented. Capes is LGPL-2.1-only, so its source is not included. Wavey Capes uses the tr7zw Protective License, which does not allow relicensing into MIT, so its source is not included. Better Capes is all rights reserved and has no source grant. This client ships no Mojang, Minecon, or Migrator textures.
 
@@ -8,15 +8,15 @@ Animated capes are free. There is no paywall.
 
 ## Run
 
-Gradle runs on Java 25. Both jars target Java 21.
+Gradle runs on Java 25 (Loom 1.18). The jars target Java 21.
 
 ```
-./gradlew :1.21.1:build :1.21.11:build
+./gradlew :1.21.11:build
 ./gradlew :1.21.11:runClient
-./gradlew :1.21.1:runClient -Pharness=true
+scripts/release.sh
 ```
 
-The jars are `quarkos_capes-fabric-0.1.0+1.21.1.jar` and `quarkos_capes-fabric-0.1.0+1.21.11.jar`.
+Dev jars are named `quarkos_capes-fabric-<version>+<minecraft>.jar`. `scripts/release.sh` writes `dist/quarkos-capes-1.0.0+fabric-<minecraft>.jar` and the Forge twins, plus `dist/SHA256SUMS`.
 
 Press O in game, or use Mod Menu when it is installed, to open the settings screen. Cloth Config draws the six categories: My Cape, Style, Physics, Sources, Gallery, and Advanced. The live player preview stays on every category. Each toggle reads On or Off.
 
@@ -37,9 +37,9 @@ Stonecutter builds both Minecraft versions. Architectury is not a dependency. Ge
 
 ## Forge
 
-Forge is the `forge` Stonecutter branch. It shares `src` through `forge/src` and does not ship a NeoForge jar. Official mappings, so there is no SRG reobfuscation. The jars are `quarkos_capes-forge-0.1.0+1.21.1.jar` (Forge 52.1.20) and `quarkos_capes-forge-0.1.0+1.21.11.jar` (Forge 61.2.4).
+Forge is the `forge` Stonecutter branch. It shares `src` through `forge/src` and does not ship a NeoForge jar. Official mappings, so there is no SRG reobfuscation. Forge versions are 47.4.29 (1.20.1), 52.1.20 (1.21.1), 54.1.22 (1.21.4), 58.1.26 (1.21.8), and 61.2.4 (1.21.11).
 
-The 1.21.1 Forge jar embeds [Cloth Config](https://github.com/shedaniel/cloth-config) `cloth-config-15.0.140-forge` with Jar-in-Jar. Cloth Config is © shedaniel, LGPL-3.0-only, and is not copied into this MIT tree. Minecraft 1.21.11 has no Cloth Config Forge jar, so that build draws the same six categories, on/off controls, and live cape preview itself.
+The 1.20.1 and 1.21.1 Forge jars embed [Cloth Config](https://github.com/shedaniel/cloth-config) with Jar-in-Jar (`11.1.136` and `15.0.140`). Cloth Config is © shedaniel, LGPL-3.0-only, and is not copied into this MIT tree. Later Forge builds draw the same six categories, on/off controls, and live cape preview themselves.
 
 ```
 ./gradlew :forge:1.21.1:build :forge:1.21.11:build
@@ -68,7 +68,7 @@ Provider reads, used only when offline mode is off, show-others is on, and that 
 - Cosmetica `https://api.cosmetica.cc/users/{uuid}/cape`
 - Cloaks+ `http://161.35.130.99/capes/{name}.png`
 
-The user agent is `QuarkOS-Capes/0.1.0`. Our accepted cape wins. Otherwise the client stops at the first HTTP 2xx. The Mojang access token is sent only to `https://sessionserver.mojang.com/session/minecraft/join` during publish login. It is not logged and not sent to a cape host.
+The user agent is `QuarkOS-Capes/1.0.0`. Our accepted cape wins. Otherwise the client stops at the first HTTP 2xx. The Mojang access token is sent only to `https://sessionserver.mojang.com/session/minecraft/join` during publish login. It is not logged and not sent to a cape host.
 
 ## Credits
 

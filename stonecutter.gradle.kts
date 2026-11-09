@@ -18,6 +18,7 @@ stonecutter parameters {
         string(branch.id == "forge") {
             replace("@Mixin(", "@Mixin(remap = false, value = ")
             replace("@Inject(", "@Inject(remap = false, ")
+            replace("@Redirect(", "@Redirect(remap = false, ")
         }
     }
 }

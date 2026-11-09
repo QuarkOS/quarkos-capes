@@ -6,6 +6,9 @@ plugins {
 version = "${property("mod.version")}+${sc.current.version}"
 base.archivesName = "quarkos_capes-fabric"
 
+val releaseBuild = providers.gradleProperty("release").orNull == "true" ||
+    gradle.startParameter.taskNames.any { it.substringAfterLast(':') == "releaseAll" }
+
 val requiredJava: JavaVersion = JavaVersion.VERSION_21
 
 repositories {
@@ -88,6 +91,7 @@ tasks {
         }
 
         val minecraftVersion = sc.current.version
+        inputs.property("releaseBuild", releaseBuild)
         val props = buildMap {
             register("id", sc.properties["mod.id"])
             register("name", sc.properties["mod.name"])
@@ -103,8 +107,12 @@ tasks {
         }
         val legacyCapeMixin = sc.current.parsed < "1.21.11"
         filesMatching("quarkos_capes.mixins.json") {
-            if (legacyCapeMixin) {
-                filter { line -> line.replace("ElytraTextureMixin", "ElytraTextureMixin121") }
+            filter { line ->
+                var next = if (legacyCapeMixin) line.replace("ElytraTextureMixin", "ElytraTextureMixin121") else line
+                if (releaseBuild) {
+                    next = next.replace(", \"ShotCameraMixin\", \"ShotSkinMixin\"", "")
+                }
+                next
             }
         }
     }
@@ -162,6 +170,7 @@ tasks {
             providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
         }
         environment("LIBGL_ALWAYS_SOFTWARE", "1")
+        environment("MESA_GL_VERSION_OVERRIDE", "3.3")
         val display = providers.gradleProperty("display").orNull
         val xauth = providers.gradleProperty("xauth").orNull
         if (!display.isNullOrBlank()) {
@@ -226,5 +235,41 @@ tasks {
         val name = project.property("mod.id")
         inputs.property("mod_id", name)
         from(rootProject.file("LICENSE")) { rename { "${it}_$name" } }
+        if (releaseBuild) {
+            exclude("dev/quarkos/capes/client/harness/**")
+            exclude("dev/quarkos/capes/client/net/LabyCatalog.class")
+            exclude("dev/quarkos/capes/client/net/LabyCatalog\$*.class")
+            exclude("dev/quarkos/capes/client/net/LabyBrowse.class")
+            exclude("dev/quarkos/capes/client/net/LabyBrowse\$*.class")
+            exclude("dev/quarkos/capes/client/render/LabyWear.class")
+            exclude("dev/quarkos/capes/client/mixin/ShotCameraMixin.class")
+            exclude("dev/quarkos/capes/client/mixin/ShotSkinMixin.class")
+        }
     }
 }
+
+val devFlagsDir = layout.buildDirectory.dir("generated/devflags")
+val writeDevFlags = tasks.register("writeDevFlags") {
+    val out = devFlagsDir.map { it.file("dev/quarkos/capes/DevFlags.java") }
+    outputs.file(out)
+    inputs.property("release", releaseBuild)
+    doLast {
+        val file = out.get().asFile
+        file.parentFile.mkdirs()
+        val enabled = !releaseBuild
+        file.writeText(
+            """
+            package dev.quarkos.capes;
+            public final class DevFlags {
+                public static final boolean HARNESS = $enabled;
+                public static final boolean CATALOG = $enabled;
+                private DevFlags() {}
+            }
+            """.trimIndent() + "\n"
+        )
+    }
+}
+sourceSets.named("main") {
+    java.srcDir(devFlagsDir)
+}
+tasks.named("compileJava") { dependsOn(writeDevFlags) }

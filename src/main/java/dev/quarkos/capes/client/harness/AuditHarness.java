@@ -246,7 +246,17 @@ public final class AuditHarness {
                 @Override public boolean isModelPartShown(PlayerModelPart part) { return true; }
             };
             player.setId(1_000_000 + i);
+            //? if <1.21 {
+            /*try {
+                var add = client.level.getClass().getDeclaredMethod("addEntity", int.class, net.minecraft.world.entity.Entity.class);
+                add.setAccessible(true);
+                add.invoke(client.level, player.getId(), player);
+            } catch (ReflectiveOperationException failure) {
+                throw new IllegalStateException(failure);
+            }
+            *///?} else {
             client.level.addEntity(player);
+            //?}
             PLAYERS.add(player);
             OwnerCape cape = sample(i % 4);
             CapeTextures.upload(CapeBook.textureKey(id), cape.png, false, false);
@@ -271,7 +281,7 @@ public final class AuditHarness {
             player.setYRot(yaw);
             player.setYBodyRot(yaw);
             player.setYHeadRot(yaw);
-            //? if <1.21.11 {
+            //? if <1.21.2 {
             /*player.walkAnimation.update(0.3f, 0.4f);
             *///?} else {
             player.walkAnimation.update(0.3f, 0.4f, 1f);

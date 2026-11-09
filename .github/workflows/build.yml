@@ -1,0 +1,44 @@
+name: build
+
+# Push runs the unit tests and builds every version jar.
+# A manual dispatch builds the release jars and uploads them as an artifact.
+# Publishing is disabled: this workflow has no tokens and does not call Modrinth or CurseForge.
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  test:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Test and build every version
+        run: |
+          chmod +x ./gradlew
+          ./gradlew --no-daemon \
+            :1.20.1:build :1.21.1:build :1.21.4:build :1.21.8:build :1.21.11:build \
+            :forge:1.20.1:build :forge:1.21.1:build :forge:1.21.4:build :forge:1.21.8:build :forge:1.21.11:build
+
+  release:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "25"
+      - name: Build release jars
+        run: |
+          chmod +x ./gradlew scripts/release.sh
+          ./scripts/release.sh --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: quarkos-capes-1.0.0
+          path: dist/
+          if-no-files-found: error

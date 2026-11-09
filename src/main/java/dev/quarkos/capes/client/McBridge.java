@@ -32,9 +32,11 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 //? if fabric && <1.21.9 {
 /*import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 *///?}
+//? if >=1.21.6 {
+import net.minecraft.client.renderer.RenderPipelines;
+//?}
 //? if >=1.21.11 {
 import net.minecraft.client.renderer.rendertype.RenderTypes;
-import net.minecraft.client.renderer.RenderPipelines;
 //?}
 
 import java.util.function.Supplier;
@@ -48,7 +50,38 @@ public final class McBridge {
     }
 
     public static Identifier id(String path) {
+        //? if <1.21 {
+        /*return new Identifier("quarkos_capes", path);
+        *///?} else {
         return Identifier.fromNamespaceAndPath("quarkos_capes", path);
+        //?}
+    }
+
+    /** One model-part write for the versions that renamed the options method. */
+    public static void modelPart(Options options, net.minecraft.world.entity.player.PlayerModelPart part, boolean enabled) {
+        //? if <1.21.2 {
+        /*options.toggleModelPart(part, enabled);
+        *///?} else {
+        options.setModelPart(part, enabled);
+        //?}
+    }
+
+    public static float partialTick() {
+        //? if <1.21 {
+        /*return Minecraft.getInstance().getFrameTime();
+        *///?} else if <1.21.2 {
+        /*return Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false);
+        *///?} else {
+        return Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        //?}
+    }
+
+    public static void allowCommands(net.minecraft.client.gui.screens.worldselection.WorldCreationUiState ui) {
+        //? if <1.21 {
+        /*ui.setAllowCheats(true);
+        *///?} else {
+        ui.setAllowCommands(true);
+        //?}
     }
 
     public static RenderType cutout(Identifier texture) {
@@ -60,11 +93,7 @@ public final class McBridge {
     }
 
     public static void thumb(GuiGraphics graphics, Identifier id, int x, int y, int width, int height, int textureWidth, int textureHeight) {
-        //? if <1.21.11 {
-        /*graphics.blit(id, x, y, 0f, 0f, width, height, textureWidth, textureHeight);
-        *///?} else {
-        graphics.blit(net.minecraft.client.renderer.RenderPipelines.GUI_TEXTURED, id, x, y, 0f, 0f, width, height, textureWidth, textureHeight);
-        //?}
+        blit(graphics, id, x, y, width, height, textureWidth, textureHeight);
     }
 
     /** Scale the visible cape panel, excluding the unused atlas padding and strip neighbors. */
@@ -73,8 +102,11 @@ public final class McBridge {
         int sourceWidth = Math.max(1, frameWidth * 10 / 64);
         int sourceHeight = Math.max(1, frameHeight / 2);
         float u = frameWidth / 64f, v = frameHeight / 32f;
-        //? if <1.21.11 {
+        //? if <1.21.2 {
         /*graphics.blit(texture, x, y, width, height, u, v, sourceWidth, sourceHeight, textureWidth, textureHeight);
+        *///?} else if <1.21.6 {
+        /*graphics.blit(net.minecraft.client.renderer.RenderType::guiTextured, texture, x, y, u, v,
+                width, height, sourceWidth, sourceHeight, textureWidth, textureHeight);
         *///?} else {
         graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, u, v, width, height,
                 sourceWidth, sourceHeight, textureWidth, textureHeight);
@@ -82,7 +114,7 @@ public final class McBridge {
     }
 
     public static DynamicTexture dynamic(NativeImage image, String name) {
-        //? if <1.21.11 {
+        //? if <1.21.5 {
         /*return new DynamicTexture(image);
         *///?} else {
         return new DynamicTexture(() -> name, image);
@@ -90,7 +122,7 @@ public final class McBridge {
     }
 
     public static void setPixel(NativeImage image, int x, int y, int color) {
-        //? if <1.21.11 {
+        //? if <1.21.2 {
         /*image.setPixelRGBA(x, y, color);
         *///?} else {
         image.setPixel(x, y, color);
@@ -98,7 +130,7 @@ public final class McBridge {
     }
 
     public static int pixel(NativeImage image, int x, int y) {
-        //? if <1.21.11 {
+        //? if <1.21.2 {
         /*return image.getPixelRGBA(x, y);
         *///?} else {
         return image.getPixel(x, y);
@@ -146,11 +178,7 @@ public final class McBridge {
     }
 
     public static void showCape(Options options) {
-        //? if <1.21.11 {
-        /*options.toggleModelPart(net.minecraft.world.entity.player.PlayerModelPart.CAPE, true);
-        *///?} else {
-        options.setModelPart(net.minecraft.world.entity.player.PlayerModelPart.CAPE, true);
-        //?}
+        modelPart(options, net.minecraft.world.entity.player.PlayerModelPart.CAPE, true);
     }
 
     public static void press(Button button) {
@@ -191,15 +219,21 @@ public final class McBridge {
             Quaternionf pose = new Quaternionf().rotateZ((float) Math.PI);
             // Inventory's upright basis faces the camera. Turn it to expose the cape.
             //? if <1.21.11 {
-            // <1.21.11: the inventory basis already shows the back; 1.21.11 (bodyRot 180) shows the front.
             /*pose.rotateY((float) Math.toRadians(dev.quarkos.capes.client.render.CapeBook.previewBack ? 25 : 155));
             *///?} else {
             pose.rotateY((float) Math.toRadians(dev.quarkos.capes.client.render.CapeBook.previewBack ? 155 : 25));
             //?}
             Quaternionf camera = new Quaternionf();
-            //? if <1.21.11 {
+            //? if <1.21 {
+            /*int size = Math.max(16, Math.min((y2 - y1) / 2, x2 - x1));
+            InventoryScreen.renderEntityInInventory(graphics, (x1 + x2) / 2, y2 - 6, size, pose, camera, player);
+            *///?} else if <1.21.6 {
             /*int size = Math.max(16, Math.min((y2 - y1) / 2, x2 - x1));
             InventoryScreen.renderEntityInInventory(graphics, (x1 + x2) / 2, y2 - 6, size,
+                    new Vector3f(0f, 0f, 0f), pose, camera, player);
+            *///?} else if <1.21.11 {
+            /*float scale = Math.max(16, Math.min((y2 - y1) / 2f, x2 - x1));
+            InventoryScreen.renderEntityInInventory(graphics, x1, y1, x2, y2, scale,
                     new Vector3f(0f, 0f, 0f), pose, camera, player);
             *///?} else {
             var state = Minecraft.getInstance().getEntityRenderDispatcher().extractEntity(player, 1f);
@@ -259,12 +293,22 @@ public final class McBridge {
     }
 
     private static void vertex(VertexConsumer consumer, PoseStack.Pose pose, int light, int shade, float x, float y, float z, float u, float v, float nx, float ny, float nz) {
+        //? if <1.21 {
+        /*consumer.vertex(pose.pose(), x, y, z)
+                .color(shade, shade, shade, 255)
+                .uv(u, v)
+                .overlayCoords(OverlayTexture.NO_OVERLAY)
+                .uv2(light)
+                .normal(pose.normal(), nx, ny, nz)
+                .endVertex();
+        *///?} else {
         consumer.addVertex(pose, x, y, z)
                 .setColor(shade, shade, shade, 255)
                 .setUv(u, v)
                 .setOverlay(OverlayTexture.NO_OVERLAY)
                 .setLight(light)
                 .setNormal(pose, nx, ny, nz);
+        //?}
     }
 
     public static void clearChat(Minecraft client) {
@@ -274,7 +318,7 @@ public final class McBridge {
     }
 
     public static void clearToasts(Minecraft client) {
-        //? if <1.21.11 {
+        //? if <1.21.2 {
         /*client.getToasts().clear();
         *///?} else {
         client.getToastManager().clear();
@@ -285,7 +329,7 @@ public final class McBridge {
         if (client.player == null) {
             return;
         }
-        //? if <1.21.11 {
+        //? if <1.21.2 {
         /*client.player.connection.sendCommand("gamerule doDaylightCycle false");
         client.player.connection.sendCommand("gamerule sendCommandFeedback false");
         client.player.connection.sendCommand("gamerule logAdminCommands false");
@@ -298,8 +342,10 @@ public final class McBridge {
     }
 
     public static void blit(GuiGraphics graphics, Identifier texture, int x, int y, int width, int height, int textureWidth, int textureHeight) {
-        //? if <1.21.11 {
+        //? if <1.21.2 {
         /*graphics.blit(texture, x, y, 0f, 0f, width, height, textureWidth, textureHeight);
+        *///?} else if <1.21.6 {
+        /*graphics.blit(net.minecraft.client.renderer.RenderType::guiTextured, texture, x, y, 0f, 0f, width, height, textureWidth, textureHeight);
         *///?} else {
         graphics.blit(RenderPipelines.GUI_TEXTURED, texture, x, y, 0f, 0f, width, height, textureWidth, textureHeight);
         //?}

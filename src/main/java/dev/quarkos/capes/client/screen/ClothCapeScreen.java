@@ -1,6 +1,6 @@
 //? if forge {
 /*
-//? if =1.21.1 {
+//? if <1.21.2 {
 package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.McBridge;
@@ -74,7 +74,7 @@ final class ClothCapeScreen {
         held.minecraftCapes = toggle(fields, sources, "text.quarkos_capes.toggle.minecraftcapes", settings.enableMinecraftCapesMod, false);
         held.cosmetica = toggle(fields, sources, "text.quarkos_capes.toggle.cosmetica", settings.enableCosmetica, false);
         held.cloaks = toggle(fields, sources, "text.quarkos_capes.toggle.cloaksplus", settings.enableCloaksPlus, false);
-        if (LabyCatalog.enabled()) {
+        if (dev.quarkos.capes.DevFlags.CATALOG && LabyCatalog.enabled()) {
             held.labyPrevious = toggle(fields, sources, "text.quarkos_capes.laby.previous", false, false);
             held.labyNext = toggle(fields, sources, "text.quarkos_capes.laby.next", false, false);
             if (!LabyBrowse.status().isBlank()) {
@@ -274,7 +274,7 @@ final class ClothCapeScreen {
             CapeBoard.showOthers(Boolean.TRUE.equals(held.others.getValue()));
             CapeBoard.localOnly(Boolean.TRUE.equals(held.offline.getValue()));
             CapeBoard.elytra(Boolean.TRUE.equals(held.elytra.getValue()));
-            if (held.labyPrevious != null && Boolean.TRUE.equals(held.labyPrevious.getValue())) {
+            if (dev.quarkos.capes.DevFlags.CATALOG && held.labyPrevious != null && Boolean.TRUE.equals(held.labyPrevious.getValue())) {
                 busy = true;
                 LabyBrowse.previous(() -> Minecraft.getInstance().execute(() -> {
                     busy = false;
@@ -284,7 +284,7 @@ final class ClothCapeScreen {
                 }));
                 return;
             }
-            if (held.labyNext != null && Boolean.TRUE.equals(held.labyNext.getValue())) {
+            if (dev.quarkos.capes.DevFlags.CATALOG && held.labyNext != null && Boolean.TRUE.equals(held.labyNext.getValue())) {
                 busy = true;
                 LabyBrowse.next(() -> Minecraft.getInstance().execute(() -> {
                     busy = false;

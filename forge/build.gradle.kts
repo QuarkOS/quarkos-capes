@@ -1,7 +1,9 @@
 /**
- * Forge nodes for 1.21.1 (52.1.20) and 1.21.11 (61.2.4).
+ * Forge nodes for 1.20.1 (47.4.29), 1.21.1 (52.1.20), 1.21.4 (54.1.22),
+ * 1.21.8 (58.1.26), and 1.21.11 (61.2.4).
  * Official mappings, so the jar is not reobfuscated.
  * Every node compiles the chiseled tree, not the Fabric checkout in src/.
+ * Cloth Config Forge exists for 1.20.1 and 1.21.1. Later nodes draw the screen themselves.
  */
 
 buildscript {
@@ -22,7 +24,17 @@ data class ForgeNode(
     val forgeCoordinate: String,
     val forgeDep: String,
     val packMeta: String,
+    val cloth: String?,
 )
+
+val modVersion = "1.0.0"
+val releaseBuild = providers.gradleProperty("release").orNull == "true" ||
+    gradle.startParameter.taskNames.any { it.substringAfterLast(':') == "releaseAll" }
+
+fun clothRange(version: String): String {
+    val parts = version.split('.')
+    return "[$version,${parts[0]}.${parts[1].toInt() + 1})"
+}
 
 fun legacyPack(format: Int): String = """
 {
@@ -47,8 +59,11 @@ fun modernPack(major: Int, minor: Int): String = """
 
 val minecraftVersion = project.name
 val forgeNode = when (minecraftVersion) {
-    "1.21.1" -> ForgeNode("1.21.1-52.1.20", "52.1.20", legacyPack(34))
-    "1.21.11" -> ForgeNode("1.21.11-61.2.4", "61.2.4", modernPack(75, 0))
+    "1.20.1" -> ForgeNode("1.20.1-47.4.29", "47.4.29", legacyPack(15), "11.1.136")
+    "1.21.1" -> ForgeNode("1.21.1-52.1.20", "52.1.20", legacyPack(34), "15.0.140")
+    "1.21.4" -> ForgeNode("1.21.4-54.1.22", "54.1.22", legacyPack(46), null)
+    "1.21.8" -> ForgeNode("1.21.8-58.1.26", "58.1.26", legacyPack(64), null)
+    "1.21.11" -> ForgeNode("1.21.11-61.2.4", "61.2.4", modernPack(75, 0), null)
     else -> null
 }
 
@@ -74,7 +89,7 @@ if (forgeNode == null) {
     apply(plugin = "java")
     apply(plugin = "net.minecraftforge.gradle")
 
-    version = "0.1.0+$minecraftVersion"
+    version = "$modVersion+$minecraftVersion"
     base.archivesName.set("quarkos_capes-forge")
 
     java {
@@ -100,13 +115,37 @@ if (forgeNode == null) {
     val sourceSets = extensions.getByType(org.gradle.api.tasks.SourceSetContainer::class.java)
     val mainSource = sourceSets.named("main")
     val chiseledMain = layout.buildDirectory.dir("generated/stonecutter/main")
+    val devFlagsDir = layout.buildDirectory.dir("generated/devflags")
+    val writeDevFlags = tasks.register("writeDevFlags") {
+        val out = devFlagsDir.map { it.file("dev/quarkos/capes/DevFlags.java") }
+        outputs.file(out)
+        inputs.property("release", releaseBuild)
+        doLast {
+            val file = out.get().asFile
+            file.parentFile.mkdirs()
+            val enabled = !releaseBuild
+            file.writeText(
+                """
+                package dev.quarkos.capes;
+                public final class DevFlags {
+                    public static final boolean HARNESS = $enabled;
+                    public static final boolean CATALOG = $enabled;
+                    private DevFlags() {}
+                }
+                """.trimIndent() + "\n"
+            )
+        }
+    }
     gradle.projectsEvaluated {
         val main = mainSource.get()
-        main.java.setSrcDirs(listOf(chiseledMain.get().dir("java").asFile))
+        main.java.setSrcDirs(listOf(chiseledMain.get().dir("java").asFile, devFlagsDir.get().asFile))
         main.resources.setSrcDirs(listOf(chiseledMain.get().dir("resources").asFile))
         main.output.setResourcesDir(main.java.destinationDirectory)
     }
-    tasks.named("compileJava") { dependsOn("stonecutterGenerate") }
+    tasks.named("compileJava") {
+        dependsOn("stonecutterGenerate")
+        dependsOn(writeDevFlags)
+    }
     tasks.named("processResources") { dependsOn("stonecutterGenerate") }
     runs.register("client") {
         mods {
@@ -139,14 +178,15 @@ if (forgeNode == null) {
     }
     embed("com.squareup.okhttp3:okhttp:3.14.9")
     embed("com.squareup.okio:okio:1.17.5")
-    if (minecraftVersion == "1.21.1") {
-        embed("me.shedaniel.cloth:cloth-config-forge:15.0.140")
+    val clothVersion = node.cloth
+    if (clothVersion != null) {
+        embed("me.shedaniel.cloth:cloth-config-forge:$clothVersion")
     }
     val embeddedJars = buildList {
         add(EmbeddedJar("com.squareup.okhttp3", "okhttp", "3.14.9", "[3.14.9,3.15)", "okhttp-3.14.9.jar"))
         add(EmbeddedJar("com.squareup.okio", "okio", "1.17.5", "[1.17.5,1.18)", "okio-1.17.5.jar"))
-        if (minecraftVersion == "1.21.1") {
-            add(EmbeddedJar("me.shedaniel.cloth", "cloth-config-forge", "15.0.140", "[15.0.140,15.1)", "cloth-config-forge-15.0.140-forge.jar"))
+        if (clothVersion != null) {
+            add(EmbeddedJar("me.shedaniel.cloth", "cloth-config-forge", clothVersion, clothRange(clothVersion), "cloth-config-forge-$clothVersion-forge.jar"))
         }
     }
     val embeddedNames = embeddedJars.associate { it.artifact to it.fileName }
@@ -202,12 +242,12 @@ if (forgeNode == null) {
 
     tasks.named<ProcessResources>("processResources") {
         dependsOn(writeForgePack)
-        val clothDependency = if (minecraftVersion == "1.21.1") {
+        val clothDependency = if (node.cloth != null) {
             """
 [[dependencies.quarkos_capes]]
 modId = "cloth_config"
 mandatory = true
-versionRange = "[15.0.140,15.1)"
+versionRange = "${clothRange(node.cloth)}"
 ordering = "AFTER"
 side = "CLIENT"
 """
@@ -215,7 +255,7 @@ side = "CLIENT"
             ""
         }
         val props = mapOf(
-            "version" to "0.1.0+$minecraftVersion",
+            "version" to "$modVersion+$minecraftVersion",
             "forge_dep" to node.forgeDep,
             "forge_spec" to node.forgeDep.substringBefore('.'),
             "minecraft" to minecraftVersion,
@@ -223,13 +263,22 @@ side = "CLIENT"
         )
         inputs.property("forge_dep", node.forgeDep)
         inputs.property("minecraft", minecraftVersion)
+        inputs.property("releaseBuild", releaseBuild)
+        inputs.property("mixinJava", if (minecraftVersion == "1.20.1") "JAVA_17" else "JAVA_21")
         filesMatching("META-INF/mods.toml") {
             expand(props)
         }
         val legacyCapeMixin = minecraftVersion != "1.21.11"
         filesMatching("quarkos_capes.mixins.json") {
-            if (legacyCapeMixin) {
-                filter { line -> line.replace("ElytraTextureMixin\"", "ElytraTextureMixin121\"") }
+            filter { line ->
+                var next = if (legacyCapeMixin) line.replace("ElytraTextureMixin\"", "ElytraTextureMixin121\"") else line
+                if (releaseBuild) {
+                    next = next.replace(", \"ShotCameraMixin\", \"ShotSkinMixin\"", "")
+                }
+                if (minecraftVersion == "1.20.1") {
+                    next = next.replace("JAVA_21", "JAVA_17")
+                }
+                next
             }
         }
         exclude("fabric.mod.json")
@@ -242,11 +291,26 @@ side = "CLIENT"
 
     tasks.named<Jar>("jar") {
         dependsOn(prepareJarJar)
+        doFirst {
+            if (minecraftVersion == "1.20.1") {
+                delete(layout.buildDirectory.dir("classes/java/main/META-INF/jarjar"))
+            }
+        }
         from(jarjarDir) {
             into("META-INF/jarjar")
         }
         manifest {
             attributes["MixinConfigs"] = "quarkos_capes.mixins.json"
+        }
+        if (releaseBuild) {
+            exclude("dev/quarkos/capes/client/harness/**")
+            exclude("dev/quarkos/capes/client/net/LabyCatalog.class")
+            exclude("dev/quarkos/capes/client/net/LabyCatalog\$*.class")
+            exclude("dev/quarkos/capes/client/net/LabyBrowse.class")
+            exclude("dev/quarkos/capes/client/net/LabyBrowse\$*.class")
+            exclude("dev/quarkos/capes/client/render/LabyWear.class")
+            exclude("dev/quarkos/capes/client/mixin/ShotCameraMixin.class")
+            exclude("dev/quarkos/capes/client/mixin/ShotSkinMixin.class")
         }
     }
 
@@ -258,13 +322,15 @@ side = "CLIENT"
         val labyShots = providers.gradleProperty("labyShots").orNull == "true"
         val cloakOnly = providers.gradleProperty("cloakOnly").orNull == "true"
         val harness = providers.gradleProperty("harness").orNull == "true"
+        val mediaRoot = file("/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502")
         val media = "/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502/media/capes/forge/$minecraftVersion"
-        val captures = if (labyShots) {
+        val localCaptures = rootProject.file("build/captures/forge/$minecraftVersion").absolutePath
+        val captures = if (labyShots && mediaRoot.isDirectory) {
             "/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502/media/capes/labymod/forge/$minecraftVersion"
-        } else if (harness || cloakOnly) {
+        } else if ((harness || cloakOnly) && mediaRoot.isDirectory) {
             media
         } else {
-            rootProject.file("build/captures/forge/$minecraftVersion").absolutePath
+            localCaptures
         }
         systemProperty("quarkos_capes.captures", captures)
         systemProperty("quarkos_capes.loader", "forge")
@@ -306,6 +372,7 @@ side = "CLIENT"
             providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
         }
         environment("LIBGL_ALWAYS_SOFTWARE", "1")
+        environment("MESA_GL_VERSION_OVERRIDE", "3.3")
         val display = providers.gradleProperty("display").orNull ?: System.getenv("DISPLAY")
         val xauth = providers.gradleProperty("xauth").orNull ?: System.getenv("XAUTHORITY")
         if (!display.isNullOrBlank()) {
@@ -315,10 +382,21 @@ side = "CLIENT"
             environment("XAUTHORITY", xauth)
         }
         if (name == "runClient") {
+            if (minecraftVersion == "1.20.1") {
+                dependsOn(prepareJarJar)
+            }
             doFirst {
                 val eula = workingDir.resolve("eula.txt")
                 eula.parentFile?.mkdirs()
                 eula.writeText("eula=true\n")
+                if (minecraftVersion == "1.20.1") {
+                    val dest = layout.buildDirectory.dir("classes/java/main/META-INF/jarjar").get().asFile
+                    dest.mkdirs()
+                    copy {
+                        from(jarjarDir)
+                        into(dest)
+                    }
+                }
             }
         }
     }
