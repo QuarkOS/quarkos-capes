@@ -311,7 +311,7 @@ public final class CapeScreen {
         CapeBook.draft = OwnerCape.get();
         placeQuery(screen);
         ScreenEvents.beforeRender(screen).register((view, graphics, mouseX, mouseY, delta) -> {
-            graphics.fill(0, 0, view.width, view.height, 0xE810141C);
+            graphics.fill(0, 0, view.width, view.height, 0xFF10141C);
             compactHint = null;
         });
         ScreenEvents.afterRender(screen).register((current, graphics, mouseX, mouseY, delta) -> {

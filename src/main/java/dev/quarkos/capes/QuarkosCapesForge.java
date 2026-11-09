@@ -43,7 +43,7 @@ public final class QuarkosCapesForge {
 
     //? if <1.21.6 {
     /^private void beforeScreen(net.minecraftforge.client.event.ScreenEvent.Render.Pre event) {
-        if (CapeScreens.isSettings(event.getScreen())) event.getGuiGraphics().fill(0, 0, event.getScreen().width, event.getScreen().height, 0xE810141C);
+        if (CapeScreens.isSettings(event.getScreen())) event.getGuiGraphics().fill(0, 0, event.getScreen().width, event.getScreen().height, 0xFF10141C);
     }
 
     private void onClientTick(TickEvent.ClientTickEvent event) {

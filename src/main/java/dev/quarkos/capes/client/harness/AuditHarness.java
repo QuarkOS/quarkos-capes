@@ -46,7 +46,7 @@ public final class AuditHarness {
     private AuditHarness() { }
 
     public static boolean selected() {
-        return Boolean.getBoolean("quarkos_capes.harness") && !MODE.isEmpty() && !"flows".equals(MODE);
+        return Boolean.getBoolean("quarkos_capes.harness") && !MODE.isEmpty() && !"flows".equals(MODE) && !"boot".equals(MODE);
     }
 
     public static void tick(Minecraft client) {

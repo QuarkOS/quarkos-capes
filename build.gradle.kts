@@ -1,4 +1,6 @@
 import java.util.UUID
+import net.fabricmc.loom.task.prod.ClientProductionRunTask
+import net.fabricmc.loom.task.RemapJarTask
 
 plugins {
     id("dev.kikugie.loom-back-compat")
@@ -51,6 +53,33 @@ dependencies {
     testImplementation("com.google.code.gson:gson:2.11.0")
     testImplementation("org.junit.jupiter:junit-jupiter")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+// Resolve the published API jar, never Loom's named development mods or Mod Menu.
+val productionFabricApi = configurations.create("productionFabricApi") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+    isTransitive = false
+}
+dependencies {
+    add(productionFabricApi.name, "net.fabricmc.fabric-api:fabric-api:${sc.properties.get<String>("deps.fabric_api")}")
+}
+
+tasks.register<ClientProductionRunTask>("prodClient") {
+    group = "verification"
+    description = "Boot the remapped release jar with Fabric API and no Mod Menu."
+    dependsOn("verifyReleaseJar")
+    mods.setFrom(tasks.named<RemapJarTask>("remapJar").flatMap { it.archiveFile }, productionFabricApi)
+    runDir.set(layout.buildDirectory.dir("prod-run"))
+    useXVFB.set(providers.gradleProperty("xvfb").map { it.toBoolean() }.orElse(false))
+    val mode = providers.gradleProperty("only").orElse("boot")
+    jvmArgs.addAll("-Dquarkos_capes.harness=true", "-Dquarkos_capes.only=${mode.get()}", "-Dquarkos_capes.loader=fabric")
+    programArgs.addAll("--version", sc.current.version, "--accessToken", "0", "--username", "CapeBoot", "--uuid", UUID.nameUUIDFromBytes("OfflinePlayer:CapeBoot".toByteArray()).toString(),
+        "--width", "1280", "--height", "720")
+    doFirst {
+        check(mode.get() == "boot") { "prodClient supports -Ponly=boot" }
+        check(mods.files.none { it.name.contains("modmenu", ignoreCase = true) }) { "Mod Menu must be absent from the production boot test" }
+    }
 }
 
 configurations.configureEach {
@@ -167,7 +196,7 @@ tasks {
             providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
         }
         systemProperty("quarkos_capes.serverUrl", providers.gradleProperty("serverUrl").orElse("http://127.0.0.1:8787").get())
-        if (providers.gradleProperty("only").orNull == "flows") systemProperty("quarkos_capes.harness", "true")
+        if (providers.gradleProperty("only").orNull in listOf("flows", "boot")) systemProperty("quarkos_capes.harness", "true")
         for (key in listOf("CAPES_DEV_AUTH", "CAPES_DEV_AUTH_SECRET")) {
             System.getenv(key)?.let { environment(key, it) }
         }

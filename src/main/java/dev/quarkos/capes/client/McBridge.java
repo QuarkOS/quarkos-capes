@@ -182,8 +182,23 @@ public final class McBridge {
         float oldBody = player.yBodyRotO, oldHead = player.yHeadRotO;
         float oldYaw = player.yRotO, oldPitch = player.xRotO;
         boolean preview = dev.quarkos.capes.client.render.CapeBook.preview;
+        //? if <1.21.11 {
+        /*net.minecraft.client.player.AbstractClientPlayer avatar = player instanceof net.minecraft.client.player.AbstractClientPlayer p ? p : null;
+        double[] cloak = avatar == null ? null : new double[]{avatar.xCloak, avatar.yCloak, avatar.zCloak, avatar.xCloakO, avatar.yCloakO, avatar.zCloakO};
+        float walk = player.walkDist, oldWalk = player.walkDistO;
+        *///?}
+        boolean rendering = dev.quarkos.capes.client.render.CapeBook.renderingPreview;
         try {
             dev.quarkos.capes.client.render.CapeBook.preview = true;
+            dev.quarkos.capes.client.render.CapeBook.renderingPreview = true;
+            //? if <1.21.11 {
+            /*if (avatar != null) {
+                avatar.xCloak = avatar.xCloakO = avatar.getX();
+                avatar.yCloak = avatar.yCloakO = avatar.getY();
+                avatar.zCloak = avatar.zCloakO = avatar.getZ();
+            }
+            player.walkDist = player.walkDistO = 0f;
+            *///?}
             player.setYRot(0f); player.setXRot(0f);
             player.yRotO = player.xRotO = 0f;
             player.yBodyRot = player.yBodyRotO = 0f;
@@ -203,7 +218,11 @@ public final class McBridge {
                     new Vector3f(0f, 0f, 0f), pose, camera, player);
             *///?} else {
             var state = Minecraft.getInstance().getEntityRenderDispatcher().extractEntity(player, 1f);
+            dev.quarkos.capes.client.render.CapeBook.previewState = state;
             state.lightCoords = 15728880;
+            if (state instanceof net.minecraft.client.renderer.entity.state.AvatarRenderState avatar) {
+                avatar.capeFlap = avatar.capeLean = avatar.capeLean2 = 0f;
+            }
             if (state instanceof net.minecraft.client.renderer.entity.state.LivingEntityRenderState living) {
                 living.bodyRot = 180f; living.yRot = 0f; living.xRot = 0f;
                 if (living.scale != 0f && living.scale != 1f) {
@@ -221,6 +240,14 @@ public final class McBridge {
             player.yRotO = oldYaw; player.xRotO = oldPitch;
             player.yBodyRot = body; player.yHeadRot = head;
             player.yBodyRotO = oldBody; player.yHeadRotO = oldHead;
+            //? if <1.21.11 {
+            /*if (avatar != null) {
+                avatar.xCloak = cloak[0]; avatar.yCloak = cloak[1]; avatar.zCloak = cloak[2];
+                avatar.xCloakO = cloak[3]; avatar.yCloakO = cloak[4]; avatar.zCloakO = cloak[5];
+            }
+            player.walkDist = walk; player.walkDistO = oldWalk;
+            *///?}
+            dev.quarkos.capes.client.render.CapeBook.renderingPreview = rendering;
             dev.quarkos.capes.client.render.CapeBook.preview = preview;
         }
     }

@@ -38,7 +38,7 @@ public final class LinkScreen extends Screen {
     }
     *///?}
     @Override public void render(GuiGraphics graphics,int x,int y,float delta) {
-        graphics.fill(0,0,width,height,0xF01A2029); super.render(graphics,x,y,delta);
+        graphics.fill(0,0,width,height,0xFF1A2029); super.render(graphics,x,y,delta);
         graphics.drawCenteredString(font,getTitle(),width/2,20,0xFFFFFFFF);
         graphics.drawString(font,font.plainSubstrByWidth(BrowseScreen.text("code_help").getString(),width-16),8,44,0xFFB6C8DD);
         graphics.drawString(font,font.plainSubstrByWidth(note,width-16),8,116,0xFFFFD980);

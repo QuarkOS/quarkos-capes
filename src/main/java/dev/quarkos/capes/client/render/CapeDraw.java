@@ -35,7 +35,7 @@ public final class CapeDraw {
         }
     }
 
-    public static void emit(PoseStack.Pose pose, VertexConsumer consumer, int light, UUID id, CapeBook.Choice choice) {
+    public static void emit(PoseStack.Pose pose, VertexConsumer consumer, int light, UUID id, CapeBook.Choice choice, boolean preview) {
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
             return;
         }
@@ -50,9 +50,9 @@ public final class CapeDraw {
         } else if (choice.kind() == CapeBook.Kind.CLOTH) {
             WaveCloth.Settings settings = ClientSettings.get().cloth;
             PlayerFacts.Fact fact = PlayerFacts.byUuid(id);
-            WaveCloth.Motion motion = fact == null ? WaveCloth.Motion.still() : ClothSim.motion(fact);
-            rememberGravity(pose, id, fact);
-            WaveCloth.State state = ClothSim.state(id);
+            WaveCloth.Motion motion = preview || fact == null ? WaveCloth.Motion.still() : ClothSim.motion(fact);
+            if (!preview) rememberGravity(pose, id, fact);
+            WaveCloth.State state = preview ? dev.quarkos.capes.sim.PreviewCloth.state(settings) : ClothSim.state(id);
             WaveCloth.ClassicPose classic = settings.movement() == WaveCloth.Movement.CLASSIC
                     ? WaveCloth.classic(settings, motion, state) : null;
             quads = CapeGeometry.cloth(
@@ -71,7 +71,7 @@ public final class CapeDraw {
                     Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false)
                     //?}
             );
-            ClothSim.markDrawn(id);
+            if (!preview) ClothSim.markDrawn(id);
         } else {
             quads = CapeGeometry.flat(frame, frames, choice.vertical());
         }

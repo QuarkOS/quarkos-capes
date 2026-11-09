@@ -55,7 +55,11 @@ public final class CapeScreens {
         return CapeScreen.previewBounds(screen);
         //?} else {
         /*if (screen instanceof ForgeCapeScreen) return new int[]{screen.width-120,54,screen.width-8,screen.height-84};
-        return new int[]{Math.max(8,screen.width-110),44,screen.width-8,screen.height-60};
+        //? if =1.21.1 {
+        /^return ClothCapeScreen.previewBounds(screen);
+        ^///?} else {
+        return null;
+        //?}
         *///?}
     }
 

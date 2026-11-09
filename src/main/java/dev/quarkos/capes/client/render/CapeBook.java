@@ -44,6 +44,10 @@ public final class CapeBook {
     private static final Choice NONE = new Choice(Kind.NONE, null, false, 1, 64, 32, STILL, false, null);
     private static final Map<UUID, String> TEXTURE_KEYS = new ConcurrentHashMap<>();
     public static boolean preview;
+    /** Actual GUI render scope; the draft flag also stays set while the world renders. */
+    public static boolean renderingPreview;
+    /** GUI extraction is submitted later on 1.21.11, after the scope has ended. */
+    public static Object previewState;
     /** When the picker is open, true shows the cape from behind. */
     public static boolean previewBack = true;
     public static OwnerCape draft;

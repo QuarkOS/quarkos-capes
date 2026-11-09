@@ -37,15 +37,16 @@ public final class QuarkosCapes implements ClientModInitializer {
     //?}
 
     public static void tick(Minecraft client) {
-        ClientHarness.start(client);
+        boolean harness = Boolean.getBoolean("quarkos_capes.harness");
+        if (harness) ClientHarness.start(client);
         PlayerFacts.tick(client);
         ClothSim.clientTick();
-        if (!dev.quarkos.capes.client.harness.AuditHarness.selected()) {
+        if (!harness || !dev.quarkos.capes.client.harness.AuditHarness.selected()) {
             CapeHttp.tick(client);
             dev.quarkos.capes.client.net.SiteApi.tick(client);
         }
-        if (client.screen == null && OPEN != null && OPEN.consumeClick()) {
-            McBridge.setScreen(client, CapeScreens.open(null));
+        if ((client.screen == null || client.screen instanceof net.minecraft.client.gui.screens.TitleScreen) && OPEN != null && OPEN.consumeClick()) {
+            McBridge.setScreen(client, CapeScreens.open(client.screen));
         }
         LocalFiles.autosave(CapeScreens.isSettings(client.screen));
         if (!CapeScreens.isSettings(client.screen)) {

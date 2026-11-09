@@ -117,6 +117,12 @@ final class ClothCapeScreen {
         return builder.build();
     }
 
+    static int[] previewBounds(Screen screen) {
+        if (screen.width < 480 || screen.height < 300) return null;
+        int top = screen instanceof ClothConfigScreen cloth ? Math.max(80, cloth.listWidget.top + 8) : 80;
+        return new int[]{Math.max(8, screen.width - 110), top, screen.width - 8, screen.height - 84};
+    }
+
     private static ConfigCategory category(ConfigBuilder builder, String key) {
         return builder.getOrCreateCategory(Component.translatable(key));
     }
@@ -228,7 +234,8 @@ final class ClothCapeScreen {
             }
             if (minecraft.player != null && minecraft.screen.width >= 480 && minecraft.screen.height >= 300) {
                 CapeBoard.show();
-                McBridge.preview(graphics, getX(), getY() + 16, minecraft.screen.width - 8, minecraft.screen.height - 60, minecraft.player);
+                int[] bounds = previewBounds(minecraft.screen);
+                McBridge.preview(graphics, bounds[0], bounds[1], bounds[2], bounds[3], minecraft.player);
             }
             if (minecraft.screen instanceof ClothConfigScreen screen
                     && screen.getSelectedCategory().getString().equals(Component.translatable("text.quarkos_capes.tab.gallery").getString())) {

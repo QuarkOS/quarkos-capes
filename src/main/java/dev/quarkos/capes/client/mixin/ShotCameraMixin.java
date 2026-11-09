@@ -40,7 +40,7 @@ public abstract class ShotCameraMixin {
     //?}
 
     private void orbit(Entity entity, float partial) {
-        if (!ShotView.active() || entity == null) {
+        if (!Boolean.getBoolean("quarkos_capes.harness") || !ShotView.active() || entity == null) {
             return;
         }
         setRotation(entity.getViewYRot(partial) + ShotView.yaw(), ShotView.pitch());

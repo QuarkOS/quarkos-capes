@@ -70,10 +70,12 @@ public final class CapeGalleryScreen extends Screen {
         for (int i = page * capacity; i < end; i++) {
             Row row = rows.get(i);
             int y = 82 + (i % capacity) * 32;
-            Button equip = addRenderableWidget(Button.builder(text("gallery.equip"), b -> equip(row))
+            boolean equipped = row.sample != null ? CapeBoard.sampleOn(row.sample)
+                    : row.id != null && row.id.equals(ClientSettings.get().equippedGalleryId);
+            Button equip = addRenderableWidget(Button.builder(text(equipped ? "gallery.equipped" : "gallery.equip"), b -> equip(row))
                     .bounds(width - 72, y, 64, 20).build());
             equip.setTooltip(Tooltip.create(text("tooltip.equip")));
-            equip.active = !busy;
+            equip.active = !busy && !equipped;
         }
         if (ClientSettings.get().localOnly) addRenderableWidget(Button.builder(BrowseScreen.text("go_online"), b -> {
             CapeBoard.localOnly(false); CapeBoard.save(value -> note = value); load();
@@ -135,7 +137,7 @@ public final class CapeGalleryScreen extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partial) {
-        graphics.fill(0, 0, width, height, 0xE810141C);
+        graphics.fill(0, 0, width, height, 0xFF10141C);
         super.render(graphics, mouseX, mouseY, partial);
         if (ClientSettings.get().localOnly) {
             graphics.drawCenteredString(font, BrowseScreen.text("offline_title"), width/2, emptyY(), 0xFFFFFFFF);

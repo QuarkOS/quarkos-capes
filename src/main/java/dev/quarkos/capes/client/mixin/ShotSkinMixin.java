@@ -20,6 +20,7 @@ public class ShotSkinMixin {
     *///?} else {
     @Inject(method = "getSkin", at = @At("HEAD"), cancellable = true)
     private void quarkosShortHair(CallbackInfoReturnable<PlayerSkin> cir) {
+        if (!Boolean.getBoolean("quarkos_capes.harness")) return;
         PlayerSkin skin = ShotView.skin();
         if (skin != null) {
             cir.setReturnValue(skin);

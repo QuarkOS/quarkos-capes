@@ -118,6 +118,18 @@ public final class FlowHarness {
         ShotView.frame(25,8,4f);CapeBook.resetDraws();CapeLayerWatch.reset();
     }
     private static void open(int tab) { mc.options.hideGui=false;mc.setScreen(CapeScreens.openTab(null,tab));CapeBook.resetDraws(); }
+    private static void equipSample(String sample) {
+        //? if forge && >=1.21.11 {
+        /*if (mc.screen instanceof ForgeCapeScreen nativeScreen) {
+            Button button = nativeScreen.sampleButton(sample);
+            require(button != null, "Missing sample action: " + sample);
+            if (button.active) McBridge.press(button);
+            require(CapeBoard.sampleOn(sample), "Sample action did not equip: " + sample);
+            return;
+        }
+        *///?}
+        CapeBoard.equipSample(sample);
+    }
     private static void localDraw() { require(CapeBook.draws(mc.player.getUUID())>0,"Local cape did not draw"); }
     private static void build(int number) {
         switch(number) {
@@ -126,7 +138,7 @@ public final class FlowHarness {
             case 2,3,4,5,6,7 -> scene("main",()->open(number-2),()->layout(mc.screen));
             case 8 -> {
                 for(String sample:List.of("bands","slide","cloak")) {
-                    scene(sample+"-preview",()->{CapeBoard.equipSample(sample);open(0);},FlowHarness::localDraw);
+                    scene(sample+"-preview",()->{open(0);equipSample(sample);},FlowHarness::localDraw);
                     scene(sample+"-world",FlowHarness::world,FlowHarness::localDraw);
                 }
             }

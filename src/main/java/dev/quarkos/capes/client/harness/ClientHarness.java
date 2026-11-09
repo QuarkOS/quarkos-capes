@@ -70,6 +70,10 @@ public final class ClientHarness {
                 && !Boolean.getBoolean("quarkos_capes.labyCompare")) {
             return;
         }
+        if ("boot".equals(System.getProperty("quarkos_capes.only"))) {
+            BootHarness.tick(client);
+            return;
+        }
         //? if fabric {
         String role = System.getProperty("quarkos_capes.role", "");
         if ("a".equals(role) || "b".equals(role)) {

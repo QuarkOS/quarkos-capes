@@ -179,7 +179,7 @@ public final class BrowseScreen extends Screen {
     }
     *///?}
     @Override public void render(GuiGraphics graphics,int mouseX,int mouseY,float delta) {
-        graphics.fill(0,0,width,height,0xF01A2029);
+        graphics.fill(0,0,width,height,0xFF1A2029);
         super.render(graphics,mouseX,mouseY,delta);
         int left=divider();
         graphics.drawCenteredString(font,getTitle(),width/2,12,0xFFFFFFFF);
