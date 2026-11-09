@@ -1,12 +1,16 @@
 //? if forge {
-/*
-//? if =1.21.1 {
-package dev.quarkos.capes.client.screen;
+
+/*//? if =1.21.1 {
+/^package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.local.ClientSettings;
-import dev.quarkos.capes.client.net.LabyBrowse;
-import dev.quarkos.capes.client.net.LabyCatalog;
+//? if dev_catalog {
+/^¹import dev.quarkos.capes.client.net.LabyBrowse;
+¹^///?}
+//? if dev_catalog {
+/^¹import dev.quarkos.capes.client.net.LabyCatalog;
+¹^///?}
 import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.client.render.CapeBook;
 import dev.quarkos.capes.sim.WaveCloth;
@@ -74,13 +78,16 @@ final class ClothCapeScreen {
         held.minecraftCapes = toggle(fields, sources, "text.quarkos_capes.toggle.minecraftcapes", settings.enableMinecraftCapesMod, false);
         held.cosmetica = toggle(fields, sources, "text.quarkos_capes.toggle.cosmetica", settings.enableCosmetica, false);
         held.cloaks = toggle(fields, sources, "text.quarkos_capes.toggle.cloaksplus", settings.enableCloaksPlus, false);
-        if (LabyCatalog.enabled()) {
+//? if dev_catalog {
+        /^¹if (LabyCatalog.enabled()) {
             held.labyPrevious = toggle(fields, sources, "text.quarkos_capes.laby.previous", false, false);
             held.labyNext = toggle(fields, sources, "text.quarkos_capes.laby.next", false, false);
             if (!LabyBrowse.status().isBlank()) {
                 sources.addEntry(fields.startTextDescription(Component.literal(LabyBrowse.status())).build());
             }
         }
+¹^///?}
+
 
         ConfigCategory gallery = category(builder, "text.quarkos_capes.tab.gallery");
         held.publish = toggle(fields, gallery, "text.quarkos_capes.button.publish", false, false);
@@ -95,6 +102,8 @@ final class ClothCapeScreen {
                 .setDefaultValue("http://127.0.0.1:8787")
                 .setSaveConsumer(CapeBoard::baseUrl)
                 .build());
+
+        category(builder, "text.quarkos_capes.site.browse").addEntry(fields.startTextDescription(Component.translatable("text.quarkos_capes.site.browse")).build());
 
         builder.setAfterInitConsumer(screen -> {
             PreviewPane pane = new PreviewPane(parent, held);
@@ -189,6 +198,10 @@ final class ClothCapeScreen {
                 minecraft.execute(() -> minecraft.setScreen(new CapeGalleryScreen(parent)));
                 return;
             }
+            if (minecraft.screen instanceof ClothConfigScreen cloth
+                    && cloth.getSelectedCategory().getString().equals(Component.translatable("text.quarkos_capes.site.browse").getString())) {
+                minecraft.execute(() -> minecraft.setScreen(new BrowseScreen(parent))); return;
+            }
             sync();
             if (!note.isBlank()) graphics.drawString(minecraft.font,
                     minecraft.font.plainSubstrByWidth(note, Math.max(20, minecraft.screen.width - 16)),
@@ -274,7 +287,8 @@ final class ClothCapeScreen {
             CapeBoard.showOthers(Boolean.TRUE.equals(held.others.getValue()));
             CapeBoard.localOnly(Boolean.TRUE.equals(held.offline.getValue()));
             CapeBoard.elytra(Boolean.TRUE.equals(held.elytra.getValue()));
-            if (held.labyPrevious != null && Boolean.TRUE.equals(held.labyPrevious.getValue())) {
+//? if dev_catalog {
+            /^¹if (held.labyPrevious != null && Boolean.TRUE.equals(held.labyPrevious.getValue())) {
                 busy = true;
                 LabyBrowse.previous(() -> Minecraft.getInstance().execute(() -> {
                     busy = false;
@@ -294,6 +308,8 @@ final class ClothCapeScreen {
                 }));
                 return;
             }
+
+¹^///?}
             if (Boolean.TRUE.equals(held.save.getValue())) {
                 CapeBoard.save(value -> note = value);
                 dirty = true;
@@ -396,5 +412,5 @@ final class ClothCapeScreen {
         }
     }
 }
-//?}
+^///?}
 *///?}

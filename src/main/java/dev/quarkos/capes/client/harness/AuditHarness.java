@@ -46,7 +46,7 @@ public final class AuditHarness {
     private AuditHarness() { }
 
     public static boolean selected() {
-        return Boolean.getBoolean("quarkos_capes.harness") && !MODE.isEmpty();
+        return Boolean.getBoolean("quarkos_capes.harness") && !MODE.isEmpty() && !"flows".equals(MODE);
     }
 
     public static void tick(Minecraft client) {
@@ -91,10 +91,12 @@ public final class AuditHarness {
             if (++shot == 12) doneAt = tick;
         } else if ("inventory".equals(MODE)) {
             switch (shot++) {
-                case 0 -> { equip(1); client.setScreen(new InventoryScreen(client.player)); }
-                case 1 -> capture(client, "inventory");
-                case 2 -> openTab(client, 0);
-                case 3 -> { capture(client, "screen-preview"); doneAt = tick; }
+                case 0 -> { equip(1); client.player.connection.sendCommand("gamemode survival"); }
+                case 1 -> client.setScreen(new InventoryScreen(client.player));
+                case 2 -> capture(client, "inventory");
+                case 3 -> openTab(client, 0);
+                case 4 -> { capture(client, "screen-preview"); doneAt = tick; }
+
                 default -> { }
             }
         } else {
@@ -105,10 +107,10 @@ public final class AuditHarness {
     private static void openTab(Minecraft client, int tab) {
         // Fabric's public category selector is already present on integ-base.
         //? if fabric {
-        client.setScreen(dev.quarkos.capes.client.screen.CapeScreen.create(null,
+        /*client.setScreen(dev.quarkos.capes.client.screen.CapeScreen.create(null,
                 Component.translatable("text.quarkos_capes.tab." + (tab == 0 ? "my_cape" : TABS[tab]))));
-        //?} else {
-        /*Screen screen = CapeScreens.open(null);
+        *///?} else {
+        Screen screen = CapeScreens.open(null);
         client.setScreen(screen);
         try {
             if (screen.getClass().getSimpleName().equals("ForgeCapeScreen")) {
@@ -126,7 +128,7 @@ public final class AuditHarness {
         } catch (ReflectiveOperationException failure) {
             throw new IllegalStateException("Cannot select settings tab " + tab, failure);
         }
-        *///?}
+        //?}
     }
 
     private static void world(Minecraft client) {

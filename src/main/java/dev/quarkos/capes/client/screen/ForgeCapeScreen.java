@@ -1,11 +1,15 @@
 //? if forge {
-/*
-package dev.quarkos.capes.client.screen;
+
+/*package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.local.ClientSettings;
-import dev.quarkos.capes.client.net.LabyBrowse;
-import dev.quarkos.capes.client.net.LabyCatalog;
+//? if dev_catalog {
+/^import dev.quarkos.capes.client.net.LabyBrowse;
+^///?}
+//? if dev_catalog {
+/^import dev.quarkos.capes.client.net.LabyCatalog;
+^///?}
 import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.sim.WaveCloth;
 import net.minecraft.client.gui.GuiGraphics;
@@ -39,6 +43,7 @@ public final class ForgeCapeScreen extends Screen {
     }
 
     private void rebuild() {
+        if (tab == 6 && minecraft != null) { minecraft.setScreen(new BrowseScreen(parent)); return; }
         if (tab == 4 && minecraft != null) {
             minecraft.setScreen(new CapeGalleryScreen(parent)); return;
         }
@@ -62,7 +67,9 @@ public final class ForgeCapeScreen extends Screen {
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.sample.bands", CapeBoard.sampleOn("bands"), () -> CapeBoard.equipSample("bands"));
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.sample.slide", CapeBoard.sampleOn("slide"), () -> CapeBoard.equipSample("slide"));
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.sample.cloak", CapeBoard.sampleOn("cloak"), () -> CapeBoard.equipSample("cloak"));
-                toggle(x, y, rowWidth, "text.quarkos_capes.button.save", false, () -> CapeBoard.save(value -> note = value));
+                y = toggle(x, y, rowWidth, "text.quarkos_capes.button.save", false, () -> CapeBoard.save(value -> note = value));
+                y = toggle(x, y, rowWidth, "text.quarkos_capes.button.publish", false, () -> CapeBoard.publish(value -> note = value));
+                toggle(x, y, rowWidth, "text.quarkos_capes.button.unpublish", false, () -> CapeBoard.unpublish(value -> note = value));
             }
             case 1 -> {
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.style.flat", CapeBoard.styleOn("flat"), () -> CapeBoard.style("flat"));
@@ -92,13 +99,16 @@ public final class ForgeCapeScreen extends Screen {
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.toggle.minecraftcapes", ClientSettings.get().enableMinecraftCapesMod, () -> CapeBoard.provider("minecraftcapes", !ClientSettings.get().enableMinecraftCapesMod));
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.toggle.cosmetica", ClientSettings.get().enableCosmetica, () -> CapeBoard.provider("cosmetica", !ClientSettings.get().enableCosmetica));
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.toggle.cloaksplus", ClientSettings.get().enableCloaksPlus, () -> CapeBoard.provider("cloaksplus", !ClientSettings.get().enableCloaksPlus));
-                if (LabyCatalog.enabled()) {
+        //? if dev_catalog {
+        /^if (LabyCatalog.enabled()) {
                     if (!LabyBrowse.status().isBlank()) {
                         note = LabyBrowse.status();
                     }
                     y = toggle(x, y, rowWidth, "text.quarkos_capes.laby.previous", false, () -> LabyBrowse.previous(this::rebuild));
                     toggle(x, y, rowWidth, "text.quarkos_capes.laby.next", false, () -> LabyBrowse.next(this::rebuild));
                 }
+^///?}
+
             }
             case 4 -> {
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.button.publish", false, () -> CapeBoard.publish(value -> note = value));
@@ -133,7 +143,7 @@ public final class ForgeCapeScreen extends Screen {
         }).bounds(8, height - 28, 130, 20).build());
         addRenderableWidget(Button.builder(Component.translatable("text.quarkos_capes.button.save_quit"), button -> {
             CapeBoard.save(value -> { note = value; if (value.equals(Component.translatable("text.quarkos_capes.status.saved").getString())) onClose(); });
-        }).bounds(142, height - 28, 110, 20).build());
+        }).bounds(142, height - 28, Math.max(1, width - 150), 20).build());
         CapeBoard.show();
     }
 
@@ -167,6 +177,7 @@ public final class ForgeCapeScreen extends Screen {
             CapeBoard.show();
             McBridge.preview(graphics, width - 120, 54, width - 8, height - 84, minecraft.player);
         }
+        if (tab == 6 && minecraft != null) { minecraft.setScreen(new BrowseScreen(parent)); return; }
         if (tab == 4) {
             CapeThumbs.draw(graphics, previewX, 56);
         }

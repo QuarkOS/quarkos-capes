@@ -78,9 +78,7 @@ public final class CapeDraw {
         for (CapeGeometry.Quad quad : quads) {
             McBridge.quad(consumer, pose, light, quad);
         }
-        if (CapeBook.preview) {
-            CapeBook.draws++;
-        }
+        CapeBook.drawn(id);
     }
 
     public static CapeBook.Choice resolve(UUID id, boolean local, Identifier vanillaCape) {
@@ -95,9 +93,12 @@ public final class CapeDraw {
             if (!capeOn || (fact != null && fact.elytra())) {
                 return CapeBook.none();
             }
-            if (LabyWear.showing()) {
+//? if dev_catalog {
+            /*if (LabyWear.showing()) {
                 return LabyWear.choice();
             }
+
+*///?}
             return CapeBook.local(cape, image);
         }
         PlayerFacts.Fact fact = PlayerFacts.byUuid(id);

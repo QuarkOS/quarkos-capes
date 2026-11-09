@@ -41,8 +41,8 @@ public final class CapeGalleryScreen extends Screen {
 
     @Override protected void init() {
         clearWidgets();
-        int tabWidth = Math.max(1, (width - 16) / 6);
-        for (int i = 0; i < 6; i++) {
+        int tabWidth = Math.max(1, (width - 16) / CapeBoard.TABS.length);
+        for (int i = 0; i < CapeBoard.TABS.length; i++) {
             int tab = i;
             Button button = addRenderableWidget(Button.builder(Component.translatable(CapeBoard.TABS[i]), b -> {
                 if (tab != 4) minecraft.setScreen(CapeScreens.openTab(parent, tab));

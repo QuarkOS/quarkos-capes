@@ -9,7 +9,7 @@ import dev.quarkos.capes.client.render.ClothSim;
 import dev.quarkos.capes.client.render.PlayerFacts;
 import dev.quarkos.capes.client.screen.CapeScreens;
 //? if forge {
-/* *///?} else {
+ //?} else {
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 //?}
@@ -40,7 +40,10 @@ public final class QuarkosCapes implements ClientModInitializer {
         ClientHarness.start(client);
         PlayerFacts.tick(client);
         ClothSim.clientTick();
-        if (!dev.quarkos.capes.client.harness.AuditHarness.selected()) CapeHttp.tick(client);
+        if (!dev.quarkos.capes.client.harness.AuditHarness.selected()) {
+            CapeHttp.tick(client);
+            dev.quarkos.capes.client.net.SiteApi.tick(client);
+        }
         if (client.screen == null && OPEN != null && OPEN.consumeClick()) {
             McBridge.setScreen(client, CapeScreens.open(null));
         }

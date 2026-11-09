@@ -8,8 +8,12 @@ import dev.quarkos.capes.client.local.LocalFiles;
 import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.client.net.CapeHttp;
 import dev.quarkos.capes.client.net.GalleryPages;
-import dev.quarkos.capes.client.net.LabyBrowse;
-import dev.quarkos.capes.client.net.LabyCatalog;
+//? if dev_catalog {
+/*import dev.quarkos.capes.client.net.LabyBrowse;
+*///?}
+//? if dev_catalog {
+/*import dev.quarkos.capes.client.net.LabyCatalog;
+*///?}
 import dev.quarkos.capes.client.render.CapeBook;
 import dev.quarkos.capes.client.render.CapeTextures;
 import dev.quarkos.capes.sim.WaveCloth;
@@ -166,7 +170,8 @@ public final class CapeScreen {
         sourcesCategory.addEntry(minecraftCapes);
         sourcesCategory.addEntry(cosmetica);
         sourcesCategory.addEntry(cloaks);
-        if (LabyCatalog.enabled()) {
+//? if dev_catalog {
+        /*if (LabyCatalog.enabled()) {
             Component sourcesTab = sources;
             sourcesCategory.addEntry(new ActionRow(Component.translatable("text.quarkos_capes.laby.previous"), () -> LabyBrowse.previous(() -> reopen(sourcesTab))));
             sourcesCategory.addEntry(new ActionRow(Component.translatable("text.quarkos_capes.laby.next"), () -> LabyBrowse.next(() -> reopen(sourcesTab))));
@@ -174,6 +179,8 @@ public final class CapeScreen {
                 sourcesCategory.addEntry(fields.startTextDescription(Component.literal(LabyBrowse.status())).build());
             }
         }
+*///?}
+
 
         ConfigCategory galleryCategory = builder.getOrCreateCategory(gallery);
         if (!note.isEmpty()) {
@@ -220,6 +227,10 @@ public final class CapeScreen {
         advancedCategory.addEntry(localOnly);
         advancedCategory.addEntry(elytra);
         advancedCategory.addEntry(baseUrl);
+
+        builder.getOrCreateCategory(Component.translatable("text.quarkos_capes.site.browse"))
+                .addEntry(new ActionRow(Component.translatable("text.quarkos_capes.site.browse"),
+                        () -> Minecraft.getInstance().setScreen(new BrowseScreen(current))));
 
         Component initial = select == null ? myCape : select;
         builder.setFallbackCategory(builder.getOrCreateCategory(initial));
@@ -315,6 +326,10 @@ public final class CapeScreen {
         ScreenEvents.afterRender(screen).register((current, graphics, mouseX, mouseY, delta) -> {
             Minecraft minecraft = Minecraft.getInstance();
             if (minecraft.player == null || minecraft.screen != current) {
+                return;
+            }
+            if (current instanceof ClothConfigScreen cloth && cloth.getSelectedCategory().getString().equals(Component.translatable("text.quarkos_capes.site.browse").getString())) {
+                minecraft.execute(() -> minecraft.setScreen(new BrowseScreen(create(parent, Component.translatable("text.quarkos_capes.tab.my_cape")))));
                 return;
             }
             pull();
@@ -563,6 +578,10 @@ public final class CapeScreen {
             children.add(i, new QueryField(box));
             return;
         }
+    }
+
+    public static int[] previewBounds(Screen screen) {
+        return new int[]{previewLeft(screen),previewTop(screen),previewRight(screen),previewBottom(screen)};
     }
 
     private static int previewLeft(Screen screen) {

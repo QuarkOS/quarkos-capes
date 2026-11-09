@@ -1,3 +1,5 @@
+import java.util.UUID
+
 plugins {
     id("dev.kikugie.loom-back-compat")
 }
@@ -94,6 +96,9 @@ tasks {
             register("version", "${sc.properties.get<String>("mod.version")}+$minecraftVersion")
             register("minecraft", sc.properties["mod.mc_compat"])
             register("java", ">=21")
+            register("fabric_api", sc.properties["deps.fabric_api"])
+            register("cloth", sc.properties["deps.cloth"])
+            register("modmenu", sc.properties["deps.modmenu"])
         }
 
         exclude("META-INF/mods.toml")
@@ -112,7 +117,7 @@ tasks {
     withType<JavaExec>().configureEach {
         val cloakOnly = providers.gradleProperty("cloakOnly").orNull == "true"
         val captures = if (cloakOnly) {
-            "/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502/media/capes/fabric/${sc.current.version}"
+            rootProject.file("build/captures/fabric/${sc.current.version}").absolutePath
         } else {
             rootProject.file("build/captures/${sc.current.version}").absolutePath
         }
@@ -128,7 +133,7 @@ tasks {
             environment("CAPES_DEV_CATALOG", "true")
             systemProperty(
                 "quarkos_capes.captures",
-                "/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502/media/capes/labymod/fabric/${sc.current.version}"
+                rootProject.file("build/captures/fabric/${sc.current.version}").absolutePath
             )
         }
         if (providers.gradleProperty("labyCompare").orNull == "true") {
@@ -142,7 +147,7 @@ tasks {
             )
             systemProperty(
                 "quarkos_capes.compare",
-                "/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502/media/capes/labymod/compare/fabric/${sc.current.version}"
+                rootProject.file("build/captures/fabric/${sc.current.version}").absolutePath
             )
         }
         if (cloakOnly) {
@@ -155,11 +160,16 @@ tasks {
             systemProperty("quarkos_capes.captures", it)
             systemProperty("quarkos_capes.compare", it)
         }
-        for (key in listOf("only", "guiScale", "width", "height")) {
+        for (key in listOf("only", "guiScale", "width", "height", "serverUrl", "linkCode")) {
             providers.gradleProperty(key).orNull?.let { systemProperty("quarkos_capes.$key", it) }
         }
         for (key in listOf("QUARKOS_CAPES_BENCH", "QUARKOS_CAPES_BENCH_PLAYERS")) {
             providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
+        }
+        systemProperty("quarkos_capes.serverUrl", providers.gradleProperty("serverUrl").orElse("http://127.0.0.1:8787").get())
+        if (providers.gradleProperty("only").orNull == "flows") systemProperty("quarkos_capes.harness", "true")
+        for (key in listOf("CAPES_DEV_AUTH", "CAPES_DEV_AUTH_SECRET")) {
+            System.getenv(key)?.let { environment(key, it) }
         }
         environment("LIBGL_ALWAYS_SOFTWARE", "1")
         val display = providers.gradleProperty("display").orNull
@@ -184,8 +194,9 @@ tasks {
             systemProperty("quarkos_capes.server", providers.gradleProperty("server").orElse("127.0.0.1:25599").get())
             systemProperty("quarkos_capes.share", rootProject.file("run/share").absolutePath)
         }
-        val user = providers.gradleProperty("username").orNull
-        val uuid = providers.gradleProperty("uuid").orNull
+        val flows = providers.gradleProperty("only").orNull == "flows"
+        val user = providers.gradleProperty("username").orNull ?: if (flows) "CapeFlow" else null
+        val uuid = providers.gradleProperty("uuid").orNull ?: if (flows) UUID.nameUUIDFromBytes("OfflinePlayer:$user".toByteArray()).toString() else null
         val shotWidth = providers.gradleProperty("width").orElse("1280").get()
         val shotHeight = providers.gradleProperty("height").orElse("720").get()
         doFirst {
@@ -228,3 +239,5 @@ tasks {
         from(rootProject.file("LICENSE")) { rename { "${it}_$name" } }
     }
 }
+
+apply(from = rootProject.file("gradle/release.gradle.kts"))

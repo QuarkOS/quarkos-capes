@@ -45,6 +45,7 @@ public class CapeLayerMixin {
         }
         // A flat cape is the vanilla cloak. Cancelling here drew a sheet on the body and the skin still had no cape.
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1) {
+            CapeBook.drawn(player.getUUID());
             CapeLayerWatch.textureOverride = choice.texture();
             return;
         }
@@ -108,9 +109,7 @@ public class CapeLayerMixin {
                     state.skin.model(),
                     state.skin.secure()
             );
-            if (CapeBook.preview) {
-                CapeBook.draws++;
-            }
+            CapeBook.drawn(id);
             return;
         }
         int bright = CapeBook.preview ? 15728880 : light;

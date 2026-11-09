@@ -32,6 +32,8 @@ public final class CapeBook {
     public record Remote(String style, boolean animateFrames, int frameCount, int frameWidth, int frameHeight, int[] delays, String modelJson, String status) {
     }
 
+    private static final Map<UUID, String> REMOTE_SOURCES = new ConcurrentHashMap<>();
+    public static void remoteSource(UUID id, String source) { REMOTE_SOURCES.put(id, source); }
     private static final Map<UUID, Remote> REMOTE = new ConcurrentHashMap<>();
     private static final Map<UUID, String> PROVIDER = new ConcurrentHashMap<>();
     private static final Map<UUID, String> PROVIDER_SOURCES = new ConcurrentHashMap<>();
@@ -46,6 +48,11 @@ public final class CapeBook {
     public static boolean previewBack = true;
     public static OwnerCape draft;
     public static int draws;
+    private static final boolean WATCH_DRAWS = Boolean.getBoolean("quarkos_capes.harness");
+    private static final Map<UUID,Integer> DRAWN = new ConcurrentHashMap<>();
+    public static void drawn(UUID id) { draws++; if (WATCH_DRAWS) DRAWN.merge(id,1,Integer::sum); }
+    public static int draws(UUID id) { return DRAWN.getOrDefault(id,0); }
+    public static void resetDraws() { draws=0; DRAWN.clear(); }
 
     private CapeBook() {
     }
@@ -53,6 +60,7 @@ public final class CapeBook {
     public static void remote(UUID id, Remote meta) {
         if (meta == null) {
             REMOTE.remove(id);
+            REMOTE_SOURCES.remove(id);
         } else {
             REMOTE.put(id, meta);
         }
@@ -97,7 +105,8 @@ public final class CapeBook {
         Remote remote = REMOTE.get(id);
         String remoteKey = TEXTURE_KEYS.get(id);
         CapeTextures.Image ours = remoteKey == null ? null : CapeTextures.get(remoteKey);
-        if (remote != null && "accepted".equals(remote.status) && ours != null) {
+        if (remote != null && "accepted".equals(remote.status) && ours != null
+                && (!"labymod".equals(REMOTE_SOURCES.get(id)) || settings.enableLabyMod)) {
             return fromRemote(remote, ours);
         }
         String providerKey = PROVIDER.get(id);
@@ -135,7 +144,7 @@ public final class CapeBook {
         if (ClientSettings.get().localOnly || !ClientSettings.get().showOthers) return null;
         String remoteKey = TEXTURE_KEYS.get(id);
         CapeTextures.Image ours = remoteKey == null ? null : CapeTextures.get(remoteKey);
-        if (ours != null && ours.elytra()) {
+        if (ours != null && ours.elytra() && (!"labymod".equals(REMOTE_SOURCES.get(id)) || ClientSettings.get().enableLabyMod)) {
             return ours.id();
         }
         String providerKey = PROVIDER.get(id);
@@ -191,7 +200,9 @@ public final class CapeBook {
     public static Choice none() { return NONE; }
 
     public static void forget(UUID id) {
+        DRAWN.remove(id);
         REMOTE.remove(id);
+        REMOTE_SOURCES.remove(id);
         PROVIDER_SOURCES.remove(id);
         String remoteKey = TEXTURE_KEYS.remove(id);
         if (remoteKey != null) CapeTextures.clear(remoteKey);
@@ -199,10 +210,17 @@ public final class CapeBook {
         if (providerKey != null) CapeTextures.clear(providerKey);
     }
 
+    public static void clearProviders() {
+        for (String key : PROVIDER.values()) CapeTextures.clear(key);
+        PROVIDER.clear(); PROVIDER_SOURCES.clear();
+        synchronized (PROVIDER_CHOICES) { PROVIDER_CHOICES.clear(); }
+    }
+
     public static void clearPlayers() {
         for (UUID id : TEXTURE_KEYS.keySet()) forget(id);
         for (UUID id : PROVIDER.keySet()) forget(id);
         REMOTE.clear();
+        REMOTE_SOURCES.clear();
         synchronized (PROVIDER_CHOICES) { PROVIDER_CHOICES.clear(); }
     }
 }

@@ -1,6 +1,6 @@
 //? if forge {
-/*
-package dev.quarkos.capes;
+
+/*package dev.quarkos.capes;
 
 import dev.quarkos.capes.client.screen.CapeScreens;
 import net.minecraft.client.Minecraft;
@@ -12,8 +12,8 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
 //? if <1.21.6 {
-import net.minecraftforge.eventbus.api.IEventBus;
-//?}
+/^import net.minecraftforge.eventbus.api.IEventBus;
+^///?}
 
 @Mod("quarkos_capes")
 public final class QuarkosCapesForge {
@@ -24,10 +24,10 @@ public final class QuarkosCapesForge {
                 () -> new ConfigScreenHandler.ConfigScreenFactory(CapeScreens::open)
         );
         //? if <1.21.6 {
-        IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
+        /^IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         modBus.addListener(this::registerKeys);
         MinecraftForge.EVENT_BUS.addListener(this::onClientTick);
-        //?}
+        ^///?}
         //? if >=1.21.6 {
         RegisterKeyMappingsEvent.getBus(FMLJavaModLoadingContext.get().getModBusGroup()).addListener(this::registerKeys);
         TickEvent.ClientTickEvent.Post.BUS.addListener(event -> QuarkosCapes.tick(Minecraft.getInstance()));
@@ -41,12 +41,12 @@ public final class QuarkosCapesForge {
     }
 
     //? if <1.21.6 {
-    private void onClientTick(TickEvent.ClientTickEvent event) {
+    /^private void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }
         QuarkosCapes.tick(Minecraft.getInstance());
     }
-    //?}
+    ^///?}
 }
 *///?}

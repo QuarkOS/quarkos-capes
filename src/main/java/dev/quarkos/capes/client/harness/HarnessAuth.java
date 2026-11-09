@@ -21,7 +21,7 @@ public final class HarnessAuth {
     public record Session(String token, String uuid, String name) {
     }
 
-    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(6)).build();
+    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
 
     private HarnessAuth() {
     }

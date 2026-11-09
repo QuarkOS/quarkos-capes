@@ -172,3 +172,96 @@ Fixes:
 - `src/test/java/dev/quarkos/capes/BughuntTest.java`
 
 Audit/evidence: `docs/bughunt-audit.md`, `docs/bughunt-harness.patch`. No sample texture/model resource changed.
+
+## Release pass
+
+Scope: working tree only, based on the supplied bughunt and preview-orientation fixes. No Git command, Gradle invocation, Minecraft launch, network request, or server-repository edit was performed in this pass. The existing audit above remains the record of the previous fixes. Here, FIXED means implementation plus offline evidence; NEEDS-IN-GAME-CHECK means the implementation exists but requires the parent's actual build/service/client run.
+
+| Item | Status | Implementation / remaining evidence |
+| --- | --- | --- |
+| A1 Catalog client | FIXED | `CatalogClient` implements all eight encoded filters, encoded detail paths, bounded 128-entry ETag/304 caches, concurrent GET dedupe, Retry-After/exponential 429/5xx backoff, permissive response fields, and injectable transport/clock. `CapeHttp.siteExchange` has 3-second connect / 8-second total call limits and a response-size bound. All calls use the existing bounded service/download pools. Fixture tests cover the contract. |
+| A2 Browse | NEEDS-IN-GAME-CHECK | Seventh Browse category on Fabric/Cloth and Forge, source/kind/sort chips, search, paged thumbnail grid, wheel paging, Tab/Enter/Esc, loading/empty/offline/error/retry feedback, detail fetch and live back preview, Wear/Unwear. Direct texture URLs and actual decoded LabyMod atlas dimensions; LabyMod credit/non-affiliation in detail and tooltips. Parent must inspect layout and interaction. |
+| A3 Wearing/auth | NEEDS-IN-GAME-CHECK | Read wearing when Browse opens; PUT/DELETE wearing and translated feedback. Production reuses challenge/Mojang join/complete. Harness-only dev auth calls `HarnessAuth.complete` and uses its returned session token. Sessions are scoped to service/player, expire locally, and invalidate on 401. Wear saves the downloaded item locally; Unwear clears it. Server interaction remains unexecuted here. |
+| A4 Other players | NEEDS-IN-GAME-CHECK | Thirty-second wearing batches, every UUID chunked at 50, conditional GET, departure/world pruning, source/visibility/offline gates, metadata and hash-checked texture resolution. Legacy `/v1/capes` uploads and real `LabySource` remain fallback features. Parent must verify remote rendering and live moderation/removal. |
+| A5 Linking | NEEDS-IN-GAME-CHECK | Browse opens the website-link screen; eight-character field, button and Enter claim with Minecraft session. Linked Minecraft name, invalid/expired code (400), and conflict (409) are translated. A fresh code is single use; parent supplies it per run. |
+| A6 Service setting | FIXED | All new site operations use the Advanced service URL. Flow mode applies `quarkos_capes.serverUrl`, default `http://127.0.0.1:8787`. Both launch scripts forward serverUrl/linkCode and dev-auth environment. |
+| A7 Fixtures/tests | FIXED | Six small API.md-derived fixtures under `src/test/resources/site`; 14 new tests for parsing/unknown fields, wearing/null players, filter/detail encoding, empty continuation pages, chunking, ETags/origin/auth isolation, error mapping, dedupe, backoff/recovery, bounded frame metadata and JSON writes. |
+| B Version/metadata | NEEDS-IN-GAME-CHECK | Version 1.0.0, loader archive bases, authors/name/license/icon/contact placeholders, version-specific Fabric dependency minimums and Forge/Cloth dependencies. Expected outputs: `quarkos_capes-{fabric,forge}-1.0.0+{1.21.1,1.21.11}.jar`. Parent must inspect produced archives and expanded metadata. |
+| B Dev isolation | NEEDS-IN-GAME-CHECK | Stonecutter `dev_catalog` constant follows only `-PdevCatalog=true`. All shipped call sites/UI compile out without it; Jar exclusions remove LabyCatalog/LabyBrowse/LabyWear/LabyCompare and nested classes, and resource filtering removes the two catalog-only translations. Existing exact-true runtime gate remains in dev code. `verifyReleaseJar`, attached to build, scans archive entry names, bytecode and resources. Offline release-class scans pass; actual Gradle task and remap output remain a parent check. |
+| B Capture defaults | FIXED | Removed every hardcoded `/cursor/stores` default from both build scripts; root-relative build capture defaults and `-Pshots` retained. |
+| D Preview | NEEDS-IN-GAME-CHECK | Retained the supplied c78143a math: back is 25 degrees on 1.21.1 and 155 degrees with the 1.21.11 inventory basis. Shared browser uses that same path. Parent must inspect the three-quarter cape view on both versions. |
+| D Chat/tutorial | NEEDS-IN-GAME-CHECK | Harness completes/disables the tutorial and clears chat and toasts each tick before captures. No mod debug/chat-message API calls were added. Parent screenshots must establish clean output. |
+| D Physics wording | FIXED | Model: Classic / Cloth / Cloth (soft) / Cloth (stiff); Look: Smooth / Blocky; Wind: On / Off, with explanatory tooltips. Stored movement/mesh/wind ids are unchanged. |
+| D Loader parity | NEEDS-IN-GAME-CHECK | Shared Browse and Link screens on all four targets; native Forge My Cape now includes Publish/Unpublish; seven-category navigation and shared actions retained. Parent must inspect all tabs, especially Cloth scroll rows at small logical resolutions. |
+| Prior V09 | NOT FIXED | Custom-geometry glowing outline limitation from the previous audit is unchanged; this release pass does not add an unverified outline pass. |
+
+Flow mode is `-Ponly=flows` and enables the harness automatically. It runs the following numbered flows in order, writes a canonical `flow-<nn>-<name>.png` for each, and writes additional scene PNGs for sample/style/GUI sweeps. It prints one `CAPES_FLOW <name> PASS|FAIL <detail>` per numbered flow and final `CAPES_FLOWS pass=N fail=M`. Missing linkCode reports `PASS PASS-SKIP linkCode absent`. Observation failures are collected while later scenes/flows continue; final exit is 0 even with failures. Harness crashes or missing screenshot writes exit nonzero. Render observations include vanilla flat cape paths as well as custom meshes; counters are tracked per player in harness mode.
+
+| Flow | Status | Observation implemented |
+| --- | --- | --- |
+| 01 open-keybind | NEEDS-IN-GAME-CHECK | Inject an O keymapping click and require a settings screen. |
+| 02 My Cape | NEEDS-IN-GAME-CHECK | Open, assert widget bounds versus screen and preview, capture. |
+| 03 Style | NEEDS-IN-GAME-CHECK | Same bounds checks and capture. |
+| 04 Physics | NEEDS-IN-GAME-CHECK | Same bounds checks and capture. |
+| 05 Sources | NEEDS-IN-GAME-CHECK | Same bounds checks and capture. |
+| 06 Gallery | NEEDS-IN-GAME-CHECK | Same bounds checks and capture. |
+| 07 Advanced | NEEDS-IN-GAME-CHECK | Same bounds checks and capture. |
+| 08 bundled-samples | NEEDS-IN-GAME-CHECK | Equip bands/slide/cloak, preview and world captures, require local-player draw count >0 for each scene. |
+| 09 styles | NEEDS-IN-GAME-CHECK | Flat/frames/wave/model world scenes with local draws >0. |
+| 10 save-reopen | NEEDS-IN-GAME-CHECK | Actual async settings save, reload from disk, reopen, compare serialized settings. |
+| 11 physics-slider | NEEDS-IN-GAME-CHECK | Find the actual gravity slider, click minimum, assert gravity=5. |
+| 12 source-toggles | NEEDS-IN-GAME-CHECK | Toggle every provider off/on while Offline; assert no HTTP send-count increase, restore online/provider defaults. |
+| 13 publish-unpublish | NEEDS-IN-GAME-CHECK | Publish local bands and unpublish through existing UI actions with translated success checks. Publishing includes a searchable title and frame metadata. |
+| 14 gallery-search | NEEDS-IN-GAME-CHECK | Republish after flow 13, find own id, search its title and require that id in results. |
+| 15 browse-page | NEEDS-IN-GAME-CHECK | Open Browse directly with source=ours; require a real nonempty page and check bounds. |
+| 16 wear | NEEDS-IN-GAME-CHECK | Select and load detail/preview, use Browse Wear, require GET wearing source/id match, require world draw. |
+| 17 unwear | NEEDS-IN-GAME-CHECK | DELETE wearing then GET must return null. |
+| 18 other-player | NEEDS-IN-GAME-CHECK | Complete a second dev session, PUT its reference, spawn RemotePlayer with that UUID, request public batch, require remote cape draw. |
+| 19 link-claim | NEEDS-IN-GAME-CHECK | Fresh `-PlinkCode` claim or explicit PASS-SKIP if absent. |
+| 20 show-others | NEEDS-IN-GAME-CHECK | Reset draw counts, switch Show others off, require zero remote draws. |
+| 21 gui-sweep | NEEDS-IN-GAME-CHECK | Six original tabs at 854x480 and 1920x1080, requested GUI scales 1/3/4, assert bounds and capture every scene; restore 1280x720 scale 2. Minecraft may clamp requested scales. |
+| 22 survival-inventory | NEEDS-IN-GAME-CHECK | Send survival command and wait before constructing InventoryScreen; require it stays InventoryScreen and the player's cape draws. Previous inventory audit mode also now waits for survival before opening. |
+| 23 first-person | NEEDS-IN-GAME-CHECK | Start third-person-front, inject F5, require first-person camera and no local cape draws. |
+| 24 dev-catalog-absent | NEEDS-IN-GAME-CHECK | Inspect all original settings categories/widgets for dev catalog controls in normal builds. Build verification independently checks classes/references/translations. |
+
+Validation in this pass:
+
+- Direct Java 21 compilation of Stonecutter-selected release arms against cached Minecraft/dependency jars for all four targets; no Gradle, client, network or annotation processor execution. Javac outputs and arguments: `/tmp/capes-release-final/{fabric,forge}/{1.21.1,1.21.11}/`.
+- Offline JUnit through JUnit Platform: **50/50 on Fabric 1.21.1 and 50/50 on Fabric 1.21.11; 100 executions, zero failures/skips**. This includes the previous 36 tests unchanged plus 14 new catalog tests. No server requests were made by these tests.
+- Release bytecode/reference scans, release language filtering/JSON validation, complete literal translation-key validation, whitespace inspection. Actual jar verification, Stonecutter/Gradle configuration and runtime input/render/Mixin behavior still require parent execution.
+
+Changed files for this release pass:
+
+- Build/metadata: `build.gradle.kts`, `forge/build.gradle.kts`, `gradle/release.gradle.kts`, `stonecutter.gradle.kts`, `stonecutter.properties.toml`, `src/main/resources/fabric.mod.json`, `src/main/resources/META-INF/mods.toml`.
+- Site integration: new `client/net/CatalogClient.java`, `client/net/SiteApi.java`, `client/screen/BrowseScreen.java`, `client/screen/LinkScreen.java`; changed `QuarkosCapes.java`, `client/net/CapeHttp.java`, `client/render/CapeBook.java`, and `client/screen/{CapeBoard,CapeScreen,CapeScreens,CapeGalleryScreen,ClothCapeScreen,ForgeCapeScreen}.java`. Java paths here are under `src/main/java/dev/quarkos/capes/`.
+- Harness/isolation/counters: new `client/harness/FlowHarness.java`; changed `client/harness/{AuditHarness,ClientHarness,HarnessAuth,HarnessChecks}.java`, `client/render/CapeDraw.java`, `client/mixin/CapeLayerMixin.java`.
+- Strings/tests/audit: `src/main/resources/assets/quarkos_capes/lang/en_us.json`, `src/test/java/dev/quarkos/capes/CatalogClientTest.java`, `src/test/resources/site/{catalog,error,link,players,wear-request,wearing}.json`, this document. No bundled cape PNG/model was changed. `McBridge.java`'s supplied preview fix was inspected and retained.
+
+Parent commands for this release pass (run from this working tree except the server command, which uses the parent's server jar location):
+
+```bash
+export CAPES_DEV_AUTH=true
+export CAPES_DEV_AUTH_SECRET='replace-with-your-local-secret-at-least-16-characters'
+CAPES_SEED=demo CAPES_DEV_AUTH=true CAPES_DEV_AUTH_SECRET="$CAPES_DEV_AUTH_SECRET" \
+  java -jar quarkos-capes-server-0.1.0.jar
+```
+
+Leave the service running on 127.0.0.1:8787. In a second shell export the same dev-auth values, then build/test and verify the four release archives (repeat build unchanged to check configuration-cache reuse):
+
+```bash
+./gradlew :1.21.1:build :1.21.11:build :forge:1.21.1:build :forge:1.21.11:build --configuration-cache
+./gradlew :1.21.1:build :1.21.11:build :forge:1.21.1:build :forge:1.21.11:build --configuration-cache
+./gradlew :1.21.1:test :1.21.11:test --configuration-cache
+./gradlew :1.21.1:verifyReleaseJar :1.21.11:verifyReleaseJar :forge:1.21.1:verifyReleaseJar :forge:1.21.11:verifyReleaseJar
+```
+
+Exact flow launches, one per target. These choose a consistent offline harness identity (`CapeFlow`) on both loaders, forward the environment, and keep the developer catalog disabled. `-Pshots` should be absolute. Each run creates its own capture directory.
+
+```bash
+./gradlew :1.21.1:runClient -Ponly=flows -PserverUrl=http://127.0.0.1:8787 -Pshots=/tmp/capes-release/fabric-1.21.1 -Pdisplay="$DISPLAY" -Pxauth="$XAUTHORITY"
+./gradlew :1.21.11:runClient -Ponly=flows -PserverUrl=http://127.0.0.1:8787 -Pshots=/tmp/capes-release/fabric-1.21.11 -Pdisplay="$DISPLAY" -Pxauth="$XAUTHORITY"
+./gradlew :forge:1.21.1:runClient -Ponly=flows -PserverUrl=http://127.0.0.1:8787 -Pshots=/tmp/capes-release/forge-1.21.1 -Pdisplay="$DISPLAY" -Pxauth="$XAUTHORITY"
+./gradlew :forge:1.21.11:runClient -Ponly=flows -PserverUrl=http://127.0.0.1:8787 -Pshots=/tmp/capes-release/forge-1.21.11 -Pdisplay="$DISPLAY" -Pxauth="$XAUTHORITY"
+```
+
+To exercise flow 19, append `-PlinkCode=<fresh-website-code>` to that run. Generate a fresh code for each target; consumed codes cannot be reused. Without it, the other 23 flows still run and link is reported PASS-SKIP. The gallery fixture is republished for search and intentionally remains available after flow 14. Developer try-on comparisons now additionally require `-PdevCatalog=true` alongside their existing runtime gate; normal release/flow runs must omit that property.

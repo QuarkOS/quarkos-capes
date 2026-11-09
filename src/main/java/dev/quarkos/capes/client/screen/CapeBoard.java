@@ -21,7 +21,8 @@ public final class CapeBoard {
             "text.quarkos_capes.tab.physics",
             "text.quarkos_capes.tab.sources",
             "text.quarkos_capes.tab.gallery",
-            "text.quarkos_capes.tab.advanced"
+            "text.quarkos_capes.tab.advanced",
+            "text.quarkos_capes.site.browse"
     };
 
     private static String sample = "bands";
