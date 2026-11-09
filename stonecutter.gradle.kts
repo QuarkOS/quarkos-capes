@@ -7,7 +7,7 @@ stonecutter active "1.21.11"
 stonecutter parameters {
     // Root branch id is empty. Named branches use their id ("forge").
     val loaderName = branch.id.ifEmpty { "fabric" }
-    constants.match(loaderName, "fabric", "forge")
+    constants.match(loaderName, "fabric", "forge", "neoforge")
     replacements {
         // Active sources are written for 1.21.11, which already calls the class Identifier.
         string(current.parsed < "1.21.11") {
@@ -15,7 +15,7 @@ stonecutter parameters {
             replace(".identifier()", ".location()")
         }
         // Forge runs official names, so Mixin must not look up a Fabric refmap.
-        string(branch.id == "forge") {
+        string(branch.id == "forge" || branch.id == "neoforge") {
             replace("@Mixin(", "@Mixin(remap = false, value = ")
             replace("@Inject(", "@Inject(remap = false, ")
             replace("@Redirect(", "@Redirect(remap = false, ")

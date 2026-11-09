@@ -147,7 +147,7 @@ public final class McBridge {
                 KeyMapping.Category.MISC
                 //?}
         );
-        //? if forge {
+        //? if forge || neoforge {
         /*return mapping;
         *///?} else {
         return KeyBindingHelper.registerKeyBinding(mapping);

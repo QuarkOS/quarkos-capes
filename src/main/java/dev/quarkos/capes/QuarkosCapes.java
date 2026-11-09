@@ -8,7 +8,7 @@ import dev.quarkos.capes.client.render.CapeBook;
 import dev.quarkos.capes.client.render.ClothSim;
 import dev.quarkos.capes.client.render.PlayerFacts;
 import dev.quarkos.capes.client.screen.CapeScreens;
-//? if forge {
+//? if forge || neoforge {
 /* *///?} else {
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -16,7 +16,7 @@ import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 
-//? if forge {
+//? if forge || neoforge {
 /*public final class QuarkosCapes {
 *///?} else {
 public final class QuarkosCapes implements ClientModInitializer {

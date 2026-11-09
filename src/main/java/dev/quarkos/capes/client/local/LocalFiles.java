@@ -2,6 +2,8 @@ package dev.quarkos.capes.client.local;
 
 //? if forge {
 /*import net.minecraftforge.fml.loading.FMLPaths;
+*///?} else if neoforge {
+/*import net.neoforged.fml.loading.FMLPaths;
 *///?} else {
 import net.fabricmc.loader.api.FabricLoader;
 //?}
@@ -24,7 +26,7 @@ public final class LocalFiles {
     }
 
     public static Path configDir() {
-        //? if forge {
+        //? if forge || neoforge {
         /*return FMLPaths.CONFIGDIR.get();
         *///?} else {
         return FabricLoader.getInstance().getConfigDir();

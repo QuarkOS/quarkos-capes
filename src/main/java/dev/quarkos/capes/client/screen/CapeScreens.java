@@ -8,7 +8,7 @@ public final class CapeScreens {
     }
 
     public static Screen open(Screen parent) {
-        //? if forge {
+        //? if forge || neoforge {
         /*//? if <1.21.2 {
         return ClothCapeScreen.create(parent);
         //?} else {
@@ -37,7 +37,7 @@ public final class CapeScreens {
 
     public static boolean isSettings(Screen screen) {
         if (screen instanceof CapeGalleryScreen) return true;
-        //? if forge {
+        //? if forge || neoforge {
         /*if (screen instanceof ForgeCapeScreen) {
             return true;
         }

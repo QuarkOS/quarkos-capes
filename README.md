@@ -1,6 +1,6 @@
 # QuarkOS Capes
 
-Fabric and Forge client for Minecraft 1.20.1, 1.21.1, 1.21.4, 1.21.8, and 1.21.11. It draws a cape you pick — flat, a frame strip, cloth, or cubes — and can read public cape APIs plus a shared gallery. The mod id is `quarkos_capes`. Author: Emilio Schwaiger. License: MIT. The 1.0.0 file list is in [docs/RELEASE.md](docs/RELEASE.md).
+Fabric and Forge client for Minecraft 1.20.1, 1.21.1, 1.21.4, 1.21.8, and 1.21.11, plus NeoForge for 1.21.1, 1.21.4, 1.21.8, and 1.21.11. It draws a cape you pick — flat, a frame strip, cloth, or cubes — and can read public cape APIs plus a shared gallery. The mod id is `quarkos_capes`. Author: Emilio Schwaiger. License: MIT. The 1.0.0 file list is in [docs/RELEASE.md](docs/RELEASE.md).
 
 No file in this tree is copied from Capes, Wavey Capes, or Better Capes. Those mods were read so the behavior could be reimplemented. Capes is LGPL-2.1-only, so its source is not included. Wavey Capes uses the tr7zw Protective License, which does not allow relicensing into MIT, so its source is not included. Better Capes is all rights reserved and has no source grant. This client ships no Mojang, Minecon, or Migrator textures.
 
@@ -16,7 +16,7 @@ Gradle runs on Java 25 (Loom 1.18). The jars target Java 21.
 scripts/release.sh
 ```
 
-Dev jars are named `quarkos_capes-fabric-<version>+<minecraft>.jar`. `scripts/release.sh` writes `dist/quarkos-capes-1.0.0+fabric-<minecraft>.jar` and the Forge twins, plus `dist/SHA256SUMS`.
+Dev jars are named `quarkos_capes-fabric-<version>+<minecraft>.jar`. `scripts/release.sh` writes `dist/quarkos-capes-1.0.0+fabric-<minecraft>.jar`, the Forge jars, and the NeoForge jars, plus `dist/SHA256SUMS`.
 
 Press O in game, or use Mod Menu when it is installed, to open the settings screen. Cloth Config draws the six categories: My Cape, Style, Physics, Sources, Gallery, and Advanced. The live player preview stays on every category. Each toggle reads On or Off.
 
@@ -37,7 +37,9 @@ Stonecutter builds both Minecraft versions. Architectury is not a dependency. Ge
 
 ## Forge
 
-Forge is the `forge` Stonecutter branch. It shares `src` through `forge/src` and does not ship a NeoForge jar. Official mappings, so there is no SRG reobfuscation. Forge versions are 47.4.29 (1.20.1), 52.1.20 (1.21.1), 54.1.22 (1.21.4), 58.1.26 (1.21.8), and 61.2.4 (1.21.11).
+Forge is the `forge` Stonecutter branch. It shares `src` through `forge/src`. Official mappings, so there is no SRG reobfuscation. Forge versions are 47.4.29 (1.20.1), 52.1.20 (1.21.1), 54.1.22 (1.21.4), 58.1.26 (1.21.8), and 61.2.4 (1.21.11).
+
+NeoForge is the `neoforge` branch, a ModDevGradle project that shares the same sources. It uses `net.neoforged` events and `neoforge.mods.toml`. Versions are 21.1.265 (1.21.1), 21.4.161 (1.21.4), 21.8.57 (1.21.8), and 21.11.48 (1.21.11). There is no 1.20.1 NeoForge jar.
 
 The 1.20.1 and 1.21.1 Forge jars embed [Cloth Config](https://github.com/shedaniel/cloth-config) with Jar-in-Jar (`11.1.136` and `15.0.140`). Cloth Config is © shedaniel, LGPL-3.0-only, and is not copied into this MIT tree. Later Forge builds draw the same six categories, on/off controls, and live cape preview themselves.
 

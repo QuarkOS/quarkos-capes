@@ -9,7 +9,7 @@ public final class GalleryScreen {
     }
 
     public static Screen create(Screen parent) {
-        //? if forge {
+        //? if forge || neoforge {
         /*return new CapeGalleryScreen(parent);
         *///?} else {
         return CapeScreen.create(parent, Component.translatable("text.quarkos_capes.tab.gallery"));

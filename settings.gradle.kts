@@ -23,6 +23,9 @@ stonecutter {
         branch("forge") {
             versions("1.20.1", "1.21.1", "1.21.4", "1.21.8", "1.21.11")
         }
+        branch("neoforge") {
+            versions("1.21.1", "1.21.4", "1.21.8", "1.21.11")
+        }
     }
 }
 
@@ -31,13 +34,13 @@ rootProject.name = "quarkos-capes"
 gradle.projectsEvaluated {
     val releaseAll = rootProject.tasks.register("releaseAll") {
         group = "build"
-        description = "Build every Fabric and Forge jar into dist/ with SHA-256 checksums."
+        description = "Build every Fabric, Forge, and NeoForge jar into dist/ with SHA-256 checksums."
         notCompatibleWithConfigurationCache("Copies version jars into dist/.")
     }
-    // Fabric ships remapJar (intermediary names, nested Cloth and OkHttp). Forge ships jar.
-    // Loom's RemapJarTask is not a Jar subclass, so read the archive properties by name.
+    // Fabric ships remapJar (intermediary names, nested Cloth and OkHttp).
+    // Forge and NeoForge ship their own jar tasks. Loom's RemapJarTask is not a Jar subclass.
     val jars = rootProject.subprojects.mapNotNull { project ->
-        if (!project.path.matches(Regex(":(forge:)?\\d+\\.\\d+(\\.\\d+)?"))) return@mapNotNull null
+        if (!project.path.matches(Regex(":(?:forge:|neoforge:)?\\d+\\.\\d+(?:\\.\\d+)?"))) return@mapNotNull null
         project.tasks.findByName("remapJar") ?: project.tasks.findByName("jar")
     }.distinctBy { it.project.path }.toList()
     fun archiveFile(task: org.gradle.api.Task): java.io.File {
@@ -61,7 +64,11 @@ gradle.projectsEvaluated {
                 if (!file.isFile) continue
                 val archiveVersion = archiveVersion(jar)
                 val minecraft = archiveVersion.substringAfter('+', archiveVersion)
-                val loader = if (jar.project.path.startsWith(":forge")) "forge" else "fabric"
+                val loader = when {
+                    jar.project.path.startsWith(":neoforge:") -> "neoforge"
+                    jar.project.path.startsWith(":forge:") -> "forge"
+                    else -> "fabric"
+                }
                 val name = "quarkos-capes-${archiveVersion.substringBefore('+')}+$loader-$minecraft.jar"
                 if (!seen.add(name)) continue
                 val dest = dist.resolve(name)

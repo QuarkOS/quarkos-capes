@@ -101,6 +101,7 @@ tasks {
         }
 
         exclude("META-INF/mods.toml")
+        exclude("META-INF/neoforge.mods.toml")
         exclude("META-INF/accesstransformer.cfg")
         filesMatching("fabric.mod.json") {
             expand(props)

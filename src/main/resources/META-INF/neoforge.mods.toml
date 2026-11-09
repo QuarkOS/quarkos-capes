@@ -1,0 +1,28 @@
+modLoader = "javafml"
+loaderVersion = "[4,)"
+license = "MIT"
+
+[[mods]]
+modId = "quarkos_capes"
+version = "${version}"
+displayName = "QuarkOS Capes"
+authors = "Emilio Schwaiger"
+description = '''A cape you pick, with frames, cloth, and a cube model, plus read-only public cape APIs and a shared gallery. Animated capes are free. The 1.21.1 NeoForge jar bundles Cloth Config by shedaniel (LGPL-3.0-only) with Jar-in-Jar.'''
+
+[[mixins]]
+config = "quarkos_capes.mixins.json"
+
+[[dependencies.quarkos_capes]]
+modId = "neoforge"
+type = "required"
+versionRange = "[${neo_dep},)"
+ordering = "NONE"
+side = "CLIENT"
+
+[[dependencies.quarkos_capes]]
+modId = "minecraft"
+type = "required"
+versionRange = "[${minecraft}]"
+ordering = "NONE"
+side = "CLIENT"
+${cloth_dependency}

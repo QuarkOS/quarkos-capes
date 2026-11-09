@@ -283,6 +283,7 @@ side = "CLIENT"
         }
         exclude("fabric.mod.json")
         exclude("**/*.accesswidener")
+        exclude("META-INF/neoforge.mods.toml")
         from(forgePack)
         from(rootProject.file("LICENSE")) {
             rename { "LICENSE_quarkos_capes" }

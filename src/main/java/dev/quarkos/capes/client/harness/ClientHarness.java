@@ -208,7 +208,7 @@ public final class ClientHarness {
                 ticks = 0;
                 return;
             }
-            //? if forge {
+            //? if forge || neoforge {
             /*CapeActions.bands();
             CapeActions.style("flat", false);
             CapeBook.preview = false;

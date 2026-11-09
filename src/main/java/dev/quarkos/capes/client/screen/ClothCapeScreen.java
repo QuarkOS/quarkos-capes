@@ -1,4 +1,4 @@
-//? if forge {
+//? if forge || neoforge {
 /*
 //? if <1.21.2 {
 package dev.quarkos.capes.client.screen;
