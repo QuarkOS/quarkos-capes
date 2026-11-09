@@ -14,11 +14,11 @@ public final class LinkScreen extends Screen {
     private boolean busy;
     public LinkScreen(Screen parent) { super(BrowseScreen.text("link")); this.parent=parent; }
     @Override protected void init() {
-        int x=width/2-100;
-        code=addRenderableWidget(new EditBox(font,x,60,200,20,BrowseScreen.text("code")));
+        int controlWidth=Math.min(200,width-16), x=(width-controlWidth)/2;
+        code=addRenderableWidget(new EditBox(font,x,60,controlWidth,20,BrowseScreen.text("code")));
         code.setMaxLength(8); code.setValue(value); code.setResponder(text -> value=text);
-        Button claim=addRenderableWidget(Button.builder(BrowseScreen.text("claim"),b -> claim()).bounds(x,86,200,20).build()); claim.active=!busy;
-        addRenderableWidget(Button.builder(BrowseScreen.text("back"),b -> onClose()).bounds(x,height-30,200,20).build());
+        Button claim=addRenderableWidget(Button.builder(BrowseScreen.text("claim"),b -> claim()).bounds(x,86,controlWidth,20).build()); claim.active=!busy;
+        addRenderableWidget(Button.builder(BrowseScreen.text("back"),b -> onClose()).bounds(x,height-30,controlWidth,20).build());
         setInitialFocus(code);
     }
     private void claim() {

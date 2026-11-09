@@ -20,6 +20,15 @@ public final class SiteApi {
     private static final Map<UUID, String> REMOTE = new ConcurrentHashMap<>();
     private static int tick;
     private static String config = "";
+    private static volatile String lastError = "No HTTP error recorded; waiting for UI/render observation";
+    public static String lastError() { return lastError; }
+    private static String failure(Exception error) {
+        String message = error instanceof CatalogClient.Failure f
+                ? message(f.key) + (f.status > 0 ? " (HTTP " + f.status + ")" : "")
+                : message("error") + " (" + error.getClass().getSimpleName() + ")";
+        lastError = message;
+        return message;
+    }
     private static Object world;
     private SiteApi() { }
     public static boolean hasReference(UUID id) { return REMOTE.containsKey(id); }
@@ -36,7 +45,7 @@ public final class SiteApi {
                     if (!ClientSettings.get().localOnly && base.equals(ClientSettings.get().baseUrl)) ok.accept(result);
                     else fail.accept(message("offline"));
                 });
-            } catch (Exception e) { Minecraft.getInstance().execute(() -> fail.accept(message(e instanceof CatalogClient.Failure f ? f.key : "error"))); }
+            } catch (Exception e) { Minecraft.getInstance().execute(() -> fail.accept(failure(e))); }
         })) fail.accept(message("busy"));
     }
     public static void page(CatalogClient.Query query, Consumer<CatalogClient.Page> ok, Consumer<String> fail) {
@@ -96,7 +105,7 @@ public final class SiteApi {
         if (!CapeHttp.download(() -> {
             try {
                 var response = CapeHttp.siteExchange("GET", item.textureUrl(),null,null,null);
-                if (response.status()/100 != 2) throw new java.io.IOException();
+                if (response.status()/100 != 2) throw new CatalogClient.Failure(response.status(),"image_error");
                 byte[] bytes = response.bytes();
                 if (!item.sha256().isBlank()) {
                     String hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
@@ -106,7 +115,7 @@ public final class SiteApi {
                     if (!ClientSettings.get().localOnly && base.equals(ClientSettings.get().baseUrl)) ok.accept(bytes);
                     else fail.accept(message("offline"));
                 });
-            } catch (Exception e) { Minecraft.getInstance().execute(() -> fail.accept(message("image_error"))); }
+            } catch (Exception e) { Minecraft.getInstance().execute(() -> fail.accept(failure(e))); }
         })) fail.accept(message("busy"));
     }
     public static void tick(Minecraft client) {

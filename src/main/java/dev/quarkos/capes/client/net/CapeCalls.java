@@ -12,8 +12,9 @@ import java.util.UUID;
  * no request at all, including Mojang session join.
  */
 public final class CapeCalls {
-    public static final String USER_AGENT = "QuarkOS-Capes/0.1.0";
-    public static final String DEFAULT_BASE = "http://127.0.0.1:8787";
+    public static final String USER_AGENT = "QuarkOS-Capes/1.0.0";
+    public static final String DEFAULT_SERVICE_URL = "http://127.0.0.1:8787";
+    public static final String DEFAULT_BASE = DEFAULT_SERVICE_URL;
 
     public enum Kind {
         HEALTH,
@@ -153,7 +154,7 @@ public final class CapeCalls {
 
     private static String trim(String base) {
         if (base == null || base.isBlank()) {
-            return DEFAULT_BASE;
+            return DEFAULT_SERVICE_URL;
         }
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }

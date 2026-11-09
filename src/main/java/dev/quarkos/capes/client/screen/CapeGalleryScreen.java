@@ -63,7 +63,7 @@ public final class CapeGalleryScreen extends Screen {
             if (name.toLowerCase(Locale.ROOT).contains(needle)) visible.add(new Row(name, "", null, id));
         }
         for (GalleryPages.Entry entry : entries) visible.add(new Row(entry.title(), entry.author(), entry.id(), null));
-        rows = List.copyOf(visible);
+        rows = ClientSettings.get().localOnly ? List.of() : List.copyOf(visible);
         int capacity = capacity();
         page = Math.clamp(page, 0, Math.max(0, (rows.size() - 1) / capacity));
         int end = Math.min(rows.size(), (page + 1) * capacity);
@@ -75,6 +75,9 @@ public final class CapeGalleryScreen extends Screen {
             equip.setTooltip(Tooltip.create(text("tooltip.equip")));
             equip.active = !busy;
         }
+        if (ClientSettings.get().localOnly) addRenderableWidget(Button.builder(BrowseScreen.text("go_online"), b -> {
+            CapeBoard.localOnly(false); CapeBoard.save(value -> note = value); load();
+        }).bounds(Math.max(8, width/2-60), emptyY()+28, 120, 20).build());
         int y = height - 54;
         addRenderableWidget(Button.builder(text("gallery.prev"), b -> {
             if (page > 0) { page--; init(); }
@@ -92,10 +95,13 @@ public final class CapeGalleryScreen extends Screen {
         addRenderableWidget(Button.builder(text("button.done"), b -> onClose()).bounds(16 + buttonWidth * 2, height - 28, buttonWidth, 20).build());
     }
 
+    private int emptyY() { return Math.max(82, (82 + height - 80) / 2 - 20); }
+
     private int capacity() { return Math.max(1, (height - 156) / 32); }
 
     private void load() {
         int request = ++generation;
+        if (ClientSettings.get().localOnly) { busy = false; entries = List.of(); next = null; init(); return; }
         busy = true;
         note = text(ClientSettings.get().localOnly ? "gallery.quiet" : "status.loading").getString();
         init();
@@ -129,7 +135,12 @@ public final class CapeGalleryScreen extends Screen {
     }
 
     @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partial) {
+        graphics.fill(0, 0, width, height, 0xE810141C);
         super.render(graphics, mouseX, mouseY, partial);
+        if (ClientSettings.get().localOnly) {
+            graphics.drawCenteredString(font, BrowseScreen.text("offline_title"), width/2, emptyY(), 0xFFFFFFFF);
+            graphics.drawCenteredString(font, Component.literal(font.plainSubstrByWidth(text("gallery.quiet").getString(), width-16)), width/2, emptyY()+14, 0xFFB6C8DD);
+        }
         graphics.drawCenteredString(font, getTitle(), width / 2, 8, 0xFFFFFFFF);
         int capacity = capacity();
         for (int i = page * capacity; i < Math.min(rows.size(), (page + 1) * capacity); i++) {
@@ -148,9 +159,9 @@ public final class CapeGalleryScreen extends Screen {
             String author = row.sample != null ? text("gallery.local").getString() : row.author;
             graphics.drawString(font, font.plainSubstrByWidth(author == null ? "" : author, width - x - 80), x, y + 13, 0xFFAAAAAA);
         }
-        String status = note.isEmpty() && ClientSettings.get().localOnly ? text("gallery.quiet").getString() : note;
+        String status = note;
         graphics.drawString(font, font.plainSubstrByWidth(status, width - 16), 8, height - 68, 0xFFE8B84A);
     }
 
-    @Override public void onClose() { generation++; minecraft.setScreen(parent); }
+    @Override public void onClose() { generation++; minecraft.setScreen(CapeScreens.refreshed(parent)); }
 }

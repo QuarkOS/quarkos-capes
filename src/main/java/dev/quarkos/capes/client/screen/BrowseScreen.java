@@ -2,6 +2,7 @@ package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.local.OwnerCape;
+import dev.quarkos.capes.client.local.ClientSettings;
 import dev.quarkos.capes.client.net.CatalogClient;
 import dev.quarkos.capes.client.net.SiteApi;
 import dev.quarkos.capes.client.render.CapeBook;
@@ -27,17 +28,19 @@ public final class BrowseScreen extends Screen {
     private int source, kind, sort, offset, generation, selection;
     private boolean loaded, busy, writing;
     private EditBox search;
-    public BrowseScreen(Screen parent) { super(text("browse")); this.parent = parent; }
+    public BrowseScreen(Screen parent) { super(text("browse_title")); this.parent = parent; }
     public BrowseScreen(Screen parent,String source) { this(parent); this.source=source.equals("ours")?1:source.equals("labymod")?2:0; }
     public static Component text(String key) { return Component.translatable("text.quarkos_capes.site." + key); }
     @Override protected void init() {
         rebuild();
         if (!loaded) {
             loaded = true; load();
-            SiteApi.wearing(item -> { if (minecraft.screen == this) { wearing = item; rebuild(); } }, this::note);
+            if (!ClientSettings.get().localOnly) SiteApi.wearing(item -> { if (minecraft.screen == this) { wearing = item; rebuild(); } }, this::note);
         }
     }
     public List<CatalogClient.Item> items() { return page.items(); }
+    public String status() { return note; }
+    public boolean isLoading() { return busy; }
     public boolean previewReady() { return draft!=null; }
     public boolean isWriting() { return writing; }
     public boolean isWearing(CatalogClient.Item item) { return wearing!=null && wearing.id().equals(item.id()) && wearing.source().equals(item.source()); }
@@ -46,17 +49,18 @@ public final class BrowseScreen extends Screen {
         query = value; source = sourceValue.equals("ours") ? 1 : sourceValue.equals("labymod") ? 2 : 0; reset();
     }
     public void selectFirst() { if (!page.items().isEmpty()) select(page.items().getFirst()); }
-    public void wearSelected() { if (selected != null && !writing) {
+    public void wearSelected() { if (selected != null && draft != null && !isWearing(selected) && !writing) {
         writing = true; note = SiteApi.message("working"); rebuild();
         SiteApi.wear(selected, item -> { writing = false; wearing = item; note(SiteApi.message("worn")); }, error -> { writing = false; note(error); });
     } }
-    public void unwear() { if (!writing) {
+    public void unwear() { if (wearing != null && !writing) {
         writing = true; note = SiteApi.message("working"); rebuild();
         SiteApi.unwear(value -> { writing = false; wearing = null; note(value); }, error -> { writing = false; note(error); });
     } }
-    private int divider() { return Math.max(150, width * 3 / 5); }
+    private int divider() { return width < 480 || height < 300 ? width : Math.max(150, width * 3 / 5); }
+    private boolean hasPreview() { return divider() < width; }
     private int columns() { return Math.max(1,(divider()-16)/72); }
-    private int rows() { return Math.max(1,(height-142)/50); }
+    private int rows() { return Math.max(1,(height-(hasPreview()?142:170))/50); }
     private int capacity() { return rows()*columns(); }
     private void button(String key,int x,int y,int w,Runnable action) {
         addRenderableWidget(Button.builder(text(key),b -> action.run()).bounds(x,y,w,20).build());
@@ -64,8 +68,9 @@ public final class BrowseScreen extends Screen {
     private void rebuild() {
         clearWidgets();
         int left = divider(), right = width-left-8;
+        boolean offline = ClientSettings.get().localOnly;
         button("back",8,6,Math.min(80,left-16),this::onClose);
-        button("link",left,6,right,() -> minecraft.setScreen(new LinkScreen(this)));
+        button("link",width-88,6,80,() -> minecraft.setScreen(new LinkScreen(this)));
         search = addRenderableWidget(new EditBox(font,8,30,width-94,20,text("search")));
         search.setMaxLength(48); search.setValue(query); search.setResponder(value -> query=value);
         button("search",width-82,30,74,this::reset);
@@ -74,7 +79,7 @@ public final class BrowseScreen extends Screen {
         button(sources[source],8,54,chip-2,() -> { source=(source+1)%3; reset(); });
         button(kinds[kind],8+chip,54,chip-2,() -> { kind=(kind+1)%3; reset(); });
         button(sorts[sort],8+chip*2,54,chip-2,() -> { sort=(sort+1)%3; reset(); });
-        for (int i=offset;i<Math.min(page.items().size(),offset+capacity());i++) {
+        if (!offline) for (int i=offset;i<Math.min(page.items().size(),offset+capacity());i++) {
             CatalogClient.Item item = page.items().get(i); int cell=i-offset;
             int x=8+cell%columns()*((left-16)/columns()), y=80+cell/columns()*50;
             Button tile=addRenderableWidget(Button.builder(Component.literal(font.plainSubstrByWidth(item.title(),(left-16)/columns()-8)),b -> select(item))
@@ -83,11 +88,28 @@ public final class BrowseScreen extends Screen {
         }
         button("previous",8,height-56,Math.max(50,(left-20)/2),this::previous);
         button("next",10+(left-20)/2,height-56,Math.max(50,(left-20)/2),this::next);
-        Button wear=addRenderableWidget(Button.builder(text("wear"),b -> wearSelected()).bounds(left,height-70,Math.max(1,right/2-1),20).build());
-        wear.active=selected!=null && draft!=null && !writing;
-        Button unwear=addRenderableWidget(Button.builder(text("unwear"),b -> unwear()).bounds(left+right/2+1,height-70,Math.max(1,right/2-1),20).build());
-        unwear.active=wearing!=null && !writing;
-        button("retry_button",left,height-46,right,this::load);
+        if (hasPreview()) {
+            Button wear=addRenderableWidget(Button.builder(text("wear"),b -> wearSelected()).bounds(left,height-70,Math.max(1,right/2-1),20).build());
+            wear.active=!offline && selected!=null && draft!=null && !isWearing(selected) && !writing;
+            Button unwear=addRenderableWidget(Button.builder(text("unwear"),b -> unwear()).bounds(left+right/2+1,height-70,Math.max(1,right/2-1),20).build());
+            unwear.active=!offline && wearing!=null && !writing;
+            button("retry_button",left,height-46,right,this::load);
+        } else {
+            int actionWidth = Math.max(1, (width-20)/2);
+            Button wear=addRenderableWidget(Button.builder(text("wear"),b -> wearSelected()).bounds(8,height-80,actionWidth,20).build());
+            wear.active=!offline && selected!=null && draft!=null && !isWearing(selected) && !writing;
+            Button unwear=addRenderableWidget(Button.builder(text("unwear"),b -> unwear()).bounds(12+actionWidth,height-80,actionWidth,20).build());
+            unwear.active=!offline && wearing!=null && !writing;
+        }
+        if (offline) button("go_online",Math.max(8,(left-120)/2),emptyY()+28,Math.min(120,left-16),this::goOnline);
+
+    }
+    private int emptyY() { return Math.max(82, (80 + height - 100) / 2 - 20); }
+    private void goOnline() {
+        CapeBoard.localOnly(false);
+        CapeBoard.save(this::note);
+        load();
+        SiteApi.wearing(item -> { if (minecraft.screen == this) { wearing = item; rebuild(); } }, this::note);
     }
     private String key(CatalogClient.Item item) { return item.source()+"/"+item.id(); }
     private Component credit(CatalogClient.Item item) { return item.source().equals("labymod") ? text("credit") : Component.literal(item.author()); }
@@ -114,7 +136,12 @@ public final class BrowseScreen extends Screen {
     }
     private void reset() { cursor=""; history.clear(); offset=0; load(); }
     private void load() {
-        int request=++generation; busy=true; note=SiteApi.message("loading");
+        int request=++generation;
+        if (ClientSettings.get().localOnly) {
+            busy=false; note=""; selected=null; draft=null; clearImages();
+            page=new CatalogClient.Page(List.of(),null,Map.of()); rebuild(); return;
+        }
+        busy=true; note=SiteApi.message("loading");
         clearImages(); page=new CatalogClient.Page(List.of(),null,Map.of()); rebuild();
         CatalogClient.Query filters=new CatalogClient.Query(new String[]{"","ours","labymod"}[source],new String[]{"","cape","cloak"}[kind],query,
                 new String[]{"popular","newest","name"}[sort],"","",cursor,20);
@@ -152,19 +179,30 @@ public final class BrowseScreen extends Screen {
     }
     *///?}
     @Override public void render(GuiGraphics graphics,int mouseX,int mouseY,float delta) {
-        graphics.fill(0,0,width,height,0xE01A2029);
+        graphics.fill(0,0,width,height,0xF01A2029);
         super.render(graphics,mouseX,mouseY,delta);
         int left=divider();
+        graphics.drawCenteredString(font,getTitle(),width/2,12,0xFFFFFFFF);
+        if (ClientSettings.get().localOnly) {
+            graphics.drawCenteredString(font,text("offline_title"),left/2,emptyY(),0xFFFFFFFF);
+            graphics.drawCenteredString(font,Component.literal(font.plainSubstrByWidth(text("offline_help").getString(),left-16)),left/2,emptyY()+14,0xFFB6C8DD);
+        }
         for (int i=offset;i<Math.min(page.items().size(),offset+capacity());i++) {
             CatalogClient.Item item=page.items().get(i); var image=CapeTextures.get("browse/"+key(item)); if (image==null) continue;
             int cell=i-offset, x=8+cell%columns()*((left-16)/columns()), y=80+cell/columns()*50;
             McBridge.capeThumb(graphics,image.id(),x+((left-16)/columns()-14)/2,y+1,10,16,image.width(),image.height(),item.source().equals("labymod")?image.width():item.frameWidth(),item.source().equals("labymod")?image.height():item.frameHeight());
         }
-        if (draft!=null && minecraft.player!=null) {
+        if (hasPreview() && draft!=null && minecraft.player!=null) {
             CapeBook.preview=true; CapeBook.previewBack=true; CapeBook.draft=draft;
-            McBridge.preview(graphics,left,80,width-8,height-98,minecraft.player);
+            McBridge.preview(graphics,left,80,width-8,height-114,minecraft.player);
         }
-        if (selected!=null) {
+        if (hasPreview() && draft==null) graphics.drawCenteredString(font,
+                Component.literal(font.plainSubstrByWidth(text("select_preview").getString(),width-left-12)),(left+width-8)/2,Math.max(84,(height-30)/2),0xFFB6C8DD);
+        if (hasPreview()) graphics.drawString(font,font.plainSubstrByWidth(
+                Component.translatable("text.quarkos_capes.site.wearing",wearing==null?text("nothing"):Component.literal(wearing.title())).getString(),width-left-8),left,height-108,0xFFB6C8DD);
+        if (!hasPreview()) graphics.drawString(font,font.plainSubstrByWidth(
+                Component.translatable("text.quarkos_capes.site.wearing",wearing==null?text("nothing"):Component.literal(wearing.title())).getString(),width-16),8,height-94,0xFFB6C8DD);
+        if (hasPreview() && selected!=null) {
             graphics.drawString(font,font.plainSubstrByWidth(selected.title(),width-left-8),left,height-94,0xFFFFFFFF);
             graphics.drawString(font,font.plainSubstrByWidth(credit(selected).getString(),width-left-8),left,height-83,0xFFB6C8DD);
             if (selected.source().equals("labymod")) graphics.drawString(font,font.plainSubstrByWidth(text("non_affiliation").getString(),width-16),8,height-16,0xFFB6C8DD);
@@ -173,5 +211,5 @@ public final class BrowseScreen extends Screen {
     }
     private void clearImages() { for (String key:images.keySet()) CapeTextures.clear("browse/"+key); images.clear(); loading.clear(); }
     @Override public void removed() { clearImages(); generation++; selection++; }
-    @Override public void onClose() { CapeBook.draft=null; CapeBook.preview=false; minecraft.setScreen(parent); }
+    @Override public void onClose() { CapeBook.draft=null; CapeBook.preview=false; minecraft.setScreen(CapeScreens.refreshed(parent)); }
 }

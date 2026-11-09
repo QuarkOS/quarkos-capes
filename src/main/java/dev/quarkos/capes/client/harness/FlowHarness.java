@@ -23,7 +23,7 @@ import java.util.function.*;
 public final class FlowHarness {
     private static final String[] NAMES={"open-keybind","tab-my-cape","tab-style","tab-physics","tab-sources","tab-gallery","tab-advanced",
             "bundled-samples","styles","save-reopen","physics-slider","source-toggles","publish-unpublish","gallery-search","browse-page",
-            "wear","unwear","other-player","link-claim","show-others","gui-sweep","survival-inventory","first-person","dev-catalog-absent"};
+            "wear","unwear","other-player","link-claim","show-others","gui-sweep","survival-inventory","first-person","dev-catalog-absent","browse-offline-cta"};
     private record Step(String shot,Runnable start,BooleanSupplier ready,Runnable verify) { }
     private static final Deque<Step> STEPS=new ArrayDeque<>();
     private static final List<String> ERRORS=new ArrayList<>();
@@ -42,13 +42,16 @@ public final class FlowHarness {
     private static String ownId, publishedTitle;
     private static int requests;
     private static String savedSettings;
+    private static Path originalSettingsFile;
+    private static long deadline;
     private static final Path DIRECTORY=Path.of(System.getProperty("quarkos_capes.captures","build/captures"));
     private FlowHarness() { }
     public static boolean selected() { return Boolean.getBoolean("quarkos_capes.harness") && "flows".equals(System.getProperty("quarkos_capes.only")); }
     public static void tick(Minecraft client) {
         if (!selected()) return; mc=client;
         if (!started) {
-            started=true; ClientSettings s=ClientSettings.get(); s.baseUrl=System.getProperty("quarkos_capes.serverUrl","http://127.0.0.1:8787");
+            started=true; ClientSettings s=ClientSettings.get(); try { originalSettingsFile=Files.createTempFile("capes-flow-settings-", ".json"); Files.writeString(originalSettingsFile,s.json()); }
+            catch(java.io.IOException e) { throw new java.io.UncheckedIOException(e); } s.baseUrl=System.getProperty("quarkos_capes.serverUrl",dev.quarkos.capes.client.net.CapeCalls.DEFAULT_SERVICE_URL);
             s.localOnly=false;s.showOthers=true;s.enableOptifine=false;s.enableLabyMod=false;s.enableMinecraftCapesMod=false;s.enableCosmetica=false;s.enableCloaksPlus=false;
             client.options.tutorialStep=net.minecraft.client.tutorial.TutorialSteps.NONE;client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
             client.options.framerateLimit().set(60);client.options.hideGui=false;McBridge.showCape(client.options);McBridge.prepareWorld(client);
@@ -66,11 +69,11 @@ public final class FlowHarness {
         try {
             if (step==null) {
                 if (STEPS.isEmpty()) build(flow+1);
-                step=STEPS.removeFirst(); age=0; step.start.run();
+                step=STEPS.removeFirst(); age=0; deadline=System.nanoTime()+20_000_000_000L; step.start.run();
             }
             age++;
             if (age<30 || !step.ready.getAsBoolean()) {
-                if (age>20*90) throw new AssertionError("Timed out waiting for "+step.shot);
+                if (System.nanoTime()>deadline) throw new AssertionError("20s timeout in " + NAMES[flow] + " (" + (step.shot==null?"action":step.shot) + "): " + diagnostics());
                 return;
             }
             step.verify.run();
@@ -139,20 +142,28 @@ public final class FlowHarness {
             }
             case 11 -> {
                 scene(null,()->open(2),()->{});
-                scene("main",()->{
-                    var slider=widgets(mc.screen).stream().filter(w->w instanceof AbstractSliderButton && w.getMessage().getString().contains("Gravity")).findFirst();
-                    require(slider.isPresent(),"No gravity slider");McBridge.slide((AbstractSliderButton)slider.get(),0);
-                },()->require(ClientSettings.get().cloth.gravity()==5,"Slider change did not apply"));
+                scene(null,()-> {
+                    Object gravity = entry("text.quarkos_capes.physics.gravity");
+                    if (gravity != null) setEntry(gravity, 5);
+                    else {
+                        var slider=widgets(mc.screen).stream().filter(w->w instanceof AbstractSliderButton && w.getMessage().getString().contains("Gravity")).findFirst();
+                        require(slider.isPresent(),"No Gravity entry or slider on Physics page");McBridge.slide((AbstractSliderButton)slider.get(),0);
+                    }
+                },()->require(ClientSettings.get().cloth.gravity()==5,"Gravity entry change did not apply"));
+                scene("main",()->open(2),()->require(ClientSettings.get().cloth.gravity()==5,"Gravity changed on reopen"));
             }
             case 12 -> {
                 scene(null,()->{
-                    CapeBoard.localOnly(true);for(String provider:CapeCalls.PROVIDERS)CapeBoard.provider(provider,false);requests=CapeHttp.sent;open(3);
+                    mc.setScreen(null);CapeBoard.localOnly(true);for(String provider:CapeCalls.PROVIDERS)CapeBoard.provider(provider,false);requests=CapeHttp.sent;open(3);
                 },()->require(CapeHttp.sent==requests,"Offline mode sent requests"));
-                scene("main",()->{for(String provider:CapeCalls.PROVIDERS)CapeBoard.provider(provider,true);},()->{
+                scene("main",()->{for(String provider:CapeCalls.PROVIDERS)setToggle("text.quarkos_capes.toggle."+provider,true);},()->{
                     require(CapeHttp.sent==requests,"Offline provider toggle sent requests");
-                    for(String provider:CapeCalls.PROVIDERS)require(ClientSettings.get().providerEnabled(provider),"Provider toggle did not apply");
-                    for(String provider:CapeCalls.PROVIDERS)CapeBoard.provider(provider,false);CapeBoard.localOnly(false);
+                    for(String provider:CapeCalls.PROVIDERS)require(ClientSettings.get().providerEnabled(provider),"Provider toggle did not apply: "+provider);
                 });
+                scene(null,()->{for(String provider:CapeCalls.PROVIDERS)setToggle("text.quarkos_capes.toggle."+provider,false);},()->{});
+                scene(null,()->open(5),()->{});
+                scene(null,()->setToggle("text.quarkos_capes.toggle.local_only",false),()->require(!ClientSettings.get().localOnly,"Advanced Offline toggle did not turn off"));
+                async(null,done->CapeBoard.save(done::accept),value->require(value.equals(status("saved")),String.valueOf(value)));
             }
             case 13 -> {
                 async("published",done->{CapeBoard.equipSample("bands");open(0);CapeBoard.publish(done::accept);},value->require(value.equals(status("published")),String.valueOf(value)));
@@ -168,11 +179,19 @@ public final class FlowHarness {
                 async("main",done->{open(4);CapeHttp.gallery(publishedTitle,"",50,"",done::accept,failure());},value->
                         require(((GalleryPages.Page)value).entries().stream().anyMatch(e->e.id().equals(ownId)),"Search did not find published cape"));
             }
-            case 15 -> waitFor("main",()->{browse=new BrowseScreen(CapeScreens.open(null),"ours");mc.options.hideGui=false;mc.setScreen(browse);},
+            case 15 -> {
+                async(null,done -> SiteApi.work(() -> {
+                    var filters = new CatalogClient.Query("ours","","","newest","","","",20);
+                    var page = SiteApi.CLIENT.page(ClientSettings.get().baseUrl,filters);
+                    if (page.items().isEmpty()) HarnessAuth.putCatalogUpload(ClientSettings.get().baseUrl, CapeHttp.siteBearer(), ownId, Samples.bands());
+                    return true;
+                },done::accept,failure()),value -> {});
+                waitFor("main",()->{browse=new BrowseScreen(CapeScreens.open(null),"ours");mc.options.hideGui=false;mc.setScreen(browse);},
                     ()->!browse.items().isEmpty(),()->{chosen=browse.items().getFirst();require(chosen.source().equals("ours"),"Wrong source");layout(browse);});
+            }
             case 16 -> {
                 waitFor(null,()->{require(browse!=null,"Browse unavailable");browse.selectFirst();},()->browse.previewReady(),()->{});
-                waitFor(null,()->browse.wearSelected(),()->!browse.isWriting(),()->require(browse.isWearing(chosen),"Wear action failed"));
+                waitFor(null,()->browse.wearSelected(),()->!browse.isWriting(),()->require(browse.isWearing(chosen),"Wear action failed: "+browse.status()));
                 async(null,done->SiteApi.wearing(done::accept,failure()),value->{
                     var item=(CatalogClient.Item)value;require(item!=null && item.id().equals(chosen.id()) && item.source().equals(chosen.source()),"GET wearing mismatch");
                 });
@@ -209,10 +228,10 @@ public final class FlowHarness {
                 require(remote!=null,"Remote fixture missing");require(CapeBook.draws(REMOTE_ID)==0,"Show others off still drew remote cape");CapeBoard.showOthers(true);
             });
             case 21 -> {
-                for(int[] size:List.of(new int[]{854,480},new int[]{1920,1080}))for(int scale:List.of(1,3,4))for(int tab=0;tab<6;tab++) {
+                for(int[] size:List.of(new int[]{854,480},new int[]{1920,1080}))for(int scale:List.of(1,3,4))for(int tab=0;tab<8;tab++) {
                     final int category=tab;
                     scene(size[0]+"x"+size[1]+"-scale"+scale+"-tab"+tab,()->{
-                        mc.options.guiScale().set(scale);mc.getWindow().setWindowed(size[0],size[1]);mc.resizeDisplay();open(category);
+                        mc.options.guiScale().set(scale);mc.getWindow().setWindowed(size[0],size[1]);mc.resizeDisplay();if(category==7)mc.setScreen(new LinkScreen(CapeScreens.open(null)));else open(category);
                     },()->layout(mc.screen));
                 }
                 scene("main",()->{mc.options.guiScale().set(2);mc.getWindow().setWindowed(1280,720);mc.resizeDisplay();open(0);},()->layout(mc.screen));
@@ -234,10 +253,74 @@ public final class FlowHarness {
             case 24 -> {
                 for(int tab=0;tab<6;tab++){final int category=tab;scene(tab==5?"main":null,()->open(category),()->HarnessChecks.catalogHidden(mc.screen));}
             }
+            case 25 -> {
+                scene("offline",()-> {
+                    mc.setScreen(null);CapeBoard.localOnly(true);requests=CapeHttp.sent;
+                    browse=new BrowseScreen(CapeScreens.open(null),"ours");mc.options.hideGui=false;mc.setScreen(browse);
+                },()-> {
+                    require(ClientSettings.get().localOnly,"Offline mode was not enabled");
+                    require(CapeHttp.sent==requests,"Offline Browse sent requests");
+                    require(widgets(browse).stream().anyMatch(w->w instanceof Button && w.getMessage().getString().equals(BrowseScreen.text("go_online").getString())),"Browse has no Go online button");
+                });
+                waitFor("main",()->click(BrowseScreen.text("go_online").getString()),()->!ClientSettings.get().localOnly && !browse.isLoading(),()-> {
+                    require(!ClientSettings.get().localOnly,"Go online did not disable Offline");
+                    require(!browse.items().isEmpty(),"Go online did not load catalog: "+browse.status());
+                    require(CapeHttp.sent>requests,"Go online did not send a request");layout(browse);
+                });
+                scene(null, browse::onClose, () -> require(!ClientSettings.get().localOnly, "Returning from Browse restored stale Offline state"));
+                async(null,done -> {
+                    mc.setScreen(null);
+                    ClientSettings.load(originalSettingsFile);
+                    LocalFiles.saveAsync(done::accept);
+                },value -> {
+                    require(Boolean.TRUE.equals(value),"Restoring original settings failed");
+                    try { Files.deleteIfExists(originalSettingsFile); } catch(java.io.IOException e) { throw new java.io.UncheckedIOException(e); }
+                });
+            }
             default -> throw new IllegalStateException("Unknown flow "+number);
         }
         // Every flow has a canonical screenshot, as well as any detailed scene captures.
         if(STEPS.stream().noneMatch(s->"main".equals(s.shot)))scene("main",()->{},()->{});
+    }
+    private static Object entry(String key) {
+        String label=net.minecraft.network.chat.Component.translatable(key).getString();
+        try {
+            Object categories=mc.screen.getClass().getMethod("getCategorizedEntries").invoke(mc.screen);
+            if(categories instanceof Map<?,?> map)for(Object value:map.values())if(value instanceof Iterable<?> rows)for(Object row:rows) {
+                Object name=row.getClass().getMethod("getFieldName").invoke(row);
+                if(name instanceof net.minecraft.network.chat.Component text && text.getString().equals(label))return row;
+            }
+        }catch(NoSuchMethodException nativeScreen){}catch(ReflectiveOperationException e){throw new IllegalStateException(e);}
+        return null;
+    }
+    private static void setEntry(Object entry,Object value) {
+        try {
+            for(var method:entry.getClass().getMethods())if(method.getName().equals("setValue") && method.getParameterCount()==1 && (method.getParameterTypes()[0].isInstance(value) || method.getParameterTypes()[0]==int.class && value instanceof Integer)) {
+                method.invoke(entry,value);return;
+            }
+            throw new IllegalStateException("Entry has no compatible setValue: "+entry.getClass().getSimpleName());
+        }catch(ReflectiveOperationException e){throw new IllegalStateException(e);}
+    }
+    private static void click(String label) {
+        var button=widgets(mc.screen).stream().filter(w->w instanceof Button && w.active && w.getMessage().getString().startsWith(label)).findFirst();
+        require(button.isPresent(),"Missing active button: "+label);McBridge.press((Button)button.get());
+    }
+    private static void setToggle(String key,boolean value) {
+        Object row=entry(key);
+        if(row!=null) {
+            try {
+                if (!Boolean.valueOf(value).equals(row.getClass().getMethod("getValue").invoke(row))) {
+                    var children=((ContainerEventHandler)row).children();
+                    require(!children.isEmpty() && children.getFirst() instanceof Button,"Toggle has no button: "+key);
+                    McBridge.press((Button)children.getFirst());
+                }
+            } catch(ReflectiveOperationException e) { throw new IllegalStateException(e); }
+        } else click(net.minecraft.network.chat.Component.translatable(key).getString());
+    }
+    private static String diagnostics() {
+        String note = mc.screen instanceof BrowseScreen screen ? screen.status() : asyncError;
+        return "offline=" + ClientSettings.get().localOnly + ", screen=" + (mc.screen==null?"world":mc.screen.getClass().getSimpleName())
+                + ", " + (note==null || note.isBlank()?SiteApi.lastError():note);
     }
     private static String status(String key){return net.minecraft.network.chat.Component.translatable("text.quarkos_capes.status."+key).getString();}
     private static List<AbstractWidget> widgets(Screen screen) {

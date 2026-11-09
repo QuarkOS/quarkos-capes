@@ -16,7 +16,7 @@ public final class ClientSettings {
 
     public boolean showOthers = true;
     public boolean localOnly = true;
-    public String baseUrl = CapeCalls.DEFAULT_BASE;
+    public String baseUrl = CapeCalls.DEFAULT_SERVICE_URL;
     public boolean enableOptifine;
     public boolean enableLabyMod;
     public boolean enableMinecraftCapesMod;

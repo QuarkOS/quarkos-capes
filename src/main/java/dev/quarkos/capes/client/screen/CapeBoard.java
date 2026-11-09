@@ -72,9 +72,7 @@ public final class CapeBoard {
         } else {
             cape.modelJson = null;
         }
-        if ("frames".equals(style)) {
-            cape.animateFrames = true;
-        }
+        cape.animateFrames = "frames".equals(style) || ("wave".equals(style) && cape.animateFrames);
         show();
     }
 

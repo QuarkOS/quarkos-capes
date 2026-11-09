@@ -159,13 +159,13 @@ public final class CapeHttp {
             try {
                 Reply response = send(CapeCalls.Kind.GALLERY_LIST, null, query, style, limit, cursor, null);
                 if (response == null || response.status / 100 != 2) {
-                    Minecraft.getInstance().execute(() -> fail.accept(message("gallery_unreachable")));
+                    Minecraft.getInstance().execute(() -> fail.accept(message("gallery_unreachable") + (response == null ? "" : " (HTTP " + response.status + ")")));
                     return;
                 }
                 GalleryPages.Page page = GalleryPages.page(response.text());
                 Minecraft.getInstance().execute(() -> ok.accept(page));
             } catch (Exception e) {
-                Minecraft.getInstance().execute(() -> fail.accept(message("gallery_unreachable")));
+                Minecraft.getInstance().execute(() -> fail.accept(message("gallery_unreachable") + " (" + e.getClass().getSimpleName() + ")"));
             }
         })) fail.accept(message("busy"));
     }
@@ -226,10 +226,10 @@ public final class CapeHttp {
                 }
                 Reply response = send(CapeCalls.Kind.GALLERY_PUT, self.toString(), "", "", 12, "", multipart(cape));
                 logout();
-                String note = response != null && response.status / 100 == 2 ? message("published") : message("publish_failed");
+                String note = response != null && response.status / 100 == 2 ? message("published") : message("publish_failed") + (response == null ? "" : " (HTTP " + response.status + ")");
                 Minecraft.getInstance().execute(() -> status.accept(note));
             } catch (Exception e) {
-                Minecraft.getInstance().execute(() -> status.accept(message("publish_failed")));
+                Minecraft.getInstance().execute(() -> status.accept(message("publish_failed") + " (" + e.getClass().getSimpleName() + ")"));
             }
         })) status.accept(message("busy"));
     }
@@ -249,10 +249,10 @@ public final class CapeHttp {
                 }
                 Reply response = send(CapeCalls.Kind.GALLERY_DELETE, self.toString(), "", "", 12, "", null);
                 logout();
-                String note = response != null && (response.status == 204 || response.status / 100 == 2) ? message("unpublished") : message("unpublish_failed");
+                String note = response != null && (response.status == 204 || response.status / 100 == 2) ? message("unpublished") : message("unpublish_failed") + (response == null ? "" : " (HTTP " + response.status + ")");
                 Minecraft.getInstance().execute(() -> status.accept(note));
             } catch (Exception e) {
-                Minecraft.getInstance().execute(() -> status.accept(message("unpublish_failed")));
+                Minecraft.getInstance().execute(() -> status.accept(message("unpublish_failed") + " (" + e.getClass().getSimpleName() + ")"));
             }
         })) status.accept(message("busy"));
     }

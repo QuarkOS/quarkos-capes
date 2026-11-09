@@ -27,6 +27,7 @@ public final class QuarkosCapesForge {
         /^IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         modBus.addListener(this::registerKeys);
         MinecraftForge.EVENT_BUS.addListener(this::onClientTick);
+        MinecraftForge.EVENT_BUS.addListener(this::beforeScreen);
         ^///?}
         //? if >=1.21.6 {
         RegisterKeyMappingsEvent.getBus(FMLJavaModLoadingContext.get().getModBusGroup()).addListener(this::registerKeys);
@@ -41,7 +42,11 @@ public final class QuarkosCapesForge {
     }
 
     //? if <1.21.6 {
-    /^private void onClientTick(TickEvent.ClientTickEvent event) {
+    /^private void beforeScreen(net.minecraftforge.client.event.ScreenEvent.Render.Pre event) {
+        if (CapeScreens.isSettings(event.getScreen())) event.getGuiGraphics().fill(0, 0, event.getScreen().width, event.getScreen().height, 0xE810141C);
+    }
+
+    private void onClientTick(TickEvent.ClientTickEvent event) {
         if (event.phase != TickEvent.Phase.END) {
             return;
         }

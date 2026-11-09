@@ -29,6 +29,7 @@ public final class ForgeCapeScreen extends Screen {
     private int page;
     private int rowIndex;
     private int rowLimit;
+    private final java.util.Map<Button, Component> hints = new java.util.HashMap<>();
 
     public ForgeCapeScreen(Screen parent) {
         super(Component.translatable("text.quarkos_capes.title"));
@@ -48,6 +49,7 @@ public final class ForgeCapeScreen extends Screen {
             minecraft.setScreen(new CapeGalleryScreen(parent)); return;
         }
         clearWidgets();
+        hints.clear();
         int tabWidth = Math.max(1, (width - 16) / CapeBoard.TABS.length);
         int tabX = Math.max(8, (width - CapeBoard.TABS.length * tabWidth) / 2);
         for (int i = 0; i < CapeBoard.TABS.length; i++) {
@@ -61,7 +63,7 @@ public final class ForgeCapeScreen extends Screen {
         rowLimit = Math.max(1, (height - 130) / 22);
         int x = 8;
         int y = 56;
-        int rowWidth = Math.max(100, width - 130);
+        int rowWidth = Math.max(100, width - (width < 480 || height < 300 ? 16 : 130));
         switch (tab) {
             case 0 -> {
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.sample.bands", CapeBoard.sampleOn("bands"), () -> CapeBoard.equipSample("bands"));
@@ -72,22 +74,14 @@ public final class ForgeCapeScreen extends Screen {
                 toggle(x, y, rowWidth, "text.quarkos_capes.button.unpublish", false, () -> CapeBoard.unpublish(value -> note = value));
             }
             case 1 -> {
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.style.flat", CapeBoard.styleOn("flat"), () -> CapeBoard.style("flat"));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.style.frames", CapeBoard.styleOn("frames"), () -> CapeBoard.style("frames"));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.style.wave", CapeBoard.styleOn("wave"), () -> CapeBoard.style("wave"));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.style.model", CapeBoard.styleOn("model"), () -> CapeBoard.style("model"));
+                y = choice(x, y, rowWidth, "style", CapeChoices.style(), value -> CapeBoard.style(CapeChoices.id(value)));
                 y = toggle(x, y, rowWidth, "text.quarkos_capes.toggle.animation", OwnerCape.get().animateFrames, () -> CapeBoard.animation(!OwnerCape.get().animateFrames));
                 toggle(x, y, rowWidth, "text.quarkos_capes.preview.back", dev.quarkos.capes.client.render.CapeBook.previewBack, () -> dev.quarkos.capes.client.render.CapeBook.previewBack = !dev.quarkos.capes.client.render.CapeBook.previewBack);
             }
             case 2 -> {
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.movement.classic", CapeBoard.movementOn(WaveCloth.Movement.CLASSIC), () -> CapeBoard.movement(WaveCloth.Movement.CLASSIC));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.movement.simulation", CapeBoard.movementOn(WaveCloth.Movement.SIMULATION), () -> CapeBoard.movement(WaveCloth.Movement.SIMULATION));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.movement.simulation_v2", CapeBoard.movementOn(WaveCloth.Movement.SIMULATION_V2), () -> CapeBoard.movement(WaveCloth.Movement.SIMULATION_V2));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.movement.dungeons", CapeBoard.movementOn(WaveCloth.Movement.DUNGEONS), () -> CapeBoard.movement(WaveCloth.Movement.DUNGEONS));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.mesh.smooth", CapeBoard.meshOn(WaveCloth.Mesh.SMOOTH), () -> CapeBoard.mesh(WaveCloth.Mesh.SMOOTH));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.mesh.blocky", CapeBoard.meshOn(WaveCloth.Mesh.BLOCKY), () -> CapeBoard.mesh(WaveCloth.Mesh.BLOCKY));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.wind.none", CapeBoard.windOn(WaveCloth.Wind.NONE), () -> CapeBoard.wind(WaveCloth.Wind.NONE));
-                y = toggle(x, y, rowWidth, "text.quarkos_capes.wind.waves", CapeBoard.windOn(WaveCloth.Wind.WAVES), () -> CapeBoard.wind(WaveCloth.Wind.WAVES));
+                y = choice(x, y, rowWidth, "model", ClientSettings.get().cloth.movement(), CapeBoard::movement);
+                y = choice(x, y, rowWidth, "look", ClientSettings.get().cloth.mesh(), CapeBoard::mesh);
+                y = choice(x, y, rowWidth, "wind", ClientSettings.get().cloth.wind(), CapeBoard::wind);
                 y = slider(x, y, rowWidth, "text.quarkos_capes.physics.gravity", ClientSettings.get().cloth.gravity(), 5, 32, CapeBoard::gravity);
                 y = slider(x, y, rowWidth, "text.quarkos_capes.physics.height", ClientSettings.get().cloth.heightMultiplier(), 4, 16, CapeBoard::height);
                 y = slider(x, y, rowWidth, "text.quarkos_capes.physics.strafe", ClientSettings.get().cloth.straveMultiplier(), 1, 8, CapeBoard::strafe);
@@ -147,16 +141,32 @@ public final class ForgeCapeScreen extends Screen {
         CapeBoard.show();
     }
 
+    private <T extends Enum<T>> int choice(int x, int y, int width, String key, T value, java.util.function.Consumer<T> changed) {
+        int row = rowIndex++;
+        if (row / rowLimit != page) return y + 22;
+        y = 56 + row % rowLimit * 22;
+        Button button = addRenderableWidget(Button.builder(Component.translatable("text.quarkos_capes.selector." + key).append(": ").append(CapeChoices.name(value)), b -> {
+            changed.accept(CapeChoices.next(value)); rebuild();
+        }).bounds(x, y, width, 20).build());
+        hint(button, CapeChoices.help(value));
+        return y + 22;
+    }
+
     private int toggle(int x, int y, int width, String key, boolean on, Runnable action) {
         int row = rowIndex++;
         if (row / rowLimit != page) return y + 22;
         y = 56 + row % rowLimit * 22;
         String name = Component.translatable(key).getString();
-        addRenderableWidget(Button.builder(CapeBoard.state(name, on), button -> {
-            action.run();
-            rebuild();
-        }).bounds(x, y, width, 20).tooltip(Tooltip.create(Component.translatable((key.contains(".sample.") ? "text.quarkos_capes.tooltip.equip" : key.contains(".button.") ? key : "text.quarkos_capes.tooltip." + key.substring(key.lastIndexOf('.') + 1))))).build());
+        Button control = addRenderableWidget(Button.builder(CapeBoard.state(name, on), button -> {
+            action.run(); rebuild();
+        }).bounds(x, y, width, 20).build());
+        hint(control, Component.translatable(key.contains(".sample.") ? "text.quarkos_capes.tooltip.equip" : key.contains(".button.") ? key : "text.quarkos_capes.tooltip." + key.substring(key.lastIndexOf('.') + 1)));
         return y + 22;
+    }
+
+    private void hint(Button button, Component help) {
+        hints.put(button, help);
+        if (width >= 480 && height >= 300) button.setTooltip(Tooltip.create(help));
     }
 
     private int slider(int x, int y, int width, String name, int value, int min, int max, IntConsumer changed) {
@@ -169,11 +179,15 @@ public final class ForgeCapeScreen extends Screen {
 
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
+        graphics.fill(0, 0, width, height, 0xE810141C);
         super.render(graphics, mouseX, mouseY, partialTick);
         graphics.drawCenteredString(font, getTitle(), width / 2, 8, 0xFFFFFF);
         graphics.drawString(font, font.plainSubstrByWidth(note, width - 16), 8, height - 44, 0xE8B84A);
+        if ((width < 480 || height < 300) && note.isBlank()) for (var hint : hints.entrySet()) {
+            if (hint.getKey().isMouseOver(mouseX, mouseY)) graphics.drawString(font, font.plainSubstrByWidth(hint.getValue().getString(), width - 16), 8, height - 44, 0xFFB6C8DD);
+        }
         int previewX = Math.max(8, width - 100);
-        if (minecraft != null && minecraft.player != null) {
+        if (minecraft != null && minecraft.player != null && width >= 480 && height >= 300) {
             CapeBoard.show();
             McBridge.preview(graphics, width - 120, 54, width - 8, height - 84, minecraft.player);
         }
