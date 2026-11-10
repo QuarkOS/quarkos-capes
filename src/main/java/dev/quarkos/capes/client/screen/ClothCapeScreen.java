@@ -37,10 +37,13 @@ import net.minecraft.network.chat.Component;
 final class ClothCapeScreen {
     private static boolean busy;
     private static Screen parentScreen;
+    private static Screen current;
     private static String note = "";
 
     private ClothCapeScreen() {
     }
+
+    static boolean isOpen(Screen screen) { return screen != null && screen == current; }
 
     static Screen refreshed(ClothConfigScreen previous) {
         int tab = previous.selectedCategoryIndex;
@@ -142,7 +145,8 @@ final class ClothCapeScreen {
             pane.setY(28);
             attach(screen, pane);
         });
-        return builder.build();
+        current = builder.build();
+        return current;
     }
 
     static int[] previewBounds(Screen screen) {

@@ -22,10 +22,35 @@ public final class JsonValues {
     }
 
     public static Object parse(String text) {
+        limits(text);
         try {
             return box(JsonParser.parseString(text));
         } catch (JsonSyntaxException e) {
             throw new Bad(e.getMessage() == null ? "bad json" : e.getMessage());
+        }
+    }
+
+    /** Bound nesting and structure before Gson builds its tree or box recurses. */
+    private static void limits(String text) {
+        if (text == null || text.length() > 8 * 1024 * 1024) throw new Bad("json too large");
+        int depth = 0, structure = 0;
+        boolean string = false, escape = false;
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (string) {
+                if (escape) escape = false;
+                else if (c == '\\') escape = true;
+                else if (c == '"') string = false;
+            } else if (c == '"') string = true;
+            else {
+                if (c == '/' || c == '\'' || c == '#' || c == ';' || c == '=') throw new Bad("expected strict json");
+                if (c == '[' || c == '{') {
+                    if (++depth > 64) throw new Bad("json too deep");
+                    structure++;
+                } else if (c == ']' || c == '}') depth--;
+                else if (c == ',' || c == ':') structure++;
+                if (structure > 100_000) throw new Bad("json too complex");
+            }
         }
     }
 
@@ -105,7 +130,10 @@ public final class JsonValues {
                     case '\n' -> out.append("\\n");
                     case '\r' -> out.append("\\r");
                     case '\t' -> out.append("\\t");
-                    default -> out.append(c);
+                    default -> {
+                        if (c < 0x20) out.append(String.format(java.util.Locale.ROOT, "\\u%04x", (int)c));
+                        else out.append(c);
+                    }
                 }
             }
             out.append('"');

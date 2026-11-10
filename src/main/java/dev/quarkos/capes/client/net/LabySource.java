@@ -142,7 +142,7 @@ public final class LabySource {
      * on the texels the box already uses.
      */
     public static byte[] present(byte[] png) {
-        if (png == null || png.length < 8 || !isPng(png)) {
+        if (!dev.quarkos.capes.sim.ImageLimits.png(png)) {
             return null;
         }
         try {
@@ -224,7 +224,7 @@ public final class LabySource {
      * {@code k*64} by {@code k*32} frame, so the net is copied into that frame's top-left.
      * The texel at unit (1, 1) stays at pixel {@code k}.
      */
-    private static BufferedImage netAtlas(BufferedImage image) {
+    private static BufferedImage netAtlas(BufferedImage image) throws IOException {
         int width = image.getWidth();
         int height = image.getHeight();
         if (width < 22 || width % 22 != 0) {
@@ -237,6 +237,8 @@ public final class LabySource {
         }
         int frames = height / netFrame;
         int frameHeight = 32 * scale;
+        if (!dev.quarkos.capes.sim.ImageLimits.dimensions(64 * scale, frameHeight * frames) || frames > 256)
+            throw new IOException("cape atlas too large");
         BufferedImage atlas = new BufferedImage(64 * scale, frameHeight * frames, BufferedImage.TYPE_INT_ARGB);
         for (int frame = 0; frame < frames; frame++) {
             int srcY = frame * netFrame;
@@ -332,8 +334,10 @@ public final class LabySource {
             if (!Files.isRegularFile(file)) {
                 return null;
             }
-            byte[] bytes = Files.readAllBytes(file);
-            return isPng(bytes) ? bytes : null;
+            try (var input = Files.newInputStream(file)) {
+                byte[] bytes = input.readNBytes(dev.quarkos.capes.sim.ImageLimits.MAX_BYTES + 1);
+                return dev.quarkos.capes.sim.ImageLimits.png(bytes) ? bytes : null;
+            }
         } catch (IOException e) {
             return null;
         }

@@ -53,6 +53,16 @@ public final class CapeHttp {
             .writeTimeout(8, TimeUnit.SECONDS)
             .followRedirects(true)
             .build();
+    private static final OkHttpClient PRIVATE_HTTP = HTTP.newBuilder().followRedirects(false).followSslRedirects(false).build();
+    private static String warnedBase;
+    private static synchronized void warnServiceUrl() {
+        String base = ClientSettings.get().baseUrl;
+        if (!base.equals(warnedBase)) {
+            warnedBase = base;
+            if (ServiceUrl.insecure(base)) org.slf4j.LoggerFactory.getLogger("quarkos_capes").warn(
+                    "The configured cape service uses unencrypted HTTP outside loopback; requests and session credentials can be observed in transit.");
+        }
+    }
     private static int tick;
     /** Session token for our service only. Never logged and never sent to Mojang. */
     private static String bearer;
@@ -100,6 +110,9 @@ public final class CapeHttp {
 
     public static CatalogClient.Reply siteExchange(String method, String url, String token, String etag, byte[] body) throws Exception {
         if (ClientSettings.get().localOnly) throw new CatalogClient.Failure(0, "offline");
+        warnServiceUrl();
+        if (token != null && (!ClientSettings.get().baseUrl.equals(bearerBase) || !ServiceUrl.sameOrigin(url, bearerBase)))
+            throw new CatalogClient.Failure(401, "signin");
         Request.Builder request = new Request.Builder().url(url).header("User-Agent", CapeCalls.USER_AGENT);
         if (token != null) request.header("Authorization", "Bearer " + token);
         if (etag != null) request.header("If-None-Match", etag);
@@ -107,7 +120,7 @@ public final class CapeHttp {
                 : RequestBody.create(JSON, body == null ? new byte[0] : body));
         HEALTH.before(url);
         sent++;
-        try (Response response = HTTP.newCall(request.build()).execute()) {
+        try (Response response = (token != null || !method.equals("GET") ? PRIVATE_HTTP : HTTP).newCall(request.build()).execute()) {
             ResponseBody payload = response.body();
             if (payload != null && payload.contentLength() > 8 * 1024 * 1024) throw new IOException("response too large");
             byte[] bytes = payload == null ? new byte[0] : payload.byteStream().readNBytes(8 * 1024 * 1024 + 1);
@@ -296,6 +309,7 @@ public final class CapeHttp {
         }
         // Keep legacy worn uploads as a fallback. A resolved site reference takes priority.
         String base = settings.baseUrl;
+        int generation = SiteApi.generation();
         List<UUID> legacy = facts.stream().map(PlayerFacts.Fact::id).filter(id -> !SiteApi.hasReference(id)).toList();
         for (List<UUID> chunk : CatalogClient.chunks(legacy)) {
             try {
@@ -303,15 +317,14 @@ public final class CapeHttp {
                 Reply response = raw("GET", URI.create(base.replaceAll("/+$", "") + "/v1/capes?uuids=" + ids), null, false);
                 if (response != null && response.status / 100 == 2) {
                     String body = response.text();
+                    Map<UUID, CapeBook.Remote> batch = batchMetadata(body);
                     Minecraft.getInstance().execute(() -> {
                         ClientSettings current = ClientSettings.get();
-                        if (current.localOnly || !current.showOthers || !base.equals(current.baseUrl)) return;
-                        Map<String, Object> doc = JsonValues.object(JsonValues.parse(body));
-                        if (doc.get("capes") instanceof Map<?, ?> capes) for (UUID id : chunk) {
-                            Object value = capes.get(id.toString());
-                            if (!SiteApi.hasReference(id) && (!(value instanceof Map<?,?> meta) || !"accepted".equals(meta.get("status")))) CapeBook.remote(id,null);
+                        if (generation != SiteApi.generation() || current.localOnly || !current.showOthers || !base.equals(current.baseUrl)) return;
+                        for (UUID id : chunk) {
+                            if (!SiteApi.hasReference(id) && !batch.containsKey(id)) CapeBook.remote(id,null);
                         }
-                        readBatch(body);
+                        readBatch(batch);
                     });
                 }
             } catch (Exception ignored) { /* Providers remain available when the service is down. */ }
@@ -325,13 +338,14 @@ public final class CapeHttp {
         }
     }
 
-    private static void readBatch(String body) {
+    static Map<UUID, CapeBook.Remote> batchMetadata(String body) {
+        Map<UUID, CapeBook.Remote> batch = new java.util.LinkedHashMap<>();
         Map<String, Object> root = JsonValues.object(JsonValues.parse(body));
         if (!(root.get("api") instanceof Long api) || api != 1L) {
-            return;
+            throw new JsonValues.Bad("api must be 1");
         }
         if (!(root.get("capes") instanceof Map<?, ?> capes)) {
-            return;
+            throw new JsonValues.Bad("capes must be an object");
         }
         for (Map.Entry<?, ?> entry : capes.entrySet()) {
             if (!(entry.getKey() instanceof String id) || !(entry.getValue() instanceof Map<?, ?> raw)) {
@@ -345,18 +359,26 @@ public final class CapeHttp {
             }
             UUID uuid;
             try { uuid = UUID.fromString(id); } catch (IllegalArgumentException invalid) { continue; }
-            if (PlayerFacts.byUuid(uuid) == null || SiteApi.hasReference(uuid)) continue;
-            int count = map.get("frameCount") instanceof Long n ? Math.clamp(n.intValue(), 1, 256) : 1;
-            CapeBook.remote(uuid, new CapeBook.Remote(
+            int count = map.get("frameCount") instanceof Long n ? Math.clamp(n, 1, 256) : 1;
+            batch.put(uuid, new CapeBook.Remote(
                     map.get("style") instanceof String s ? s : "flat",
                     map.get("animateFrames") instanceof Boolean b && b,
                     count,
-                    map.get("frameWidth") instanceof Long n ? n.intValue() : 64,
-                    map.get("frameHeight") instanceof Long n ? n.intValue() : 32,
+                    map.get("frameWidth") instanceof Long n ? Math.clamp(n, 1, 8192) : 64,
+                    map.get("frameHeight") instanceof Long n ? Math.clamp(n, 1, 8192) : 32,
                     delays(map.get("frameDelayMs"), count),
                     map.get("model") instanceof Map<?, ?> ? JsonValues.write(map.get("model")) : null,
                     status
             ));
+        }
+        return batch;
+    }
+
+    private static void readBatch(Map<UUID, CapeBook.Remote> batch) {
+        for (var entry : batch.entrySet()) {
+            UUID uuid = entry.getKey();
+            if (PlayerFacts.byUuid(uuid) == null || SiteApi.hasReference(uuid)) continue;
+            CapeBook.remote(uuid, entry.getValue());
             long now = System.currentTimeMillis();
             Long last = ASSET_ATTEMPTS.get(uuid);
             if ((last == null || now - last >= 60_000L) && ASSETS_PENDING.add(uuid)) {
@@ -369,6 +391,7 @@ public final class CapeHttp {
     }
 
     private static void downloadAsset(UUID uuid) {
+        int generation = SiteApi.generation();
         if (ClientSettings.get().localOnly) {
             return;
         }
@@ -380,7 +403,7 @@ public final class CapeHttp {
             }
             byte[] png = response.bytes;
             Minecraft.getInstance().execute(() -> {
-                if (!ClientSettings.get().localOnly && ClientSettings.get().showOthers && base.equals(ClientSettings.get().baseUrl)
+                if (generation == SiteApi.generation() && !ClientSettings.get().localOnly && ClientSettings.get().showOthers && base.equals(ClientSettings.get().baseUrl)
                         && PlayerFacts.byUuid(uuid) != null && !SiteApi.hasReference(uuid))
                     CapeTextures.upload(CapeBook.textureKey(uuid), png, false, false);
             });
@@ -390,6 +413,7 @@ public final class CapeHttp {
     }
 
     private static void fetchProvider(ClientSettings settings, PlayerFacts.Fact fact) {
+        int generation = SiteApi.generation();
         if (settings.localOnly || !settings.showOthers || PlayerFacts.byUuid(fact.id()) == null) return;
         long now = System.currentTimeMillis();
         Long last = PROVIDER_ATTEMPTS.putIfAbsent(fact.id(), now);
@@ -404,7 +428,7 @@ public final class CapeHttp {
                     byte[] png = LabySource.worn(true, fact.id(), LocalFiles.folder(), CapeHttp::labyHit);
                     if (png != null) {
                         Minecraft.getInstance().execute(() -> {
-                            if (!providerAllowed(fact.id(), provider)) return;
+                            if (generation != SiteApi.generation() || !providerAllowed(fact.id(), provider)) return;
                             CapeTextures.Image stored = CapeTextures.upload("provider/" + fact.id(), png, true, false, true);
                             if (stored != null) {
                                 CapeBook.provider(fact.id(), "provider/" + fact.id(), provider);
@@ -436,7 +460,7 @@ public final class CapeHttp {
                     byte[] png = image.bytes;
                     boolean animated = link.animated();
                     Minecraft.getInstance().execute(() -> {
-                        if (!providerAllowed(fact.id(), provider)) return;
+                        if (generation != SiteApi.generation() || !providerAllowed(fact.id(), provider)) return;
                         CapeTextures.Image stored = CapeTextures.upload("provider/" + fact.id(), png, animated, false);
                         if (stored != null) {
                             CapeBook.provider(fact.id(), "provider/" + fact.id(), provider);
@@ -445,7 +469,7 @@ public final class CapeHttp {
                     return;
                 }
                 Minecraft.getInstance().execute(() -> {
-                    if (!providerAllowed(fact.id(), provider)) return;
+                    if (generation != SiteApi.generation() || !providerAllowed(fact.id(), provider)) return;
                     CapeTextures.Image stored = CapeTextures.upload("provider/" + fact.id(), body, false, false);
                     if (stored != null) {
                         CapeBook.provider(fact.id(), "provider/" + fact.id(), provider);
@@ -469,22 +493,23 @@ public final class CapeHttp {
 
     private static boolean login(String name, UUID uuid, String token) throws Exception {
         authNote = message("publish_signin");
+        String base = ClientSettings.get().baseUrl;
         if (ClientSettings.get().localOnly) {
             authNote = message("publish_offline");
             return false;
         }
         if (Boolean.getBoolean("quarkos_capes.harness") && dev.quarkos.capes.client.harness.HarnessAuth.active()) {
-            var session = dev.quarkos.capes.client.harness.HarnessAuth.complete(ClientSettings.get().baseUrl, name);
+            var session = dev.quarkos.capes.client.harness.HarnessAuth.complete(base, name);
             bearer = session.token();
-            rememberBearer(uuid);
+            rememberBearer(uuid, base);
             return true;
         }
         if (!mojangSession(token)) {
             authNote = message("no_token");
             return false;
         }
-        Reply challenge = send(CapeCalls.Kind.CHALLENGE, null, "", "", 12, "", new byte[0]);
-        if (challenge == null || challenge.status / 100 != 2) {
+        CatalogClient.Reply challenge = siteExchange("POST", base.replaceAll("/+$", "") + "/v1/auth/challenge", null, null, new byte[0]);
+        if (challenge.status() / 100 != 2) {
             authNote = message("no_challenge");
             return false;
         }
@@ -501,8 +526,8 @@ public final class CapeHttp {
             return false;
         }
         String complete = "{\"username\":\"" + jsonEscape(name) + "\",\"serverId\":\"" + jsonEscape(serverId) + "\"}";
-        Reply done = send(CapeCalls.Kind.COMPLETE, null, "", "", 12, "", complete.getBytes(StandardCharsets.UTF_8));
-        if (done == null || done.status / 100 != 2) {
+        CatalogClient.Reply done = siteExchange("POST", base.replaceAll("/+$", "") + "/v1/auth/complete", null, null, complete.getBytes(StandardCharsets.UTF_8));
+        if (done.status() / 100 != 2 || !base.equals(ClientSettings.get().baseUrl)) {
             authNote = message("session_failed");
             return false;
         }
@@ -511,12 +536,12 @@ public final class CapeHttp {
         if (bearer == null) {
             authNote = message("no_session");
         }
-        if (bearer != null) rememberBearer(uuid);
+        if (bearer != null) rememberBearer(uuid, base);
         return bearer != null;
     }
 
-    private static void rememberBearer(UUID uuid) {
-        bearerBase = ClientSettings.get().baseUrl;
+    private static void rememberBearer(UUID uuid, String base) {
+        bearerBase = base;
         bearerPlayer = uuid;
         bearerUntil = System.currentTimeMillis() + 11 * 60 * 60 * 1000L;
     }
@@ -577,7 +602,8 @@ public final class CapeHttp {
         sent++;
         try (Response response = HTTP.newCall(request).execute()) {
             ResponseBody responseBody = response.body();
-            byte[] bytes = responseBody == null ? new byte[0] : responseBody.bytes();
+            byte[] bytes = responseBody == null ? new byte[0] : responseBody.byteStream().readNBytes(8 * 1024 * 1024 + 1);
+            if (bytes.length > 8 * 1024 * 1024) throw new IOException("response too large");
             return new LabySource.Hit(
                     response.code(),
                     bytes,
@@ -616,12 +642,15 @@ public final class CapeHttp {
         if (ClientSettings.get().localOnly) {
             return null;
         }
+        warnServiceUrl();
         Request.Builder builder = new Request.Builder()
                 .url(uri.toString())
                 .header("User-Agent", CapeCalls.USER_AGENT)
                 .header("Accept", "application/json, image/png");
         String header = CapeCalls.sessionHeader(auth ? bearer : null);
-        if (header != null && uri.getHost() != null && !uri.getHost().contains("mojang")) {
+        if (header != null) {
+            if (!ClientSettings.get().baseUrl.equals(bearerBase) || !ServiceUrl.sameOrigin(uri.toString(), bearerBase))
+                throw new CatalogClient.Failure(401, "signin");
             builder.header("Authorization", header);
         }
         if ("DELETE".equals(method)) {
@@ -635,7 +664,7 @@ public final class CapeHttp {
         String url = uri.toString();
         HEALTH.before(url);
         sent++;
-        try (Response response = HTTP.newCall(builder.build()).execute()) {
+        try (Response response = (auth || !method.equals("GET") ? PRIVATE_HTTP : HTTP).newCall(builder.build()).execute()) {
             ResponseBody responseBody = response.body();
             byte[] bytes = responseBody == null ? new byte[0] : responseBody.byteStream().readNBytes(8 * 1024 * 1024 + 1);
             if (bytes.length > 8 * 1024 * 1024) throw new IOException("response too large");
@@ -669,11 +698,9 @@ public final class CapeHttp {
     }
 
     private static void validateImage(byte[] bytes) throws CatalogClient.Failure {
-        if (!ServiceBackoff.png(bytes) || bytes.length < 24) throw new CatalogClient.Failure(0, "image_error");
+        if (!dev.quarkos.capes.sim.ImageLimits.png(bytes)) throw new CatalogClient.Failure(0, "image_error");
         var header = java.nio.ByteBuffer.wrap(bytes);
         int width = header.getInt(16), height = header.getInt(20);
-        if (width < 1 || height < 1 || width > 8192 || height > 8192 || (long)width * height > 16_777_216L)
-            throw new CatalogClient.Failure(0, "image_error");
         try (var image = com.mojang.blaze3d.platform.NativeImage.read(new java.io.ByteArrayInputStream(bytes))) {
             if (image.getWidth() != width || image.getHeight() != height) throw new CatalogClient.Failure(0, "image_error");
         } catch (Exception invalid) { throw new CatalogClient.Failure(0, "image_error"); }
@@ -682,10 +709,7 @@ public final class CapeHttp {
     public static byte[] siteImage(String url) throws Exception {
         CatalogClient.Reply response = siteExchange("GET", url, null, null, null);
         if (response.status() / 100 != 2) throw new CatalogClient.Failure(response.status(), "image_error");
-        if (!ServiceBackoff.png(response.bytes())) {
-            HEALTH.failed(url, null);
-            throw new CatalogClient.Failure(0, "image_error");
-        }
+        validateImage(response.bytes());
         return response.bytes();
     }
 
@@ -725,7 +749,7 @@ public final class CapeHttp {
         if (value instanceof List<?> list) {
             for (int i = 0; i < Math.min(n, list.size()); i++) {
                 if (list.get(i) instanceof Long number) {
-                    delays[i] = number.intValue();
+                    delays[i] = Math.clamp(number, 50, 1000);
                 }
             }
         }

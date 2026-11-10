@@ -47,6 +47,7 @@ public final class CapeTextures {
         com.mojang.blaze3d.systems.RenderSystem.assertOnRenderThread();
         NativeImage read = null;
         try {
+            if (!dev.quarkos.capes.sim.ImageLimits.png(png)) return null;
             read = NativeImage.read(new ByteArrayInputStream(png));
             if (laby && placeholder(read)) {
                 clear(key);
@@ -55,6 +56,7 @@ public final class CapeTextures {
             boolean vertical = animated && read.getWidth() / 2 > 0 && read.getHeight() % (read.getWidth() / 2) == 0
                     && read.getHeight() / (read.getWidth() / 2) > 1;
             int frames = vertical ? read.getHeight() / (read.getWidth() / 2) : 1;
+            if (frames > 256) return null;
             int width = read.getWidth();
             int height = read.getHeight();
             if (capeBox && frames > 1) {

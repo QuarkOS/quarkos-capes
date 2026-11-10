@@ -37,9 +37,13 @@ public final class BootHarness {
                     net.minecraft.client.renderer.entity.layers.CapeLayer.class,
                     net.minecraft.client.Camera.class, net.minecraft.client.player.AbstractClientPlayer.class,
                     net.minecraft.client.gui.Gui.class,
+                    net.minecraft.client.renderer.entity.LivingEntityRenderer.class,
                     //? if <1.21.11 {
-                    /*net.minecraft.client.renderer.entity.player.PlayerRenderer.class
+                    /*net.minecraft.client.gui.screens.inventory.InventoryScreen.class,
+                    net.minecraft.client.renderer.entity.player.PlayerRenderer.class
                     *///?} else {
+                    net.minecraft.client.gui.render.pip.GuiEntityRenderer.class,
+                    net.minecraft.client.renderer.feature.ModelFeatureRenderer.class,
                     net.minecraft.client.renderer.entity.player.AvatarRenderer.class
                     //?}
             };
@@ -51,9 +55,9 @@ public final class BootHarness {
             if (!loader.isModLoaded("fabric-api")) throw new IllegalStateException("Fabric API was not loaded");
             //?}
             int count = HarnessMixins.count();
-            if (count != 6) throw new IllegalStateException("Expected 6 applied mod mixins, got " + count);
+            int required = HarnessMixins.verifyConfigured();
             if (client.screen.children().isEmpty()) throw new IllegalStateException("Settings screen has no widgets");
-            System.out.println("CAPES_BOOT PASS mixins=" + count + " screen=" + client.screen.getClass().getName());
+            System.out.println("CAPES_BOOT PASS mixins=" + count + " required=" + required + " screen=" + client.screen.getClass().getName());
             finished = true;
             client.stop();
         } catch (Throwable failure) {

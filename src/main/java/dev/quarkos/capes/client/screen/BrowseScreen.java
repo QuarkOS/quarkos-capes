@@ -235,6 +235,9 @@ public final class BrowseScreen extends Screen {
         return cut + "…";
     }
     private void clearImages() { for (String key:images.keySet()) CapeTextures.clear("browse/"+key); images.clear(); loading.clear(); failedImages.clear(); }
-    @Override public void removed() { clearImages(); generation++; selection++; }
+    @Override public void removed() {
+        clearImages(); generation++; selection++; loaded=false; busy=false;
+        CapeBook.draft=null; CapeBook.preview=false;
+    }
     @Override public void onClose() { CapeBook.draft=null; CapeBook.preview=false; minecraft.setScreen(CapeScreens.refreshed(parent)); }
 }

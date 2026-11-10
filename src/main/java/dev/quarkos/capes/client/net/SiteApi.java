@@ -19,7 +19,8 @@ public final class SiteApi {
     private static final Set<String> PENDING = ConcurrentHashMap.newKeySet();
     private static final Map<UUID, String> REMOTE = new ConcurrentHashMap<>();
     private static final Map<UUID, String> PENDING_IMAGES = new ConcurrentHashMap<>();
-    private static int remoteGeneration;
+    private static volatile int remoteGeneration;
+    public static int generation() { return remoteGeneration; }
     private static int tick;
     private static String config = "";
     private static volatile String lastError = "No HTTP error recorded; waiting for UI/render observation";
@@ -95,9 +96,10 @@ public final class SiteApi {
         cape.frameDelayMs = item.delays(); cape.modelJson = item.modelJson();
         // LabyMod descriptors are nominal. Decode and use the actual atlas dimensions.
         if (item.source().equals("labymod")) {
-            try (var image = com.mojang.blaze3d.platform.NativeImage.read(new java.io.ByteArrayInputStream(png))) {
-                cape.frameWidth = image.getWidth(); cape.frameHeight = image.getHeight();
-            } catch (Exception ignored) { }
+            if (dev.quarkos.capes.sim.ImageLimits.png(png)) {
+                var header = java.nio.ByteBuffer.wrap(png);
+                cape.frameWidth = header.getInt(16); cape.frameHeight = header.getInt(20);
+            }
         }
         return cape;
     }
@@ -131,13 +133,16 @@ public final class SiteApi {
         for (List<UUID> chunk : CatalogClient.chunks(ids)) poll(chunk);
     }
     public static void poll(List<UUID> ids) {
+        int request = remoteGeneration;
         String base = ClientSettings.get().baseUrl;
         String path = "/v1/players/wearing?uuids=" + String.join(",",ids.stream().map(UUID::toString).toList());
         if (!PENDING.add(path)) return;
         work(() -> {
             try { return CatalogClient.players(CLIENT.request(base,"GET",path,null,null).text()); }
             finally { PENDING.remove(path); }
-        }, players -> players.forEach(SiteApi::remote), ignored -> PENDING.remove(path));
+        }, players -> {
+            if (request == remoteGeneration) for (UUID id : ids) if (players.containsKey(id)) remote(id, players.get(id));
+        }, ignored -> PENDING.remove(path));
     }
     private static void remote(UUID id, CatalogClient.Item item) {
         ClientSettings s = ClientSettings.get();

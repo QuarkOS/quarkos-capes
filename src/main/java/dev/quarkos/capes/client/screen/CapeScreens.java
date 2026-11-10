@@ -41,13 +41,14 @@ public final class CapeScreens {
         if (CapeScreen.isOpen(screen)) return CapeScreen.refreshed(screen);
         //?} else {
         /*//? if =1.21.1 {
-        /^if (screen instanceof me.shedaniel.clothconfig2.gui.ClothConfigScreen cloth) return ClothCapeScreen.refreshed(cloth);
+        /^if (ClothCapeScreen.isOpen(screen) && screen instanceof me.shedaniel.clothconfig2.gui.ClothConfigScreen cloth) return ClothCapeScreen.refreshed(cloth);
         ^///?}
         *///?}
         return screen;
     }
 
     public static int[] previewBounds(Screen screen) {
+        if (!isSettings(screen)) return null;
         if (screen instanceof CapeGalleryScreen || screen instanceof LinkScreen) return null;
         if (screen.width < 480 || screen.height < 300) return null;
         if (screen instanceof BrowseScreen) return new int[]{Math.max(150,screen.width*3/5),80,screen.width-8,screen.height-114};
@@ -75,6 +76,10 @@ public final class CapeScreens {
             return true;
         }
         //?}
-        return screen != null && screen.getClass().getName().contains("ClothConfig");
+        //? if forge && =1.21.1 {
+        /*return ClothCapeScreen.isOpen(screen);
+        *///?} else {
+        return false;
+        //?}
     }
 }

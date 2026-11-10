@@ -28,7 +28,7 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 //?}
 public class CapeModelDrawMixin {
     //? if <1.21.11 {
-    /*@Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/PlayerModel;renderCloak(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;II)V", shift = At.Shift.AFTER))
+    /*@Inject(method = "render", require = 0, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/PlayerModel;renderCloak(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;II)V", shift = At.Shift.AFTER))
     private void quarkosDrawn(PoseStack pose, MultiBufferSource buffers, int light, AbstractClientPlayer player,
                               float swing, float amount, float partial, float age, float yaw, float pitch, CallbackInfo ci) {
         var skin = player.getSkin();
@@ -36,7 +36,7 @@ public class CapeModelDrawMixin {
         CapeBook.drawn(player.getUUID(), texture != null ? texture : skin.capeTexture(), false);
     }
     *///?} else {
-    @Inject(method = "renderModel", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/Model;renderToBuffer(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;III)V", ordinal = 0, shift = At.Shift.AFTER))
+    @Inject(method = "renderModel", require = 0, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/Model;renderToBuffer(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;III)V", ordinal = 0, shift = At.Shift.AFTER))
     private void quarkosDrawn(SubmitNodeStorage.ModelSubmit<?> submit, RenderType type, VertexConsumer consumer,
                               OutlineBufferSource outlines, MultiBufferSource.BufferSource crumbling, CallbackInfo ci) {
         if (!(submit.model() instanceof PlayerCapeModel) || !(submit.state() instanceof AvatarRenderState state)) return;
