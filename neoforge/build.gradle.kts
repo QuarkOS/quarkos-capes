@@ -315,3 +315,4 @@ side = "CLIENT"
         }
     }
 }
+apply(from = rootProject.file("gradle/strip-module-info.gradle.kts"))

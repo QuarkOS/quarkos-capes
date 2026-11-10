@@ -84,10 +84,19 @@ public final class McBridge {
         //?}
     }
 
-    public static RenderType cutout(Identifier texture) {
+    /**
+     * Wave and model capes are custom geometry. On 1.21.11 the armor cutout pass is what
+     * shader packs skip, so those capes use the entity cutout pass instead. A flat cape
+     * still follows the vanilla armor path.
+     */
+    public static RenderType cutout(Identifier texture, dev.quarkos.capes.client.render.CapeBook.Kind kind) {
         //? if <1.21.11 {
         /*return RenderType.entityCutoutNoCull(texture);
         *///?} else {
+        if (kind == dev.quarkos.capes.client.render.CapeBook.Kind.CLOTH
+                || kind == dev.quarkos.capes.client.render.CapeBook.Kind.MODEL) {
+            return RenderTypes.entityCutoutNoCull(texture);
+        }
         return RenderTypes.armorCutoutNoCull(texture);
         //?}
     }

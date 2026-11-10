@@ -14,11 +14,14 @@ stonecutter parameters {
             replace("Identifier", "ResourceLocation")
             replace(".identifier()", ".location()")
         }
-        // Forge runs official names, so Mixin must not look up a Fabric refmap.
+        // Forge and NeoForge run official names in dev. Forge 1.20.1 production still
+        // runs SRG; the 1.20.1 jar task rewrites these mixin targets after compile.
         string(branch.id == "forge" || branch.id == "neoforge") {
             replace("@Mixin(", "@Mixin(remap = false, value = ")
             replace("@Inject(", "@Inject(remap = false, ")
             replace("@Redirect(", "@Redirect(remap = false, ")
+            replace("@Accessor(\"", "@Accessor(remap = false, value = \"")
+            replace("@Invoker(\"", "@Invoker(remap = false, value = \"")
         }
     }
 }

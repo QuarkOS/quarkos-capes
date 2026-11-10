@@ -274,3 +274,4 @@ sourceSets.named("main") {
     java.srcDir(devFlagsDir)
 }
 tasks.named("compileJava") { dependsOn(writeDevFlags) }
+apply(from = rootProject.file("gradle/strip-module-info.gradle.kts"))

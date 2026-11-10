@@ -50,6 +50,9 @@ public final class QuarkosCapes implements ClientModInitializer {
         if (client.screen == null && OPEN != null && OPEN.consumeClick()) {
             McBridge.setScreen(client, CapeScreens.open(null));
         }
+        if (Boolean.getBoolean("quarkos_capes.prodSmoke")) {
+            dev.quarkos.capes.client.ProdSmoke.tick(client);
+        }
         LocalFiles.autosave(CapeScreens.isSettings(client.screen));
         if (!CapeScreens.isSettings(client.screen)) {
             CapeBook.preview = false;

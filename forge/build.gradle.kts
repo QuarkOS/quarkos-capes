@@ -1,10 +1,239 @@
+import org.objectweb.asm.AnnotationVisitor
+import org.objectweb.asm.ClassReader
+import org.objectweb.asm.ClassVisitor
+import org.objectweb.asm.ClassWriter
+import org.objectweb.asm.MethodVisitor
+import org.objectweb.asm.Opcodes
+import org.objectweb.asm.commons.ClassRemapper
+import org.objectweb.asm.commons.Remapper
+import java.util.zip.ZipEntry
+import java.util.zip.ZipInputStream
+import java.util.zip.ZipOutputStream
+
 /**
  * Forge nodes for 1.20.1 (47.4.29), 1.21.1 (52.1.20), 1.21.4 (54.1.22),
  * 1.21.8 (58.1.26), and 1.21.11 (61.2.4).
- * Official mappings, so the jar is not reobfuscated.
+ * Dev compiles official names. The 1.20.1 jar is rewritten to SRG before it ships.
  * Every node compiles the chiseled tree, not the Fabric checkout in src/.
  * Cloth Config Forge exists for 1.20.1 and 1.21.1. Later nodes draw the screen themselves.
  */
+
+// Dev compiles against official names. Forge 1.20.1 production still runs SRG method names.
+private val forge1201MixinTargets = mapOf(
+    "render" to "m_6494_",
+    "getElytraTextureLocation" to "m_108563_",
+    "layers" to "f_115291_",
+    "addLayer" to "m_115326_",
+    "Lnet/minecraft/client/player/AbstractClientPlayer;isModelPartShown(Lnet/minecraft/world/entity/player/PlayerModelPart;)Z" to
+        "Lnet/minecraft/client/player/AbstractClientPlayer;m_36170_(Lnet/minecraft/world/entity/player/PlayerModelPart;)Z",
+    "Lnet/minecraft/client/player/AbstractClientPlayer;getCloakTextureLocation()Lnet/minecraft/resources/ResourceLocation;" to
+        "Lnet/minecraft/client/player/AbstractClientPlayer;m_108561_()Lnet/minecraft/resources/ResourceLocation;"
+)
+
+// Official names -> SRG. Invokes name the compile-time type, so the lookup walks that
+// type's parents until it finds the declaration. Class names stay official.
+private val forge1201Methods = HashMap<String, String>(120_000)
+private val forge1201Fields = HashMap<String, String>(80_000)
+private val forge1201Parents = HashMap<String, List<String>>(20_000)
+
+private fun forge1201Load() {
+    if (forge1201Parents.isNotEmpty()) return
+    val root = File(
+        System.getProperty("user.home"),
+        ".gradle/caches/minecraftforge/forgegradle/slime-launcher/cache/net/minecraftforge/forge/1.20.1-47.4.29/mappings/srgs"
+    )
+    val srg = root.walkTopDown().first { it.isFile && it.name == "mcp-srg.srg" }
+    srg.forEachLine { line ->
+        when {
+            line.startsWith("MD: ") -> {
+                val parts = line.split(' ')
+                val slash = parts[1].lastIndexOf('/')
+                val srgSlash = parts[3].lastIndexOf('/')
+                val owner = parts[1].substring(0, slash)
+                val name = parts[1].substring(slash + 1)
+                forge1201Methods["$owner.$name${parts[2]}"] = parts[3].substring(srgSlash + 1)
+            }
+            line.startsWith("FD: ") -> {
+                val parts = line.split(' ')
+                val slash = parts[1].lastIndexOf('/')
+                val srgSlash = parts[2].lastIndexOf('/')
+                val owner = parts[1].substring(0, slash)
+                val name = parts[1].substring(slash + 1)
+                forge1201Fields["$owner.$name"] = parts[2].substring(srgSlash + 1)
+            }
+        }
+    }
+    val named = File(
+        System.getProperty("user.home"),
+        ".gradle/caches/minecraftforge/forgegradle/mavenizer/caches/forge/net/minecraftforge/forge/1.20.1-47.4.29/official/1.20.1/recompiled.jar"
+    )
+    ZipInputStream(named.inputStream()).use { zip ->
+        var entry = zip.nextEntry
+        while (entry != null) {
+            if (entry.name.endsWith(".class")) {
+                ClassReader(zip.readBytes()).accept(object : ClassVisitor(Opcodes.ASM9) {
+                    override fun visit(
+                        version: Int, access: Int, name: String, signature: String?,
+                        superName: String?, interfaces: Array<out String>?
+                    ) {
+                        val parents = ArrayList<String>()
+                        if (superName != null && superName != "java/lang/Object") parents.add(superName)
+                        if (interfaces != null) parents.addAll(interfaces)
+                        forge1201Parents[name] = parents
+                    }
+                }, ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+            }
+            entry = zip.nextEntry
+        }
+    }
+}
+
+private fun forge1201Walk(owner: String): Sequence<String> = sequence {
+    val seen = HashSet<String>()
+    val queue = ArrayDeque<String>()
+    queue.add(owner)
+    while (queue.isNotEmpty()) {
+        val type = queue.removeFirst()
+        if (!seen.add(type)) continue
+        yield(type)
+        forge1201Parents[type]?.let { queue.addAll(it) }
+    }
+}
+
+private fun forge1201Method(owner: String, name: String, descriptor: String): String {
+    for (type in forge1201Walk(owner)) {
+        forge1201Methods["$type.$name$descriptor"]?.let { return it }
+    }
+    return name
+}
+
+private fun forge1201Field(owner: String, name: String): String {
+    for (type in forge1201Walk(owner)) {
+        forge1201Fields["$type.$name"]?.let { return it }
+    }
+    return name
+}
+
+private val forge1201Remapper: Remapper = object : Remapper() {
+    override fun mapMethodName(owner: String, name: String, descriptor: String): String {
+        forge1201Load()
+        return forge1201Method(owner, name, descriptor)
+    }
+
+    override fun mapFieldName(owner: String, name: String, descriptor: String): String {
+        forge1201Load()
+        return forge1201Field(owner, name)
+    }
+}
+
+private val srgLeftovers = linkedSetOf<String>()
+
+private fun rewriteForge1201MixinTargets(jar: File) {
+    srgLeftovers.clear()
+    val temp = File(jar.parentFile, jar.name + ".srg")
+    ZipInputStream(jar.inputStream()).use { input ->
+        ZipOutputStream(temp.outputStream()).use { output ->
+            var entry = input.nextEntry
+            while (entry != null) {
+                val data = input.readBytes()
+                val next = if (entry.name.startsWith("dev/quarkos/capes/") && entry.name.endsWith(".class")) {
+                    rewriteQuarkosClass(entry.name, data)
+                } else {
+                    data
+                }
+                val copy = ZipEntry(entry.name)
+                copy.time = entry.time
+                output.putNextEntry(copy)
+                if (!entry.isDirectory) output.write(next)
+                output.closeEntry()
+                entry = input.nextEntry
+            }
+        }
+    }
+    if (!temp.renameTo(jar)) {
+        temp.copyTo(jar, overwrite = true)
+        temp.delete()
+    }
+    if (srgLeftovers.isNotEmpty()) {
+        throw GradleException(
+            "Forge 1.20.1 jar still calls official Minecraft names:\n" + srgLeftovers.joinToString("\n")
+        )
+    }
+}
+
+private fun rewriteQuarkosClass(name: String, bytes: ByteArray): ByteArray {
+    val reader = ClassReader(bytes)
+    val writer = ClassWriter(0)
+    reader.accept(ClassRemapper(writer, forge1201Remapper), 0)
+    val remapped = writer.toByteArray()
+    val finished = if (name.contains("/mixin/")) rewriteMixinAnnotations(remapped) else remapped
+    ClassReader(finished).accept(object : ClassVisitor(Opcodes.ASM9) {
+        override fun visitMethod(
+            access: Int, methodName: String?, descriptor: String?, signature: String?, exceptions: Array<out String>?
+        ): MethodVisitor {
+            return object : MethodVisitor(Opcodes.ASM9) {
+                override fun visitMethodInsn(
+                    opcode: Int, owner: String, called: String, desc: String, isInterface: Boolean
+                ) {
+                    noteOfficial(name, owner, called, desc)
+                }
+
+                override fun visitFieldInsn(opcode: Int, owner: String, field: String, desc: String) {
+                    noteOfficial(name, owner, field, desc)
+                }
+            }
+        }
+    }, 0)
+    return finished
+}
+
+private fun noteOfficial(from: String, owner: String, member: String, descriptor: String) {
+    if (member.startsWith("m_") || member.startsWith("f_") || member.startsWith("<")) return
+    if (!owner.startsWith("net/minecraft/") && !owner.startsWith("com/mojang/blaze3d/") && !owner.startsWith("com/mojang/math/")) {
+        return
+    }
+    val expected = if (descriptor.startsWith("(")) forge1201Method(owner, member, descriptor) else forge1201Field(owner, member)
+    if (expected != member) srgLeftovers.add("$from -> $owner.$member$descriptor (srg $expected)")
+}
+
+private fun rewriteMixinAnnotations(bytes: ByteArray): ByteArray {
+    val reader = ClassReader(bytes)
+    val writer = ClassWriter(0)
+    reader.accept(object : ClassVisitor(Opcodes.ASM9, writer) {
+        override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor? {
+            return rewriteAnnotation(super.visitAnnotation(descriptor, visible))
+        }
+
+        override fun visitMethod(
+            access: Int, name: String?, descriptor: String?, signature: String?, exceptions: Array<out String>?
+        ): MethodVisitor {
+            val method = super.visitMethod(access, name, descriptor, signature, exceptions)
+            return object : MethodVisitor(Opcodes.ASM9, method) {
+                override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor? {
+                    return rewriteAnnotation(super.visitAnnotation(descriptor, visible))
+                }
+            }
+        }
+    }, 0)
+    return writer.toByteArray()
+}
+
+private fun rewriteAnnotation(visitor: AnnotationVisitor?): AnnotationVisitor? {
+    if (visitor == null) return null
+    return object : AnnotationVisitor(Opcodes.ASM9, visitor) {
+        override fun visit(name: String?, value: Any?) {
+            super.visit(name, if (value is String) forge1201MixinTargets[value] ?: value else value)
+        }
+
+        override fun visitAnnotation(name: String?, descriptor: String?): AnnotationVisitor? {
+            return rewriteAnnotation(super.visitAnnotation(name, descriptor))
+        }
+
+        override fun visitArray(name: String?): AnnotationVisitor? {
+            return rewriteAnnotation(super.visitArray(name))
+        }
+    }
+}
 
 buildscript {
     repositories {
@@ -303,6 +532,9 @@ side = "CLIENT"
         manifest {
             attributes["MixinConfigs"] = "quarkos_capes.mixins.json"
         }
+        if (minecraftVersion == "1.20.1") {
+            doLast { rewriteForge1201MixinTargets(archiveFile.get().asFile) }
+        }
         if (releaseBuild) {
             exclude("dev/quarkos/capes/client/harness/**")
             exclude("dev/quarkos/capes/client/net/LabyCatalog.class")
@@ -402,3 +634,4 @@ side = "CLIENT"
         }
     }
 }
+apply(from = rootProject.file("gradle/strip-module-info.gradle.kts"))

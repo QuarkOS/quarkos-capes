@@ -16,7 +16,7 @@ Gradle runs on Java 25 (Loom 1.18). The jars target Java 21.
 scripts/release.sh
 ```
 
-Dev jars are named `quarkos_capes-fabric-<version>+<minecraft>.jar`. `scripts/release.sh` writes `dist/quarkos-capes-1.0.0+fabric-<minecraft>.jar`, the Forge jars, and the NeoForge jars, plus `dist/SHA256SUMS`.
+Dev jars are named `quarkos_capes-fabric-<version>+<minecraft>.jar`. `scripts/release.sh` writes `dist/quarkos-capes-1.0.0+fabric-<minecraft>.jar`, the Forge jars, and the NeoForge jars, plus `dist/SHA256SUMS`. `scripts/prod-smoke.sh` launches each of those jars in a production client and writes `docs/PROD-SMOKE.md`. It does not publish.
 
 Press O in game, or use Mod Menu when it is installed, to open the settings screen. Cloth Config draws the six categories: My Cape, Style, Physics, Sources, Gallery, and Advanced. The live player preview stays on every category. Each toggle reads On or Off.
 
