@@ -1,34 +1,44 @@
 import java.util.zip.ZipFile
-import java.net.URI
 import java.util.Properties
 
-class ReleaseServicePolicy {
-    companion object {
-        fun validate(value: String, allowLocal: Boolean) {
-            val uri = runCatching { URI(value) }.getOrNull()
-            check(uri != null && uri.scheme in listOf("http", "https") && !uri.host.isNullOrBlank()
-                    && uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null
-                    && (uri.port == -1 || uri.port in 1..65535)) { "Invalid release serviceUrl: $value" }
-            val host = uri.host.lowercase().removePrefix("[").removeSuffix("]").trimEnd('.')
-            val labels = host.split('.')
-            val ipv6 = host.contains(':')
-            // Numeric IPv6 literals require no DNS lookup; this catches expanded and mapped loopbacks too.
-            val localAddress = ipv6 && runCatching {
-                val address = java.net.InetAddress.getByName(host)
-                address.isLoopbackAddress || address.isAnyLocalAddress
-            }.getOrDefault(true)
-            val local = localAddress || host == "localhost" || host.endsWith(".localhost")
-                    || host.endsWith(".local") || host == "0.0.0.0" || host.startsWith("127.")
-                    || host.matches(Regex("[0-9]+")) || host.startsWith("0x")
-                    || labels.any { it.length > 1 && it.startsWith('0') && it.all(Char::isDigit) }
-                    || labels.any { it == "example" } || labels.last() in listOf("test", "invalid")
-            check(allowLocal || !local) {
-                "Release jar has a loopback/example service URL ($value). Set -PserviceUrl=<production URL>; " +
-                        "use -PallowLocalService=true only for local parent validation."
+// The rules live in src/test/.../ReleaseServicePolicy.java so the unit test and this check cannot drift.
+fun validateReleaseService(value: String, allowLocal: Boolean) {
+            val source = rootProject.file("src/test/java/dev/quarkos/capes/release/ReleaseServicePolicy.java")
+            val dir = rootProject.layout.buildDirectory.dir("policy-classes").get().asFile
+            val classFile = dir.resolve("dev/quarkos/capes/release/ReleaseServicePolicy.class")
+            val lockFile = dir.resolve(".compile.lock")
+            dir.mkdirs()
+            java.nio.channels.FileChannel.open(
+                lockFile.toPath(),
+                java.nio.file.StandardOpenOption.CREATE,
+                java.nio.file.StandardOpenOption.WRITE
+            ).use { channel ->
+                channel.lock().use {
+                    if (!classFile.isFile || classFile.lastModified() < source.lastModified()) {
+                        val javac = java.io.File("/usr/lib/jvm/java-21-openjdk-amd64/bin/javac")
+                        check(javac.canExecute()) { "Java 21 javac is required to check the service URL" }
+                        val process = ProcessBuilder(
+                            javac.absolutePath, "-encoding", "UTF-8", "-d", dir.absolutePath, source.absolutePath
+                        ).redirectErrorStream(true).start()
+                        val log = process.inputStream.bufferedReader().readText()
+                        check(process.waitFor() == 0) { "ReleaseServicePolicy did not compile:\n$log" }
+                    }
+                }
             }
-        }
+            val loader = java.net.URLClassLoader(arrayOf(dir.toURI().toURL()), null as ClassLoader?)
+            try {
+                val method = loader.loadClass("dev.quarkos.capes.release.ReleaseServicePolicy")
+                    .getMethod("validate", String::class.java, java.lang.Boolean.TYPE)
+                method.invoke(null, value, allowLocal)
+            } catch (failure: java.lang.reflect.InvocationTargetException) {
+                val cause = failure.targetException
+                throw IllegalStateException(cause.message ?: "service URL rejected", cause)
+            } finally {
+                loader.close()
+            }
+}
 
-        fun verifyArchive(archive: java.io.File, expectedService: String, localAllowed: Boolean,
+fun verifyReleaseArchive(archive: java.io.File, expectedService: String, localAllowed: Boolean,
                           dev: Boolean, banned: List<String>) {
             ZipFile(archive).use { zip ->
                 val serviceEntry = zip.getEntry("quarkos_capes-service.properties")
@@ -37,7 +47,7 @@ class ReleaseServicePolicy {
                 zip.getInputStream(serviceEntry).reader(Charsets.UTF_8).use { properties.load(it) }
                 val actualService = properties.getProperty("serviceUrl", "")
                 check(actualService == expectedService) { "Stale service default in ${archive.name}: $actualService" }
-                ReleaseServicePolicy.validate(actualService, localAllowed)
+                validateReleaseService(actualService, localAllowed)
                 for (notice in listOf("NOTICE", "Apache-2.0.txt", "Cloth-Config-LGPL-3.0.md", "GPL-3.0.txt", "OkHttp-PublicSuffix-NOTICE.txt", "MPL-2.0.txt")) {
                     check(zip.getEntry("META-INF/licenses/$notice") != null) { "Missing $notice in ${archive.name}" }
                 }
@@ -52,12 +62,13 @@ class ReleaseServicePolicy {
                     }
                 }
             }
-        }
-
-    }
 }
 
-val releaseServiceUrl = providers.gradleProperty("serviceUrl").orElse("http://127.0.0.1:8787").map { it.trim() }
+// -PserviceUrl overrides the gradle.properties block. The block is the value Emilio replaces.
+val releaseServiceUrl = providers.gradleProperty("serviceUrl")
+    .orElse(providers.gradleProperty("quarkos.serviceUrl"))
+    .orElse("http://127.0.0.1:8787")
+    .map { it.trim() }
 val allowLocalService = providers.gradleProperty("allowLocalService").orNull == "true"
 val serviceResources = layout.buildDirectory.dir("generated/release-service")
 val writeServiceDefault = tasks.register("writeServiceDefault") {
@@ -66,7 +77,7 @@ val writeServiceDefault = tasks.register("writeServiceDefault") {
     val url = releaseServiceUrl
     val destination = serviceResources
     doLast {
-        ReleaseServicePolicy.validate(url.get(), true)
+        validateReleaseService(url.get(), true)
         val file = destination.get().file("quarkos_capes-service.properties").asFile
         file.parentFile.mkdirs()
         val properties = Properties().apply { setProperty("serviceUrl", url.get()) }
@@ -103,7 +114,7 @@ val verifyReleaseJar = tasks.register("verifyReleaseJar") {
     val banned = catalogClasses.toList()
     doLast {
         for (archive in inputs.files.files) {
-            ReleaseServicePolicy.verifyArchive(archive, expectedService, localAllowed, dev, banned)
+            verifyReleaseArchive(archive, expectedService, localAllowed, dev, banned)
         }
     }
 }

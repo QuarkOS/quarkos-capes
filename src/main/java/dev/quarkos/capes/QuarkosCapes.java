@@ -32,6 +32,11 @@ public final class QuarkosCapes implements ClientModInitializer {
     @Override
     public void onInitializeClient() {
         bootstrap();
+        ClientTickEvents.START_CLIENT_TICK.register(client -> {
+            if (Boolean.getBoolean("quarkos_capes.store")) {
+                dev.quarkos.capes.client.StoreCapture.beforeTick(client);
+            }
+        });
         ClientTickEvents.END_CLIENT_TICK.register(QuarkosCapes::tick);
     }
     //?}
@@ -62,6 +67,9 @@ public final class QuarkosCapes implements ClientModInitializer {
         if (!CapeScreens.isSettings(client.screen)) {
             CapeBook.preview = false;
             CapeBook.draft = null;
+        }
+        if (Boolean.getBoolean("quarkos_capes.store")) {
+            dev.quarkos.capes.client.StoreCapture.tick(client);
         }
     }
 }

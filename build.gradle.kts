@@ -15,6 +15,14 @@ val releaseBuild = providers.gradleProperty("release").orNull == "true" ||
 
 val requiredJava: JavaVersion = JavaVersion.VERSION_21
 
+fun quarkosUrl(name: String): String {
+    val value = providers.gradleProperty("quarkos.$name").orNull?.trim().orEmpty()
+    if (value.isEmpty()) {
+        throw GradleException("Set quarkos.$name in gradle.properties")
+    }
+    return value
+}
+
 repositories {
     mavenCentral()
     maven("https://maven.shedaniel.me/")
@@ -132,6 +140,9 @@ tasks {
             register("fabric_api", sc.properties["deps.fabric_api"])
             register("cloth", sc.properties["deps.cloth"])
             register("modmenu", sc.properties["deps.modmenu"])
+            register("homepage", quarkosUrl("homepage"))
+            register("source", quarkosUrl("source"))
+            register("issues", quarkosUrl("issues"))
         }
 
         exclude("META-INF/mods.toml")

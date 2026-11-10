@@ -25,7 +25,8 @@
     "modmenu": ">=${modmenu}"
   },
   "contact": {
-    "homepage": "https://example.org/quarkos-capes",
-    "sources": "https://example.org/quarkos-capes/source"
+    "homepage": "${homepage}",
+    "sources": "${source}",
+    "issues": "${issues}"
   }
 }

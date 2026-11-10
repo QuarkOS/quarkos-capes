@@ -1,1 +1,1 @@
-Pick, browse and wear capes: animated frame strips, cloth physics, 3D cloaks, and one-click wear from the QuarkOS Capes site.
+Pick, browse and wear capes: animated frame strips, cloth physics, 3D cloaks, and one-click wear from the QuarkOS Capes site. Fabric and Forge for 1.20.1 through 1.21.11. NeoForge from 1.21.1.

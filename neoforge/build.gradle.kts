@@ -30,6 +30,14 @@ val modVersion = "1.0.0"
 val releaseBuild = providers.gradleProperty("release").orNull == "true" ||
     gradle.startParameter.taskNames.any { it.substringAfterLast(':') == "releaseAll" }
 
+fun quarkosUrl(name: String): String {
+    val value = providers.gradleProperty("quarkos.$name").orNull?.trim().orEmpty()
+    if (value.isEmpty()) {
+        throw GradleException("Set quarkos.$name in gradle.properties")
+    }
+    return value
+}
+
 fun clothRange(version: String): String {
     val parts = version.split('.')
     return "[$version,${parts[0]}.${parts[1].toInt() + 1})"
@@ -213,14 +221,27 @@ side = "CLIENT"
         } else {
             ""
         }
+        val clothNote = if (node.cloth != null) {
+            " This jar bundles Cloth Config by shedaniel (LGPL-3.0-only) with Jar-in-Jar."
+        } else {
+            ""
+        }
         val props = mapOf(
             "version" to "$modVersion+$minecraftVersion",
             "neo_dep" to node.neoVersion,
             "minecraft" to minecraftVersion,
             "cloth_dependency" to clothDependency,
+            "cloth_note" to clothNote,
+            "homepage" to quarkosUrl("homepage"),
+            "source" to quarkosUrl("source"),
+            "issues" to quarkosUrl("issues"),
         )
         inputs.property("neo_dep", node.neoVersion)
         inputs.property("minecraft", minecraftVersion)
+        inputs.property("homepage", props.getValue("homepage"))
+        inputs.property("source", props.getValue("source"))
+        inputs.property("issues", props.getValue("issues"))
+        inputs.property("cloth_note", clothNote)
         inputs.property("releaseBuild", releaseBuild)
         filesMatching("META-INF/neoforge.mods.toml") {
             expand(props)

@@ -53,7 +53,8 @@ public final class CapeBook {
     public static boolean previewBack = true;
     public static OwnerCape draft;
     public static int draws;
-    private static final boolean WATCH_DRAWS = Boolean.getBoolean("quarkos_capes.harness");
+    private static final boolean WATCH_DRAWS = Boolean.getBoolean("quarkos_capes.harness")
+            || Boolean.getBoolean("quarkos_capes.store");
     private static final Map<UUID,Integer> DRAWN = new ConcurrentHashMap<>();
     private static final Map<UUID,Integer> PREVIEW_DRAWN = new ConcurrentHashMap<>();
     public static void drawn(UUID id, Identifier texture, boolean preview) {
