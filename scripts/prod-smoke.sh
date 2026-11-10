@@ -92,7 +92,9 @@ print(chosen.get("version_number", ""))
 }
 
 rows="${ROOT}/build/prod-smoke/rows.tsv"
-: > "${rows}"
+if [[ $# -eq 0 || ! -s "${rows}" ]]; then
+  : > "${rows}"
+fi
 
 write_report() {
   {
@@ -103,9 +105,9 @@ write_report() {
     echo "| Result | Loader | Minecraft | Installer | Modrinth deps | Screenshot |"
     echo "| --- | --- | --- | --- | --- | --- |"
     if [[ -s "${rows}" ]]; then
-      while IFS=$'\t' read -r result loader mc installer deps shot; do
+      sort -t $'\t' -k2,2 -k3,3V "${rows}" | while IFS=$'\t' read -r result loader mc installer deps shot; do
         echo "| ${result} | ${loader} | ${mc} | \`${installer}\` | ${deps} | ${shot} |"
-      done < "${rows}"
+      done
     fi
     echo
     echo "A pass needs the log line \`quarkos_capes prod smoke ok\` and a screenshot larger than 1000 bytes."
@@ -135,6 +137,28 @@ if [[ ${#jars[@]} -eq 0 ]]; then
 fi
 
 failures=0
+if [[ $# -gt 0 && -s "${rows}" ]]; then
+  kept="${rows}.kept"
+  : > "${kept}"
+  while IFS= read -r line; do
+    [[ -z "${line}" ]] && continue
+    loader="${line#*$'\t'}"
+    loader="${loader%%$'\t'*}"
+    mc="${line#*$'\t'}"
+    mc="${mc#*$'\t'}"
+    mc="${mc%%$'\t'*}"
+    drop=0
+    for want in "$@"; do
+      if [[ "${loader}-${mc}" == "${want}" ]]; then
+        drop=1
+      fi
+    done
+    if [[ "${drop}" -eq 0 ]]; then
+      printf '%s\n' "${line}" >> "${kept}"
+    fi
+  done < "${rows}"
+  mv "${kept}" "${rows}"
+fi
 for jar in "${jars[@]}"; do
   base="$(basename "${jar}")"
   # quarkos-capes-1.0.0+fabric-1.21.11.jar
@@ -163,7 +187,7 @@ for jar in "${jars[@]}"; do
     fi
   fi
   png="${SHOTS}/${id}.png"
-  rm -f "${png}"
+  rm -f "${png}" "${png}.trace"
   log="${run}/client.log"
   if [[ -z "${reason}" ]]; then
     set +e
@@ -191,6 +215,8 @@ for jar in "${jars[@]}"; do
       reason="exit ${code}"
       if grep -q "quarkos_capes prod smoke fail" "${log}" "${game_log}"; then
         reason="$(grep "quarkos_capes prod smoke fail" "${log}" "${game_log}" | tail -1)"
+      elif [[ -f "${png}.trace" ]]; then
+        reason="$(tail -1 "${png}.trace")"
       fi
       failures=$((failures + 1))
     fi
@@ -199,6 +225,7 @@ for jar in "${jars[@]}"; do
     echo "${reason}" > "${log}"
   fi
   printf '%s\t%s\t%s\t%s\t%s\t%s\n' "${result}" "${loader}" "${mc}" "${installer:-—}" "${deps}" "${shot_cell}" >> "${rows}"
+  rm -f "${png}.trace"
   if [[ "${result}" != "pass" ]]; then
     echo "FAIL ${id}: ${reason}" >&2
   else

@@ -13,6 +13,7 @@ import net.minecraft.world.level.levelgen.presets.WorldPresets;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 
 /**
  * Production-client check used by {@code scripts/prod-smoke.sh}.
@@ -59,8 +60,25 @@ public final class ProdSmoke {
                 case 3 -> finish();
                 default -> { }
             }
-        } catch (RuntimeException failure) {
-            fail(failure.getMessage() == null ? failure.toString() : failure.getMessage());
+        } catch (Throwable failure) {
+            mark("threw " + failure);
+            fail(failure.getClass().getSimpleName() + ": " + failure.getMessage());
+        }
+    }
+
+    private static void mark(String line) {
+        if (SHOT.isBlank()) {
+            return;
+        }
+        try {
+            Files.writeString(
+                    Path.of(SHOT + ".trace"),
+                    line + "\n",
+                    StandardOpenOption.CREATE,
+                    StandardOpenOption.APPEND
+            );
+        } catch (java.io.IOException ignored) {
+            // The smoke report still has the log line when the trace cannot be written.
         }
     }
 
@@ -155,18 +173,24 @@ public final class ProdSmoke {
         McBridge.showCape(client.options);
         McBridge.thirdPerson(client.options);
         if (played == 20) {
+            mark("prepare");
             McBridge.prepareWorld(client);
+            mark("cloak");
             OwnerCape.set(OwnerCape.sampleCloak());
             CapeBook.preview = false;
             CapeBook.draft = null;
             McBridge.setScreen(client, null);
+            mark("tp");
             client.player.connection.sendCommand("tp @s 0.5 -60 0.5 0 0");
             McBridge.clearChat(client);
             McBridge.clearToasts(client);
+            mark("ready");
         }
         if (played == 100) {
+            mark("shot");
             McBridge.clearChat(client);
             McBridge.shot(client, Path.of(SHOT));
+            mark("shot-done");
         }
         if (played > 100) {
             try {
@@ -183,6 +207,9 @@ public final class ProdSmoke {
     }
 
     private static void finish() {
+        mark("ok");
+        // NeoForge does not copy stdout into latest.log, so the smoke script reads the game log.
+        com.mojang.logging.LogUtils.getLogger().info("quarkos_capes prod smoke ok");
         System.out.println("quarkos_capes prod smoke ok");
         System.exit(0);
     }
@@ -202,6 +229,8 @@ public final class ProdSmoke {
     }
 
     private static void fail(String message) {
+        mark("fail: " + message);
+        com.mojang.logging.LogUtils.getLogger().error("quarkos_capes prod smoke fail: " + message);
         System.err.println("quarkos_capes prod smoke fail: " + message);
         System.exit(1);
     }

@@ -136,10 +136,14 @@ private fun rewriteForge1201MixinTargets(jar: File) {
             var entry = input.nextEntry
             while (entry != null) {
                 val data = input.readBytes()
-                val next = if (entry.name.startsWith("dev/quarkos/capes/") && entry.name.endsWith(".class")) {
-                    rewriteQuarkosClass(entry.name, data)
-                } else {
-                    data
+                val next = when {
+                    entry.name.startsWith("dev/quarkos/capes/") && entry.name.endsWith(".class") ->
+                        rewriteQuarkosClass(entry.name, data)
+                    entry.name == "META-INF/accesstransformer.cfg" -> String(data, Charsets.UTF_8)
+                        .replace(" onCreate()V", " m_100972_()V")
+                        .replace(" addRenderableWidget(", " m_142416_(")
+                        .toByteArray(Charsets.UTF_8)
+                    else -> data
                 }
                 val copy = ZipEntry(entry.name)
                 copy.time = entry.time
@@ -161,10 +165,58 @@ private fun rewriteForge1201MixinTargets(jar: File) {
     }
 }
 
+private fun forge1201Override(superName: String, interfaces: List<String>, name: String, descriptor: String): String {
+    val fromSuper = forge1201Method(superName, name, descriptor)
+    if (fromSuper != name) return fromSuper
+    for (iface in interfaces) {
+        val fromIface = forge1201Method(iface, name, descriptor)
+        if (fromIface != name) return fromIface
+    }
+    return name
+}
+
 private fun rewriteQuarkosClass(name: String, bytes: ByteArray): ByteArray {
+    forge1201Load()
+    val internal = name.removeSuffix(".class")
+    var superName = "java/lang/Object"
+    val interfaces = ArrayList<String>()
+    val methods = ArrayList<Pair<String, String>>()
+    ClassReader(bytes).accept(object : ClassVisitor(Opcodes.ASM9) {
+        override fun visit(
+            version: Int, access: Int, className: String, signature: String?,
+            superInternal: String?, ifaces: Array<out String>?
+        ) {
+            if (superInternal != null) superName = superInternal
+            if (ifaces != null) interfaces.addAll(ifaces)
+        }
+
+        override fun visitMethod(
+            access: Int, methodName: String?, descriptor: String?, signature: String?, exceptions: Array<out String>?
+        ): MethodVisitor? {
+            if (methodName != null && descriptor != null && !methodName.startsWith("<")) {
+                methods.add(methodName to descriptor)
+            }
+            return null
+        }
+    }, ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+    val overrides = HashMap<String, String>()
+    for ((methodName, descriptor) in methods) {
+        val mapped = forge1201Override(superName, interfaces, methodName, descriptor)
+        if (mapped != methodName) overrides["$methodName$descriptor"] = mapped
+    }
+    val remapper = object : Remapper() {
+        override fun mapMethodName(owner: String, methodName: String, descriptor: String): String {
+            if (owner == internal) overrides["$methodName$descriptor"]?.let { return it }
+            return forge1201Method(owner, methodName, descriptor)
+        }
+
+        override fun mapFieldName(owner: String, fieldName: String, descriptor: String): String {
+            return forge1201Field(owner, fieldName)
+        }
+    }
     val reader = ClassReader(bytes)
     val writer = ClassWriter(0)
-    reader.accept(ClassRemapper(writer, forge1201Remapper), 0)
+    reader.accept(ClassRemapper(writer, remapper), 0)
     val remapped = writer.toByteArray()
     val finished = if (name.contains("/mixin/")) rewriteMixinAnnotations(remapped) else remapped
     ClassReader(finished).accept(object : ClassVisitor(Opcodes.ASM9) {
