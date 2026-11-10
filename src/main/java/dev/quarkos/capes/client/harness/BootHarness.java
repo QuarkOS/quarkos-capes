@@ -18,7 +18,7 @@ public final class BootHarness {
         if (began == 0) began = System.nanoTime();
         try {
             if (System.nanoTime() - began > 120_000_000_000L) throw new IllegalStateException("Timed out at " + (client.screen == null ? "no screen" : client.screen.getClass().getName()));
-            if (client.screen != null && client.screen.getClass().getSimpleName().contains("Accessibility")) {
+            if (client.screen instanceof net.minecraft.client.gui.screens.AccessibilityOnboardingScreen) {
                 client.options.onboardingAccessibilityFinished();
                 client.setScreen(new TitleScreen());
                 return;
