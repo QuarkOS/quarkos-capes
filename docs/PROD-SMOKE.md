@@ -19,4 +19,4 @@ Each `dist/` jar was launched with [portablemc](https://github.com/mindstorm38/p
 | pass | neoforge | 1.21.8 | `neoforge::21.8.57` | none | [docs/prod-smoke/neoforge-1.21.8.png](prod-smoke/neoforge-1.21.8.png) |
 | pass | neoforge | 1.21.11 | `neoforge::21.11.48` | none | [docs/prod-smoke/neoforge-1.21.11.png](prod-smoke/neoforge-1.21.11.png) |
 
-A pass needs the log line `quarkos_capes prod smoke ok` and a screenshot larger than 1000 bytes. After the Sol merge, Forge 1.21.1 (`52.1.20`) and Forge 1.21.11 (`61.2.4`) were booted again from the new release jars. The other twelve rows are the previous production smoke and were not rerun.
+A pass needs the log line `quarkos_capes prod smoke ok` and a screenshot larger than 1000 bytes.

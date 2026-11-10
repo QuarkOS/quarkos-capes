@@ -297,6 +297,9 @@ side = "CLIENT"
         if (providers.gradleProperty("only").orNull in listOf("flows", "boot")) {
             systemProperty("quarkos_capes.harness", "true")
         }
+        for (key in listOf("CAPES_DEV_AUTH", "CAPES_DEV_AUTH_SECRET")) {
+            System.getenv(key)?.let { environment(key, it) }
+        }
         environment("LIBGL_ALWAYS_SOFTWARE", "1")
         environment("MESA_GL_VERSION_OVERRIDE", "3.3")
         val display = providers.gradleProperty("display").orNull ?: System.getenv("DISPLAY")

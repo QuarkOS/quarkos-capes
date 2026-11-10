@@ -1,5 +1,6 @@
 import org.objectweb.asm.AnnotationVisitor
 import org.objectweb.asm.ClassReader
+import org.objectweb.asm.Type
 import org.objectweb.asm.ClassVisitor
 import org.objectweb.asm.ClassWriter
 import org.objectweb.asm.MethodVisitor
@@ -14,22 +15,11 @@ import java.util.zip.ZipOutputStream
 /**
  * Forge nodes for 1.20.1 (47.4.29), 1.21.1 (52.1.20), 1.21.4 (54.1.22),
  * 1.21.8 (58.1.26), and 1.21.11 (61.2.4).
- * Dev compiles official names. The 1.20.1 jar is rewritten to SRG before it ships.
+ * Dev compiles official names. The 1.20.1 jar rewrites method and field calls to SRG.
+ * Mixin targets stay official: the Forge installer loads Minecraft under official names.
  * Every node compiles the chiseled tree, not the Fabric checkout in src/.
  * Cloth Config Forge exists for 1.20.1 and 1.21.1. Later nodes draw the screen themselves.
  */
-
-// Dev compiles against official names. Forge 1.20.1 production still runs SRG method names.
-private val forge1201MixinTargets = mapOf(
-    "render" to "m_6494_",
-    "getElytraTextureLocation" to "m_108563_",
-    "layers" to "f_115291_",
-    "addLayer" to "m_115326_",
-    "Lnet/minecraft/client/player/AbstractClientPlayer;isModelPartShown(Lnet/minecraft/world/entity/player/PlayerModelPart;)Z" to
-        "Lnet/minecraft/client/player/AbstractClientPlayer;m_36170_(Lnet/minecraft/world/entity/player/PlayerModelPart;)Z",
-    "Lnet/minecraft/client/player/AbstractClientPlayer;getCloakTextureLocation()Lnet/minecraft/resources/ResourceLocation;" to
-        "Lnet/minecraft/client/player/AbstractClientPlayer;m_108561_()Lnet/minecraft/resources/ResourceLocation;"
-)
 
 // Official names -> SRG. Invokes name the compile-time type, so the lookup walks that
 // type's parents until it finds the declaration. Class names stay official.
@@ -249,12 +239,37 @@ private fun noteOfficial(from: String, owner: String, member: String, descriptor
     if (expected != member) srgLeftovers.add("$from -> $owner.$member$descriptor (srg $expected)")
 }
 
+/** Mixin annotations name the runtime method. Forge 1.20.1's installer jar is SRG and loads no refmap. */
 private fun rewriteMixinAnnotations(bytes: ByteArray): ByteArray {
+    forge1201Load()
+    val targets = ArrayList<String>()
+    ClassReader(bytes).accept(object : ClassVisitor(Opcodes.ASM9) {
+        override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor? {
+            if (descriptor != "Lorg/spongepowered/asm/mixin/Mixin;") return null
+            return object : AnnotationVisitor(Opcodes.ASM9) {
+                override fun visit(name: String?, value: Any?) {
+                    if (value is Type) targets.add(value.internalName)
+                }
+
+                override fun visitArray(name: String?): AnnotationVisitor {
+                    return object : AnnotationVisitor(Opcodes.ASM9) {
+                        override fun visit(elementName: String?, value: Any?) {
+                            when (value) {
+                                is Type -> targets.add(value.internalName)
+                                is String -> if (value.contains('/')) targets.add(value)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }, ClassReader.SKIP_CODE)
     val reader = ClassReader(bytes)
     val writer = ClassWriter(0)
     reader.accept(object : ClassVisitor(Opcodes.ASM9, writer) {
         override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor? {
-            return rewriteAnnotation(super.visitAnnotation(descriptor, visible))
+            val visitor = super.visitAnnotation(descriptor, visible)
+            return if (descriptor == "Lorg/spongepowered/asm/mixin/Mixin;") visitor else rewriteAnnotation(visitor, targets)
         }
 
         override fun visitMethod(
@@ -263,7 +278,7 @@ private fun rewriteMixinAnnotations(bytes: ByteArray): ByteArray {
             val method = super.visitMethod(access, name, descriptor, signature, exceptions)
             return object : MethodVisitor(Opcodes.ASM9, method) {
                 override fun visitAnnotation(descriptor: String?, visible: Boolean): AnnotationVisitor? {
-                    return rewriteAnnotation(super.visitAnnotation(descriptor, visible))
+                    return rewriteAnnotation(super.visitAnnotation(descriptor, visible), targets)
                 }
             }
         }
@@ -271,21 +286,82 @@ private fun rewriteMixinAnnotations(bytes: ByteArray): ByteArray {
     return writer.toByteArray()
 }
 
-private fun rewriteAnnotation(visitor: AnnotationVisitor?): AnnotationVisitor? {
+private fun rewriteAnnotation(visitor: AnnotationVisitor?, targets: List<String>): AnnotationVisitor? {
     if (visitor == null) return null
     return object : AnnotationVisitor(Opcodes.ASM9, visitor) {
         override fun visit(name: String?, value: Any?) {
-            super.visit(name, if (value is String) forge1201MixinTargets[value] ?: value else value)
+            super.visit(name, if (value is String) forge1201AnnotationValue(value, targets) else value)
         }
 
         override fun visitAnnotation(name: String?, descriptor: String?): AnnotationVisitor? {
-            return rewriteAnnotation(super.visitAnnotation(name, descriptor))
+            return rewriteAnnotation(super.visitAnnotation(name, descriptor), targets)
         }
 
         override fun visitArray(name: String?): AnnotationVisitor? {
-            return rewriteAnnotation(super.visitArray(name))
+            return rewriteAnnotation(super.visitArray(name), targets)
         }
     }
+}
+
+private val forge1201Member = Regex("^L([^;]+);([^(:]+)\\((.*)\\)(.*)$")
+private val forge1201FieldRef = Regex("^L([^;]+);([^:]+):(.*)$")
+private val forge1201Named = Regex("^([^(/\\s]+)\\((.*)\\)(.*)$")
+private val forge1201Simple = Regex("^[A-Za-z_][A-Za-z0-9_]*$")
+
+private fun forge1201AnnotationValue(value: String, targets: List<String>): String {
+    forge1201Member.matchEntire(value)?.let { match ->
+        val owner = match.groupValues[1]
+        val name = match.groupValues[2]
+        val descriptor = "(${match.groupValues[3]})${match.groupValues[4]}"
+        val mapped = forge1201Method(owner, name, descriptor)
+        if (owner.startsWith("net/minecraft/") && mapped == name) {
+            throw GradleException("Forge 1.20.1 mixin target has no SRG name: $value")
+        }
+        return if (mapped == name) value else "L$owner;$mapped$descriptor"
+    }
+    forge1201FieldRef.matchEntire(value)?.let { match ->
+        val owner = match.groupValues[1]
+        val name = match.groupValues[2]
+        val mapped = forge1201Field(owner, name)
+        if (owner.startsWith("net/minecraft/") && mapped == name) {
+            throw GradleException("Forge 1.20.1 mixin field has no SRG name: $value")
+        }
+        return if (mapped == name) value else "L$owner;$mapped:${match.groupValues[3]}"
+    }
+    forge1201Named.matchEntire(value)?.let { match ->
+        if (targets.isEmpty()) return value
+        val name = match.groupValues[1]
+        val descriptor = "(${match.groupValues[2]})${match.groupValues[3]}"
+        val mapped = targets.map { forge1201Method(it, name, descriptor) }.toSet()
+        if (mapped.size != 1) {
+            throw GradleException("Forge 1.20.1 mixin $value on $targets maps to $mapped")
+        }
+        val srg = mapped.first()
+        if (srg == name && targets.any { it.startsWith("net/minecraft/") }) {
+            throw GradleException("Forge 1.20.1 mixin target has no SRG name: $value on $targets")
+        }
+        return if (srg == name) value else "$srg$descriptor"
+    }
+    if (!forge1201Simple.matches(value) || targets.isEmpty()) return value
+    val methods = targets.flatMap { forge1201Names(it, value) }.toSet()
+    if (methods.size > 1) {
+        throw GradleException("Forge 1.20.1 mixin name $value on $targets is ambiguous: $methods")
+    }
+    if (methods.size == 1) return methods.first()
+    val fields = targets.map { forge1201Field(it, value) }.filter { it != value }.toSet()
+    if (fields.size == 1) return fields.first()
+    return value
+}
+
+private fun forge1201Names(owner: String, name: String): Set<String> {
+    val out = LinkedHashSet<String>()
+    for (type in forge1201Walk(owner)) {
+        val prefix = "$type.$name("
+        for ((key, srg) in forge1201Methods) {
+            if (key.startsWith(prefix)) out.add(srg)
+        }
+    }
+    return out
 }
 
 buildscript {

@@ -20,7 +20,7 @@ Where the cape ports overlapped, one implementation stayed:
 
 ## Release jars
 
-`releaseAll -Prelease=true -PallowLocalService=true`, then `verifyReleaseJar` on all 14. Every jar baked `serviceUrl=http://127.0.0.1:8787`, passed the local-URL override, contained the license notices, and contained no `module-info.class`, harness classes, Laby try-on classes, or shot mixins. The Forge 1.20.1 jar is SRG (`m_6494_` and the access transformer). `dist/` is not committed. Checksums from `dist/SHA256SUMS`:
+`releaseAll -Prelease=true -PallowLocalService=true`, then `verifyReleaseJar` on all 14. Every jar baked `serviceUrl=http://127.0.0.1:8787`, passed the local-URL override, contained the license notices, and contained no `module-info.class`, harness classes, Laby try-on classes, or shot mixins. The Forge 1.20.1 jar rewrites method and field calls to SRG, and mixin annotations to the SRG member for that owner and descriptor (`Gui.render` is `m_280421_`, `CapeLayer.render` is `m_6494_`). The access transformer stays SRG. `dist/` is not committed. The Forge 1.20.1 checksum below is the rebuilt jar. The other thirteen checksums are unchanged:
 
 | File | SHA-256 |
 | --- | --- |
@@ -29,7 +29,7 @@ Where the cape ports overlapped, one implementation stayed:
 | `quarkos-capes-1.0.0+fabric-1.21.4.jar` | `77c6f6faa5276598fa4b4c8d753cbbaad4b2851d33cb7a7f13c97931d5604d28` |
 | `quarkos-capes-1.0.0+fabric-1.21.8.jar` | `fbb8e4808967ab3c3318109605cee00a193420e08cad7dbce6d7025c57cdeb42` |
 | `quarkos-capes-1.0.0+fabric-1.21.11.jar` | `303a91b4f7ad38680be9637c2a05c075e6fb5ae1ff11ce97a5aef4202abac83b` |
-| `quarkos-capes-1.0.0+forge-1.20.1.jar` | `209dca52f43a15bf7b19f9adf3f90614eae46319d9e05a465b60b8c868eef588` |
+| `quarkos-capes-1.0.0+forge-1.20.1.jar` | `b72e8aa2d43dbdabebf25e23afcb9717bbb44e4d4ee992422f74369f5bbe36c2` |
 | `quarkos-capes-1.0.0+forge-1.21.1.jar` | `b19dc09a6c53113b3ac39b2a7abf24a5004ec740ec36ac3fce588051c59a72e9` |
 | `quarkos-capes-1.0.0+forge-1.21.4.jar` | `03bfe6a6e71504cf356f197f381d537c12e65e33f0af53d222b9a7f502bef45b` |
 | `quarkos-capes-1.0.0+forge-1.21.8.jar` | `1af0c74901bf5aeba4e941d0febceffafdd9e80b1b87a8a88c11da4700701b68` |
@@ -41,25 +41,20 @@ Where the cape ports overlapped, one implementation stayed:
 
 ## Flow harness
 
-`runClient -Ponly=flows -PserverUrl=http://127.0.0.1:8787`, shots under `out/flows/<loader>-<mc>/`. The bundle has no site server jar, so nothing was listening on port 8787. No `-PlinkCode`. Exit 0 on every run. 25 flows each.
+The site (`quarkos-capes` server) was running on `127.0.0.1:8787` with `CAPES_SEED=demo`, `CAPES_DEV_AUTH=true`, and a 16+ character `CAPES_DEV_AUTH_SECRET`. Clients were `CapeFlow`. `other-player` used the harness fake player `CapeFlowRemote` (offline UUID, signed dev complete, then `PUT /v1/me/wearing`). No `-PlinkCode`. Shots are under `out/flows/<loader>-<mc>/` (85 PNGs each). Exit 0. `CAPES_FLOWS pass=25 fail=0` on every client.
 
-| Client | Pass | Fail |
-| --- | --- | --- |
-| Fabric 1.21.1 | 18 | 7 |
-| Fabric 1.21.11 | 18 | 7 |
-| Forge 1.21.1 | 18 | 7 |
-| Forge 1.21.11 | 18 | 7 |
-| NeoForge 1.21.11 | 18 | 7 |
+| Client | Pass | Fail | Link |
+| --- | --- | --- | --- |
+| Fabric 1.21.1 | 25 | 0 | PASS-SKIP |
+| Fabric 1.21.11 | 25 | 0 | PASS-SKIP |
+| Forge 1.21.1 | 25 | 0 | PASS-SKIP |
+| Forge 1.21.11 | 25 | 0 | PASS-SKIP |
+| NeoForge 1.21.11 | 25 | 0 | PASS-SKIP |
 
-The same seven flows failed on every client, because they call the site or need a Mojang session: `publish-unpublish`, `gallery-search`, `browse-page`, `wear`, `unwear`, `other-player`, `browse-offline-cta`. `link-claim` is `PASS-SKIP` (no link code) and is one of the 18 passes. The other passes are the offline screens, samples, styles, physics, GUI sweep, survival inventory, first person, and the absent dev catalog.
+Publish, gallery search, browse, wear, unwear, the remote player, and the offline Browse "Go online" path passed. NeoForge `runClient` now forwards `CAPES_DEV_AUTH` and `CAPES_DEV_AUTH_SECRET`, the same way Fabric and Forge already did.
 
-## Forge release boots
+## Production smoke
 
-portablemc, real installers, the merged release jars:
+`scripts/prod-smoke.sh` on all 14 `dist/` jars, portablemc, real installers. Each client loads a flat world, wears the bundled cloak, logs `quarkos_capes prod smoke ok`, and writes a third-person shot. 14 pass, 0 fail. Table and shots: `docs/PROD-SMOKE.md`, `docs/prod-smoke/`.
 
-| Jar | Installer | Result |
-| --- | --- | --- |
-| `quarkos-capes-1.0.0+forge-1.21.1.jar` | Forge 1.21.1-52.1.20 | pass, third-person cloak |
-| `quarkos-capes-1.0.0+forge-1.21.11.jar` | Forge 1.21.11-61.2.4 | pass, third-person cloak |
-
-Shots: `docs/prod-smoke/forge-1.21.1.png`, `docs/prod-smoke/forge-1.21.11.png`. The other twelve production-smoke rows were not rerun after this merge.
+The first Forge 1.20.1 boot crashed in Mixin: annotations had been rewritten with one shared name for `render` (`m_6494_`, which is `CapeLayer.render`, not `Gui.render`), and the installer jar does not load a refmap. The jar rewrite now maps each mixin target through `mcp-srg.srg` for that owner and descriptor. After that rebuild, Forge 1.20.1-47.4.29 passed.
