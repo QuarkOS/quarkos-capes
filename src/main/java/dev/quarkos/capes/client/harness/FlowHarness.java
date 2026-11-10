@@ -160,6 +160,7 @@ public final class FlowHarness {
                 () -> !actionNote().equals(status(progress)),
                 () -> require(actionNote().equals(status(expected)), "Action status: " + actionNote()));
     }
+    private static void localPreviewDraw() { require(CapeBook.previewDraws(mc.player.getUUID())>0,"Local preview cape did not draw"); }
     private static void localDraw() { require(CapeBook.draws(mc.player.getUUID())>0,"Local cape did not draw"); }
     private static void build(int number) {
         switch(number) {
@@ -168,7 +169,7 @@ public final class FlowHarness {
             case 2,3,4,5,6,7 -> scene("main",()->open(number-2),()->layout(mc.screen));
             case 8 -> {
                 for(String sample:List.of("bands","slide","cloak")) {
-                    scene(sample+"-preview",()->{open(0);equipSample(sample);},FlowHarness::localDraw);
+                    scene(sample+"-preview",()->{open(0);equipSample(sample);},FlowHarness::localPreviewDraw);
                     scene(sample+"-world",FlowHarness::world,FlowHarness::localDraw);
                 }
             }
@@ -284,17 +285,21 @@ public final class FlowHarness {
             case 22 -> {
                 scene(null,()->{mc.setScreen(null);CapeBoard.equipSample("cloak");mc.player.connection.sendCommand("gamemode survival");},()->require(mc.gameMode.getPlayerMode()==net.minecraft.world.level.GameType.SURVIVAL,"Survival command did not apply"));
                 scene("main",()->{mc.options.hideGui=false;mc.setScreen(new InventoryScreen(mc.player));CapeBook.resetDraws();},()->{
-                    require(mc.screen instanceof InventoryScreen,"Inventory redirected to creative screen");localDraw();
+                    require(mc.screen instanceof InventoryScreen,"Inventory redirected to creative screen");localPreviewDraw();
                 });
             }
-            case 23 -> scene("main",()->{
+            case 23 -> {
+                waitFor(null,()->{
                 mc.setScreen(null);ShotView.clear();mc.options.hideGui=true;
                 mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
-                KeyMapping.click(InputConstants.Type.KEYSYM.getOrCreate(294));CapeBook.resetDraws();CapeLayerWatch.reset();
-            },()->{
+                KeyMapping.click(InputConstants.Type.KEYSYM.getOrCreate(294));
+                }, () -> mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON,
+                        () -> { });
+                scene("main", () -> { CapeBook.resetDraws(); CapeLayerWatch.reset(); }, () -> {
                 require(mc.options.getCameraType()==net.minecraft.client.CameraType.FIRST_PERSON,"F5 did not select first person");
                 require(CapeBook.draws(mc.player.getUUID())==0,"Local cape rendered in first-person camera");
             });
+            }
             case 24 -> {
                 for(int tab=0;tab<6;tab++){final int category=tab;scene(tab==5?"main":null,()->open(category),()->HarnessChecks.catalogHidden(mc.screen));}
             }

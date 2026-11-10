@@ -111,6 +111,7 @@ public final class CapeTextures {
     }
 
     public static void clear(String key) {
+        CapeBook.ELYTRA_SKINS.clear();
         com.mojang.blaze3d.systems.RenderSystem.assertOnRenderThread();
         Image old = IMAGES.remove(key);
         Identifier[] frames = BOX_FRAMES.remove(key);

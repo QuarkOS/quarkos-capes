@@ -24,7 +24,7 @@ public final class QuarkosCapes implements ClientModInitializer {
     public static KeyMapping OPEN;
 
     public static void bootstrap() {
-        dev.quarkos.capes.client.render.CapeCompatibility.detect();
+        dev.quarkos.capes.client.render.MissingCapeLayer.register();
         LocalFiles.load();
         OPEN = McBridge.registerKey();
     }

@@ -43,6 +43,7 @@ public final class CapeBook {
     private static final int[] STILL = {100};
     private static final Choice NONE = new Choice(Kind.NONE, null, false, 1, 64, 32, STILL, false, null);
     private static final Map<UUID, String> TEXTURE_KEYS = new ConcurrentHashMap<>();
+    public static final ElytraSkinCache ELYTRA_SKINS = new ElytraSkinCache();
     public static boolean preview;
     /** Actual GUI render scope; the draft flag also stays set while the world renders. */
     public static boolean renderingPreview;
@@ -54,9 +55,22 @@ public final class CapeBook {
     public static int draws;
     private static final boolean WATCH_DRAWS = Boolean.getBoolean("quarkos_capes.harness");
     private static final Map<UUID,Integer> DRAWN = new ConcurrentHashMap<>();
-    public static void drawn(UUID id) { draws++; if (WATCH_DRAWS) DRAWN.merge(id,1,Integer::sum); }
+    private static final Map<UUID,Integer> PREVIEW_DRAWN = new ConcurrentHashMap<>();
+    public static void drawn(UUID id, Identifier texture, boolean preview) {
+        boolean gui = preview || renderingPreview || CapeRenderPass.guiDepth > 0;
+        boolean shadow = CapeRenderPass.shadow();
+        if (!CapeRenderPass.worldDraw(gui, shadow)) {
+            if (WATCH_DRAWS && gui && !shadow) PREVIEW_DRAWN.merge(id, 1, Integer::sum);
+            return;
+        }
+        draws++;
+        if (WATCH_DRAWS) DRAWN.merge(id, 1, Integer::sum);
+        var player = net.minecraft.client.Minecraft.getInstance().player;
+        if (player != null && player.getUUID().equals(id)) CapeLayerWatch.local(texture);
+    }
     public static int draws(UUID id) { return DRAWN.getOrDefault(id,0); }
-    public static void resetDraws() { draws=0; DRAWN.clear(); }
+    public static int previewDraws(UUID id) { return PREVIEW_DRAWN.getOrDefault(id, 0); }
+    public static void resetDraws() { draws=0; DRAWN.clear(); PREVIEW_DRAWN.clear(); }
 
     private CapeBook() {
     }
@@ -144,6 +158,7 @@ public final class CapeBook {
             return null;
         }
         if (local) {
+            CapeDraw.syncLocal();
             CapeTextures.Image image = CapeTextures.get("local");
             return image != null && image.elytra() ? image.id() : null;
         }
@@ -206,7 +221,9 @@ public final class CapeBook {
     public static Choice none() { return NONE; }
 
     public static void forget(UUID id) {
+        ELYTRA_SKINS.forget(id);
         DRAWN.remove(id);
+        PREVIEW_DRAWN.remove(id);
         REMOTE.remove(id);
         REMOTE_SOURCES.remove(id);
         PROVIDER_SOURCES.remove(id);
@@ -223,6 +240,7 @@ public final class CapeBook {
     }
 
     public static void clearPlayers() {
+        ELYTRA_SKINS.clear();
         for (UUID id : TEXTURE_KEYS.keySet()) forget(id);
         for (UUID id : PROVIDER.keySet()) forget(id);
         REMOTE.clear();

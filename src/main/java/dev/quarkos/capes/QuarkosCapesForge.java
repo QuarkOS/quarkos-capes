@@ -26,12 +26,26 @@ public final class QuarkosCapesForge {
         //? if <1.21.6 {
         /^IEventBus modBus = FMLJavaModLoadingContext.get().getModEventBus();
         modBus.addListener(this::registerKeys);
+        modBus.addListener(net.minecraftforge.eventbus.api.EventPriority.LOWEST, this::addCapeLayers);
         MinecraftForge.EVENT_BUS.addListener(this::onClientTick);
         MinecraftForge.EVENT_BUS.addListener(this::beforeScreen);
         ^///?}
         //? if >=1.21.6 {
         RegisterKeyMappingsEvent.getBus(FMLJavaModLoadingContext.get().getModBusGroup()).addListener(this::registerKeys);
+        net.minecraftforge.client.event.EntityRenderersEvent.AddLayers.getBus(FMLJavaModLoadingContext.get().getModBusGroup()).addListener(net.minecraftforge.eventbus.api.listener.Priority.LOWEST, this::addCapeLayers);
         TickEvent.ClientTickEvent.Post.BUS.addListener(event -> QuarkosCapes.tick(Minecraft.getInstance()));
+        //?}
+    }
+
+    private void addCapeLayers(net.minecraftforge.client.event.EntityRenderersEvent.AddLayers event) {
+        //? if <1.21.11 {
+        /^for (var skin : event.getSkins()) {
+            dev.quarkos.capes.client.render.MissingCapeLayer.addIfMissing(event.getPlayerSkin(skin), event.getContext());
+        }
+        ^///?} else {
+        for (var type : event.getModelTypes()) {
+            dev.quarkos.capes.client.render.MissingCapeLayer.addIfMissing(event.getPlayerRenderer(type), event.getContext());
+        }
         //?}
     }
 

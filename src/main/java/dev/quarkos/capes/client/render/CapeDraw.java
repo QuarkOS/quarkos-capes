@@ -80,7 +80,7 @@ public final class CapeDraw {
         for (CapeGeometry.Quad quad : quads) {
             McBridge.quad(consumer, pose, light, quad);
         }
-        CapeBook.drawn(id);
+        if (!quads.isEmpty()) CapeBook.drawn(id, choice.texture(), preview);
     }
 
     public static CapeBook.Choice resolve(UUID id, boolean local, Identifier vanillaCape) {

@@ -19,10 +19,8 @@ public class ElytraTextureMixin121 {
         boolean local = Minecraft.getInstance().player == player;
         Identifier id = CapeBook.elytraFor(player.getUUID(), local);
         PlayerSkin skin = cir.getReturnValue();
-        if (id == null || skin == null) {
-            return;
-        }
-        cir.setReturnValue(new PlayerSkin(skin.texture(), skin.textureUrl(), skin.capeTexture(), id, skin.model(), skin.secure()));
+        cir.setReturnValue(CapeBook.ELYTRA_SKINS.get(player.getUUID(), skin, id,
+                (base, texture) -> new PlayerSkin(base.texture(), base.textureUrl(), base.capeTexture(), texture, base.model(), base.secure())));
     }
 }
 *///?}

@@ -900,7 +900,7 @@ public final class ClientHarness {
             return;
         }
         if (!LABY_EXPECTED.contains("labymod-toggle-off")) {
-            boolean bare = CapeLayerWatch.localCalls > 0 && CapeLayerWatch.localTexture == null && !LabyWear.showing();
+            boolean bare = CapeLayerWatch.localHidden > 0 && CapeLayerWatch.localTexture == null && !LabyWear.showing();
             if (bare) {
                 McBridge.clearChat(client);
                 queueShot(client, "labymod-toggle-off");

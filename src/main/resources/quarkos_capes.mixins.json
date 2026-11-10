@@ -4,7 +4,7 @@
   "package": "dev.quarkos.capes.client.mixin",
   "compatibilityLevel": "JAVA_21",
   "plugin": "dev.quarkos.capes.client.mixin.CapeMixinPlugin",
-  "client": ["CapeLayerMixin", "ElytraTextureMixin", "ShotCameraMixin", "ShotSkinMixin", "SettingsHudMixin", "SettingsNameTagMixin"],
+  "client": ["CapeLayerMixin", "CapeLayersAccessor", "CapeGuiMixin", "CapeModelDrawMixin", "ElytraTextureMixin", "ShotCameraMixin", "ShotSkinMixin", "SettingsHudMixin", "SettingsNameTagMixin"],
   "injectors": {
     "defaultRequire": 1
   }

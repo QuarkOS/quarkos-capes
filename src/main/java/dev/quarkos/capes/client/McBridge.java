@@ -55,7 +55,7 @@ public final class McBridge {
         //? if <1.21.11 {
         /*return RenderType.entityCutoutNoCull(texture);
         *///?} else {
-        return RenderTypes.armorCutoutNoCull(texture);
+        return RenderTypes.entityCutoutNoCull(texture);
         //?}
     }
 
