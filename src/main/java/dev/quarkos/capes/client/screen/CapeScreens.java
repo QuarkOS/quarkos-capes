@@ -20,6 +20,7 @@ public final class CapeScreens {
     }
 
     public static Screen openTab(Screen parent, int tab) {
+        if (tab == 6) return new BrowseScreen(parent);
         //? if fabric {
         return CapeScreen.create(parent, net.minecraft.network.chat.Component.translatable(tab == 0
                 ? "text.quarkos_capes.tab.my_cape" : CapeBoard.TABS[tab]));
@@ -35,8 +36,36 @@ public final class CapeScreens {
         *///?}
     }
 
+    public static Screen refreshed(Screen screen) {
+        //? if fabric {
+        if (CapeScreen.isOpen(screen)) return CapeScreen.refreshed(screen);
+        //?} else {
+        /*//? if <1.21.2 {
+        if (ClothCapeScreen.isOpen(screen) && screen instanceof me.shedaniel.clothconfig2.gui.ClothConfigScreen cloth) return ClothCapeScreen.refreshed(cloth);
+        //?}
+        *///?}
+        return screen;
+    }
+
+    public static int[] previewBounds(Screen screen) {
+        if (!isSettings(screen)) return null;
+        if (screen instanceof CapeGalleryScreen || screen instanceof LinkScreen) return null;
+        if (screen.width < 480 || screen.height < 300) return null;
+        if (screen instanceof BrowseScreen) return new int[]{Math.max(150, screen.width * 3 / 5), 80, screen.width - 8, screen.height - 114};
+        //? if fabric {
+        return CapeScreen.previewBounds(screen);
+        //?} else {
+        /*if (screen instanceof ForgeCapeScreen) return new int[]{screen.width - 120, 54, screen.width - 8, screen.height - 84};
+        //? if <1.21.2 {
+        return ClothCapeScreen.previewBounds(screen);
+        //?} else {
+        return null;
+        //?}
+        *///?}
+    }
+
     public static boolean isSettings(Screen screen) {
-        if (screen instanceof CapeGalleryScreen) return true;
+        if (screen instanceof BrowseScreen || screen instanceof LinkScreen || screen instanceof CapeGalleryScreen) return true;
         //? if forge || neoforge {
         /*if (screen instanceof ForgeCapeScreen) {
             return true;
@@ -47,6 +76,10 @@ public final class CapeScreens {
             return true;
         }
         //?}
-        return screen != null && screen.getClass().getName().contains("ClothConfig");
+        //? if (forge || neoforge) && <1.21.2 {
+        /*return ClothCapeScreen.isOpen(screen);
+        *///?} else {
+        return false;
+        //?}
     }
 }

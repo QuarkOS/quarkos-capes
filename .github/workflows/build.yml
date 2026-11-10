@@ -20,7 +20,7 @@ jobs:
       - name: Test and build every version
         run: |
           chmod +x ./gradlew
-          ./gradlew --no-daemon \
+          ./gradlew --no-daemon -PallowLocalService=true \
             :1.20.1:build :1.21.1:build :1.21.4:build :1.21.8:build :1.21.11:build \
             :forge:1.20.1:build :forge:1.21.1:build :forge:1.21.4:build :forge:1.21.8:build :forge:1.21.11:build \
             :neoforge:1.21.1:build :neoforge:1.21.4:build :neoforge:1.21.8:build :neoforge:1.21.11:build
@@ -37,7 +37,7 @@ jobs:
       - name: Build release jars
         run: |
           chmod +x ./gradlew scripts/release.sh
-          ./scripts/release.sh --no-daemon
+          ./scripts/release.sh --no-daemon -PallowLocalService=true
       - uses: actions/upload-artifact@v4
         with:
           name: quarkos-capes-1.0.0

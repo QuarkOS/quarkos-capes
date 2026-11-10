@@ -1,0 +1,12 @@
+{
+  "api":1,
+  "uuid":"853c80ef-3c37-49fd-aa65-12b9b86ad9e6",
+  "wearing":{
+    "id":"cloak:a0c8e54d8f03aaa9f1ba58190b75ef4a","source":"labymod","kind":"cloak",
+    "title":"LabyMod cloak","author":"LabyMod community","tags":[],"uses":0,
+    "style":"flat","frameCount":1,"frameWidth":64,"frameHeight":32,
+    "frameDelayMs":[100],"animateFrames":false,"model":null,
+    "textureUrl":"https://texture.laby.net/a0c8e54d8f03aaa9f1ba58190b75ef4a.png",
+    "creditUrl":"https://laby.net/cloaks/a0c8e54d8f03aaa9f1ba58190b75ef4a"
+  }
+}

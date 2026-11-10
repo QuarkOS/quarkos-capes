@@ -5,12 +5,16 @@ import dev.quarkos.capes.client.local.ClientSettings;
 import dev.quarkos.capes.client.local.LocalFiles;
 import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.client.net.CapeHttp;
-import dev.quarkos.capes.client.net.LabyCatalog;
+//? if dev_catalog {
+/*import dev.quarkos.capes.client.net.LabyCatalog;
+*///?}
 import dev.quarkos.capes.client.net.LabySource;
 import dev.quarkos.capes.client.render.CapeBook;
 import dev.quarkos.capes.client.render.CapeLayerWatch;
 import dev.quarkos.capes.client.render.CapeTextures;
-import dev.quarkos.capes.client.render.LabyWear;
+//? if dev_catalog {
+/*import dev.quarkos.capes.client.render.LabyWear;
+*///?}
 import dev.quarkos.capes.client.screen.CapeActions;
 //? if fabric {
 import dev.quarkos.capes.client.screen.CapeScreen;
@@ -49,9 +53,14 @@ public final class ClientHarness {
     private static int phase;
     private static int labyPhase;
     private static int labyIndex;
-    private static List<LabyFrame> labyFrames;
+//? if dev_catalog {
+    /*private static List<LabyFrame> labyFrames;
     private static String labyError;
     private static final List<String> LABY_EXPECTED = new ArrayList<>();
+*///?}
+
+
+    private static boolean playerSeen;
 
     private ClientHarness() {
     }
@@ -60,6 +69,10 @@ public final class ClientHarness {
         if (!Boolean.getBoolean("quarkos_capes.harness")
                 && !Boolean.getBoolean("quarkos_capes.labyShots")
                 && !Boolean.getBoolean("quarkos_capes.labyCompare")) {
+            return;
+        }
+        if ("boot".equals(System.getProperty("quarkos_capes.only"))) {
+            BootHarness.tick(client);
             return;
         }
         //? if fabric {
@@ -71,6 +84,8 @@ public final class ClientHarness {
         //?}
         if (!armed) {
             armed = true;
+            client.options.tutorialStep = net.minecraft.client.tutorial.TutorialSteps.NONE;
+            client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
             client.options.pauseOnLostFocus = false;
             client.options.onboardAccessibility = false;
             //? if >=1.21 {
@@ -83,6 +98,8 @@ public final class ClientHarness {
             client.getWindow().setWindowed(Integer.getInteger("quarkos_capes.width", 1280), Integer.getInteger("quarkos_capes.height", 720));
         }
         ticks++;
+        McBridge.clearChat(client);
+        McBridge.clearToasts(client);
         flushShot(client);
         try {
             switch (state) {
@@ -95,14 +112,18 @@ public final class ClientHarness {
                 case GALLERY -> gallery(client);
                 //?}
                 case BACK -> backs(client);
-                case LABY -> labyShots(client);
+//? if dev_catalog {
+                /*case LABY -> labyShots(client);
                 case COMPARE -> {
                     if (LabyCompare.tick(client)) {
                         state = State.DONE;
                     }
                 }
+
+*///?}
                 case CLOAK -> cloakShots(client);
                 case AUDIT -> AuditHarness.tick(client);
+                case FLOWS -> FlowHarness.tick(client);
                 case DONE -> finish();
             }
         } catch (RuntimeException e) {
@@ -172,6 +193,11 @@ public final class ClientHarness {
             }
             return;
         }
+        // Count setup ticks from the first tick with a player: slow world loads must not skip the setup ticks below.
+        if (!playerSeen) {
+            playerSeen = true;
+            ticks = 1;
+        }
         if (ticks == 40) {
             showCape(client);
             McBridge.prepareWorld(client);
@@ -179,7 +205,8 @@ public final class ClientHarness {
         if (ticks == 55) {
             McBridge.clearChat(client);
             showCape(client);
-            if (Boolean.getBoolean("quarkos_capes.labyCompare")) {
+//? if dev_catalog {
+            /*if (Boolean.getBoolean("quarkos_capes.labyCompare")) {
                 if (!LabyCatalog.enabled()) {
                     fail("CAPES_DEV_CATALOG is not true");
                 }
@@ -197,12 +224,15 @@ public final class ClientHarness {
                 ticks = 0;
                 return;
             }
+
+*///?}
             if (Boolean.getBoolean("quarkos_capes.cloakOnly")) {
                 phase = 0;
                 state = State.CLOAK;
                 ticks = 0;
                 return;
             }
+            if (FlowHarness.selected()) { state = State.FLOWS; ticks = 0; return; }
             if (AuditHarness.selected()) {
                 state = State.AUDIT;
                 ticks = 0;
@@ -697,7 +727,8 @@ public final class ClientHarness {
         System.exit(1);
     }
 
-    private static void armLaby(Minecraft client) {
+//? if dev_catalog {
+    /*private static void armLaby(Minecraft client) {
         hideChrome(client);
         McBridge.thirdPerson(client.options);
         client.options.fov().set(30);
@@ -870,7 +901,7 @@ public final class ClientHarness {
             return;
         }
         if (!LABY_EXPECTED.contains("labymod-toggle-off")) {
-            boolean bare = CapeLayerWatch.localCalls > 0 && CapeLayerWatch.localTexture == null && !LabyWear.showing();
+            boolean bare = CapeLayerWatch.localHidden > 0 && CapeLayerWatch.localTexture == null && !LabyWear.showing();
             if (bare) {
                 McBridge.clearChat(client);
                 queueShot(client, "labymod-toggle-off");
@@ -907,6 +938,8 @@ public final class ClientHarness {
         return LABY_EXPECTED.size() >= 3;
     }
 
+
+*///?}
     private static void hideChrome(Minecraft client) {
         client.options.hideGui = true;
         client.options.tutorialStep = net.minecraft.client.tutorial.TutorialSteps.NONE;
@@ -914,10 +947,13 @@ public final class ClientHarness {
         McBridge.clearChat(client);
     }
 
-    private record LabyFrame(String kind, String name, byte[] png) {
+//? if dev_catalog {
+    /*private record LabyFrame(String kind, String name, byte[] png) {
     }
 
+
+*///?}
     private enum State {
-        WAIT_TITLE, OPEN_WORLD, WAIT_PLAYER, CAPE, WORLD, GALLERY, BACK, LABY, COMPARE, CLOAK, AUDIT, DONE
+        WAIT_TITLE, OPEN_WORLD, WAIT_PLAYER, CAPE, WORLD, GALLERY, BACK, LABY, COMPARE, CLOAK, AUDIT, FLOWS, DONE
     }
 }

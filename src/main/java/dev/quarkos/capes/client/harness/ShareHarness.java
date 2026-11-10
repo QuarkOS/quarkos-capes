@@ -191,10 +191,10 @@ public final class ShareHarness {
             }
             Thread thread = new Thread(() -> {
                 try {
-                    HarnessAuth.Session session = HarnessAuth.complete("http://127.0.0.1:8787", "CapeA");
+                    HarnessAuth.Session session = HarnessAuth.complete(dev.quarkos.capes.client.net.CapeCalls.DEFAULT_SERVICE_URL, "CapeA");
                     byte[] png = Samples.bands();
-                    int gallery = HarnessAuth.putGallery("http://127.0.0.1:8787", session, "bands", png, "Bands");
-                    int worn = HarnessAuth.putWorn("http://127.0.0.1:8787", session, png);
+                    int gallery = HarnessAuth.putGallery(dev.quarkos.capes.client.net.CapeCalls.DEFAULT_SERVICE_URL, session, "bands", png, "Bands");
+                    int worn = HarnessAuth.putWorn(dev.quarkos.capes.client.net.CapeCalls.DEFAULT_SERVICE_URL, session, png);
                     if (gallery / 100 != 2 || worn / 100 != 2) {
                         workNote = "publish status " + gallery + " worn " + worn;
                         return;
@@ -431,7 +431,7 @@ public final class ShareHarness {
         ClientSettings settings = ClientSettings.get();
         settings.localOnly = false;
         settings.showOthers = true;
-        settings.baseUrl = "http://127.0.0.1:8787";
+        settings.baseUrl = dev.quarkos.capes.client.net.CapeCalls.DEFAULT_SERVICE_URL;
         settings.enableOptifine = false;
         settings.enableLabyMod = false;
         settings.enableMinecraftCapesMod = false;

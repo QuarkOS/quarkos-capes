@@ -1,3 +1,5 @@
+import java.util.UUID
+
 /**
  * NeoForge nodes for 1.21.1 (21.1.265), 1.21.4 (21.4.161), 1.21.8 (21.8.57),
  * and 1.21.11 (21.11.48). ModDevGradle, official mappings.
@@ -284,8 +286,16 @@ side = "CLIENT"
         if (cloakOnly) {
             systemProperty("quarkos_capes.cloakOnly", "true")
         }
-        for (key in listOf("only", "guiScale", "width", "height")) {
+        for (key in listOf("only", "guiScale", "width", "height", "serverUrl", "linkCode")) {
             providers.gradleProperty(key).orNull?.let { systemProperty("quarkos_capes.$key", it) }
+        }
+        providers.gradleProperty("shots").orNull?.let {
+            systemProperty("quarkos_capes.captures", it)
+            systemProperty("quarkos_capes.compare", it)
+        }
+        systemProperty("quarkos_capes.serverUrl", providers.gradleProperty("serverUrl").orElse("http://127.0.0.1:8787").get())
+        if (providers.gradleProperty("only").orNull in listOf("flows", "boot")) {
+            systemProperty("quarkos_capes.harness", "true")
         }
         environment("LIBGL_ALWAYS_SOFTWARE", "1")
         environment("MESA_GL_VERSION_OVERRIDE", "3.3")
@@ -299,7 +309,22 @@ side = "CLIENT"
         }
         if (name == "runClient") {
             dependsOn("jarJar")
+            val flows = providers.gradleProperty("only").orNull == "flows"
+            val flowUser = providers.gradleProperty("username").orElse("CapeFlow").get()
+            val flowUuid = providers.gradleProperty("uuid").orNull
+                ?: UUID.nameUUIDFromBytes("OfflinePlayer:$flowUser".toByteArray()).toString()
             doFirst {
+                if (flows) {
+                    val updated = mutableListOf<String>()
+                    var skip = false
+                    for (arg in args) {
+                        if (skip) { skip = false; continue }
+                        if (arg == "--username" || arg == "--uuid") { skip = true; continue }
+                        updated.add(arg)
+                    }
+                    updated.addAll(listOf("--username", flowUser, "--uuid", flowUuid))
+                    args = updated
+                }
                 val eula = workingDir.resolve("eula.txt")
                 eula.parentFile?.mkdirs()
                 eula.writeText("eula=true\n")
@@ -316,3 +341,4 @@ side = "CLIENT"
     }
 }
 apply(from = rootProject.file("gradle/strip-module-info.gradle.kts"))
+apply(from = rootProject.file("gradle/release.gradle.kts"))

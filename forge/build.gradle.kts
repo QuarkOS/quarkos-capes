@@ -6,6 +6,7 @@ import org.objectweb.asm.MethodVisitor
 import org.objectweb.asm.Opcodes
 import org.objectweb.asm.commons.ClassRemapper
 import org.objectweb.asm.commons.Remapper
+import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
@@ -607,16 +608,7 @@ side = "CLIENT"
         val labyShots = providers.gradleProperty("labyShots").orNull == "true"
         val cloakOnly = providers.gradleProperty("cloakOnly").orNull == "true"
         val harness = providers.gradleProperty("harness").orNull == "true"
-        val mediaRoot = file("/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502")
-        val media = "/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502/media/capes/forge/$minecraftVersion"
-        val localCaptures = rootProject.file("build/captures/forge/$minecraftVersion").absolutePath
-        val captures = if (labyShots && mediaRoot.isDirectory) {
-            "/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502/media/capes/labymod/forge/$minecraftVersion"
-        } else if ((harness || cloakOnly) && mediaRoot.isDirectory) {
-            media
-        } else {
-            localCaptures
-        }
+        val captures = rootProject.file("build/captures/forge/$minecraftVersion").absolutePath
         systemProperty("quarkos_capes.captures", captures)
         systemProperty("quarkos_capes.loader", "forge")
         systemProperty("quarkos_capes.timeoutScale", "8")
@@ -640,7 +632,7 @@ side = "CLIENT"
             )
             systemProperty(
                 "quarkos_capes.compare",
-                "/cursor/stores/bc-97e49978-8cdc-55b6-9065-d58f273ae502/media/capes/labymod/compare/forge/$minecraftVersion"
+                rootProject.file("build/captures/forge/$minecraftVersion").absolutePath
             )
         }
         if (cloakOnly) {
@@ -650,11 +642,16 @@ side = "CLIENT"
             systemProperty("quarkos_capes.captures", it)
             systemProperty("quarkos_capes.compare", it)
         }
-        for (key in listOf("only", "guiScale", "width", "height")) {
+        for (key in listOf("only", "guiScale", "width", "height", "serverUrl", "linkCode")) {
             providers.gradleProperty(key).orNull?.let { systemProperty("quarkos_capes.$key", it) }
         }
         for (key in listOf("QUARKOS_CAPES_BENCH", "QUARKOS_CAPES_BENCH_PLAYERS")) {
             providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
+        }
+        systemProperty("quarkos_capes.serverUrl", providers.gradleProperty("serverUrl").orElse("http://127.0.0.1:8787").get())
+        if (providers.gradleProperty("only").orNull == "flows") systemProperty("quarkos_capes.harness", "true")
+        for (key in listOf("CAPES_DEV_AUTH", "CAPES_DEV_AUTH_SECRET")) {
+            System.getenv(key)?.let { environment(key, it) }
         }
         environment("LIBGL_ALWAYS_SOFTWARE", "1")
         environment("MESA_GL_VERSION_OVERRIDE", "3.3")
@@ -670,7 +667,21 @@ side = "CLIENT"
             if (minecraftVersion == "1.20.1") {
                 dependsOn(prepareJarJar)
             }
+            val flows = providers.gradleProperty("only").orNull == "flows"
+            val flowUser = providers.gradleProperty("username").orElse("CapeFlow").get()
+            val flowUuid = providers.gradleProperty("uuid").orNull ?: UUID.nameUUIDFromBytes("OfflinePlayer:$flowUser".toByteArray()).toString()
             doFirst {
+                if (flows) {
+                    val updated = mutableListOf<String>()
+                    var skip = false
+                    for (arg in args) {
+                        if (skip) { skip = false; continue }
+                        if (arg == "--username" || arg == "--uuid") { skip = true; continue }
+                        updated.add(arg)
+                    }
+                    updated.addAll(listOf("--username", flowUser, "--uuid", flowUuid))
+                    args = updated
+                }
                 val eula = workingDir.resolve("eula.txt")
                 eula.parentFile?.mkdirs()
                 eula.writeText("eula=true\n")
@@ -687,3 +698,4 @@ side = "CLIENT"
     }
 }
 apply(from = rootProject.file("gradle/strip-module-info.gradle.kts"))
+apply(from = rootProject.file("gradle/release.gradle.kts"))

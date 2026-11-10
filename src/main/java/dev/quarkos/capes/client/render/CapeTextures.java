@@ -44,21 +44,23 @@ public final class CapeTextures {
      * A vertical strip is split into one texture per frame so the box can show each frame.
      */
     public static Image upload(String key, byte[] png, boolean animated, boolean laby, boolean capeBox) {
+        com.mojang.blaze3d.systems.RenderSystem.assertOnRenderThread();
+        NativeImage read = null;
         try {
-            NativeImage read = NativeImage.read(new ByteArrayInputStream(png));
+            if (!dev.quarkos.capes.sim.ImageLimits.png(png)) return null;
+            read = NativeImage.read(new ByteArrayInputStream(png));
             if (laby && placeholder(read)) {
-                read.close();
                 clear(key);
                 return null;
             }
             boolean vertical = animated && read.getWidth() / 2 > 0 && read.getHeight() % (read.getWidth() / 2) == 0
                     && read.getHeight() / (read.getWidth() / 2) > 1;
             int frames = vertical ? read.getHeight() / (read.getWidth() / 2) : 1;
+            if (frames > 256) return null;
             int width = read.getWidth();
             int height = read.getHeight();
             if (capeBox && frames > 1) {
                 Identifier[] parts = splitFrames(key, read, frames);
-                read.close();
                 clear(key);
                 BOX_FRAMES.put(key, parts);
                 Image stored = new Image(parts[0], width, height / frames, true, frames, false, true);
@@ -70,12 +72,11 @@ public final class CapeTextures {
             Identifier id;
             if (bundled != null) {
                 id = bundled;
-                read.close();
             } else {
                 NativeImage image = read;
+                read = null;
                 id = McBridge.id("cape/" + Integer.toUnsignedString(key.hashCode()) + "_" + (salt++));
-                DynamicTexture texture = McBridge.dynamic(image, key);
-                Minecraft.getInstance().getTextureManager().register(id, texture);
+                register(id, image, key);
             }
             boolean elytra = frames == 1 && width == height * 2;
             Image stored = new Image(id, width, height, vertical, frames, elytra, capeBox);
@@ -84,6 +85,8 @@ public final class CapeTextures {
             return stored;
         } catch (Exception ignored) {
             return null;
+        } finally {
+            if (read != null) read.close();
         }
     }
 
@@ -110,6 +113,8 @@ public final class CapeTextures {
     }
 
     public static void clear(String key) {
+        CapeBook.ELYTRA_SKINS.clear();
+        com.mojang.blaze3d.systems.RenderSystem.assertOnRenderThread();
         Image old = IMAGES.remove(key);
         Identifier[] frames = BOX_FRAMES.remove(key);
         if (frames != null) {
@@ -126,19 +131,36 @@ public final class CapeTextures {
         int width = strip.getWidth();
         int frameHeight = strip.getHeight() / frames;
         Identifier[] ids = new Identifier[frames];
-        for (int frame = 0; frame < frames; frame++) {
-            NativeImage part = new NativeImage(width, frameHeight, true);
-            int origin = frame * frameHeight;
-            for (int y = 0; y < frameHeight; y++) {
-                for (int x = 0; x < width; x++) {
-                    McBridge.setPixel(part, x, y, McBridge.pixel(strip, x, origin + y));
-                }
+        try {
+            for (int frame = 0; frame < frames; frame++) {
+                NativeImage part = new NativeImage(width, frameHeight, true);
+                try {
+                    int origin = frame * frameHeight;
+                    for (int y = 0; y < frameHeight; y++) {
+                        for (int x = 0; x < width; x++) McBridge.setPixel(part, x, y, McBridge.pixel(strip, x, origin + y));
+                    }
+                } catch (RuntimeException failure) { part.close(); throw failure; }
+                Identifier id = McBridge.id("cape/" + Integer.toUnsignedString(key.hashCode()) + "_" + (salt++) + "_f" + frame);
+                register(id, part, key + "/" + frame);
+                ids[frame] = id;
             }
-            Identifier id = McBridge.id("cape/" + Integer.toUnsignedString(key.hashCode()) + "_" + (salt++) + "_f" + frame);
-            Minecraft.getInstance().getTextureManager().register(id, McBridge.dynamic(part, key + "/" + frame));
-            ids[frame] = id;
+            return ids;
+        } catch (RuntimeException failure) {
+            for (Identifier id : ids) release(id);
+            throw failure;
         }
-        return ids;
+    }
+
+    /** Takes ownership of the image even when texture creation or registration fails. */
+    private static void register(Identifier id, NativeImage image, String name) {
+        DynamicTexture texture = null;
+        try {
+            texture = McBridge.dynamic(image, name);
+            Minecraft.getInstance().getTextureManager().register(id, texture);
+        } catch (RuntimeException failure) {
+            if (texture != null) texture.close(); else image.close();
+            throw failure;
+        }
     }
 
     private static Identifier bundled(byte[] png) {

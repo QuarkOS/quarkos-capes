@@ -32,6 +32,8 @@ public final class CapeBook {
     public record Remote(String style, boolean animateFrames, int frameCount, int frameWidth, int frameHeight, int[] delays, String modelJson, String status) {
     }
 
+    private static final Map<UUID, String> REMOTE_SOURCES = new ConcurrentHashMap<>();
+    public static void remoteSource(UUID id, String source) { REMOTE_SOURCES.put(id, source); }
     private static final Map<UUID, Remote> REMOTE = new ConcurrentHashMap<>();
     private static final Map<UUID, String> PROVIDER = new ConcurrentHashMap<>();
     private static final Map<UUID, String> PROVIDER_SOURCES = new ConcurrentHashMap<>();
@@ -41,18 +43,44 @@ public final class CapeBook {
     private static final int[] STILL = {100};
     private static final Choice NONE = new Choice(Kind.NONE, null, false, 1, 64, 32, STILL, false, null);
     private static final Map<UUID, String> TEXTURE_KEYS = new ConcurrentHashMap<>();
+    public static final ElytraSkinCache ELYTRA_SKINS = new ElytraSkinCache();
     public static boolean preview;
+    /** Actual GUI render scope; the draft flag also stays set while the world renders. */
+    public static boolean renderingPreview;
+    /** GUI extraction is submitted later on 1.21.11, after the scope has ended. */
+    public static Object previewState;
     /** When the picker is open, true shows the cape from behind. */
     public static boolean previewBack = true;
     public static OwnerCape draft;
     public static int draws;
+    private static final boolean WATCH_DRAWS = Boolean.getBoolean("quarkos_capes.harness");
+    private static final Map<UUID,Integer> DRAWN = new ConcurrentHashMap<>();
+    private static final Map<UUID,Integer> PREVIEW_DRAWN = new ConcurrentHashMap<>();
+    public static void drawn(UUID id, Identifier texture, boolean preview) {
+        boolean gui = preview || renderingPreview || CapeRenderPass.guiDepth > 0;
+        boolean shadow = CapeRenderPass.shadow();
+        if (!CapeRenderPass.worldDraw(gui, shadow)) {
+            if (WATCH_DRAWS && gui && !shadow) PREVIEW_DRAWN.merge(id, 1, Integer::sum);
+            return;
+        }
+        draws++;
+        if (WATCH_DRAWS) DRAWN.merge(id, 1, Integer::sum);
+        var player = net.minecraft.client.Minecraft.getInstance().player;
+        if (player != null && player.getUUID().equals(id)) CapeLayerWatch.local(texture);
+    }
+    public static int draws(UUID id) { return DRAWN.getOrDefault(id,0); }
+    public static int previewDraws(UUID id) { return PREVIEW_DRAWN.getOrDefault(id, 0); }
+    public static void resetDraws() { draws=0; DRAWN.clear(); PREVIEW_DRAWN.clear(); }
 
     private CapeBook() {
     }
 
     public static void remote(UUID id, Remote meta) {
         if (meta == null) {
+            String key = TEXTURE_KEYS.remove(id);
+            if (key != null) CapeTextures.clear(key);
             REMOTE.remove(id);
+            REMOTE_SOURCES.remove(id);
         } else {
             REMOTE.put(id, meta);
         }
@@ -97,7 +125,8 @@ public final class CapeBook {
         Remote remote = REMOTE.get(id);
         String remoteKey = TEXTURE_KEYS.get(id);
         CapeTextures.Image ours = remoteKey == null ? null : CapeTextures.get(remoteKey);
-        if (remote != null && "accepted".equals(remote.status) && ours != null) {
+        if (remote != null && "accepted".equals(remote.status) && ours != null
+                && (!"labymod".equals(REMOTE_SOURCES.get(id)) || settings.enableLabyMod)) {
             return fromRemote(remote, ours);
         }
         String providerKey = PROVIDER.get(id);
@@ -129,13 +158,14 @@ public final class CapeBook {
             return null;
         }
         if (local) {
+            CapeDraw.syncLocal();
             CapeTextures.Image image = CapeTextures.get("local");
             return image != null && image.elytra() ? image.id() : null;
         }
         if (ClientSettings.get().localOnly || !ClientSettings.get().showOthers) return null;
         String remoteKey = TEXTURE_KEYS.get(id);
         CapeTextures.Image ours = remoteKey == null ? null : CapeTextures.get(remoteKey);
-        if (ours != null && ours.elytra()) {
+        if (ours != null && ours.elytra() && (!"labymod".equals(REMOTE_SOURCES.get(id)) || ClientSettings.get().enableLabyMod)) {
             return ours.id();
         }
         String providerKey = PROVIDER.get(id);
@@ -191,7 +221,11 @@ public final class CapeBook {
     public static Choice none() { return NONE; }
 
     public static void forget(UUID id) {
+        ELYTRA_SKINS.forget(id);
+        DRAWN.remove(id);
+        PREVIEW_DRAWN.remove(id);
         REMOTE.remove(id);
+        REMOTE_SOURCES.remove(id);
         PROVIDER_SOURCES.remove(id);
         String remoteKey = TEXTURE_KEYS.remove(id);
         if (remoteKey != null) CapeTextures.clear(remoteKey);
@@ -199,10 +233,18 @@ public final class CapeBook {
         if (providerKey != null) CapeTextures.clear(providerKey);
     }
 
+    public static void clearProviders() {
+        for (String key : PROVIDER.values()) CapeTextures.clear(key);
+        PROVIDER.clear(); PROVIDER_SOURCES.clear();
+        synchronized (PROVIDER_CHOICES) { PROVIDER_CHOICES.clear(); }
+    }
+
     public static void clearPlayers() {
+        ELYTRA_SKINS.clear();
         for (UUID id : TEXTURE_KEYS.keySet()) forget(id);
         for (UUID id : PROVIDER.keySet()) forget(id);
         REMOTE.clear();
+        REMOTE_SOURCES.clear();
         synchronized (PROVIDER_CHOICES) { PROVIDER_CHOICES.clear(); }
     }
 }

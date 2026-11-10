@@ -21,7 +21,8 @@ public final class CapeBoard {
             "text.quarkos_capes.tab.physics",
             "text.quarkos_capes.tab.sources",
             "text.quarkos_capes.tab.gallery",
-            "text.quarkos_capes.tab.advanced"
+            "text.quarkos_capes.tab.advanced",
+            "text.quarkos_capes.site.browse"
     };
 
     private static String sample = "bands";
@@ -71,9 +72,7 @@ public final class CapeBoard {
         } else {
             cape.modelJson = null;
         }
-        if ("frames".equals(style)) {
-            cape.animateFrames = true;
-        }
+        cape.animateFrames = "frames".equals(style) || ("wave".equals(style) && cape.animateFrames);
         show();
     }
 
@@ -204,7 +203,7 @@ public final class CapeBoard {
     }
 
     public static void baseUrl(String url) {
-        if (url != null && !url.isBlank()) {
+        if (dev.quarkos.capes.client.net.ServiceUrl.valid(url)) {
             settings().baseUrl = url.trim();
         }
     }

@@ -1,0 +1,13 @@
+{
+  "api":1,
+  "items":[{
+    "id":"verdant-signal","source":"ours","kind":"cape",
+    "title":"Verdant Signal","author":"Emilio","tags":["green"],"uses":12,
+    "style":"flat","animateFrames":false,
+    "frameCount":1,"frameWidth":64,"frameHeight":32,"frameDelayMs":[100],
+    "textureUrl":"https://capes.example.org/v1/gallery/verdant-signal/asset",
+    "sha256":"<cleaned PNG SHA-256>","model":null
+  }],
+  "nextCursor":null,
+  "sources":{"ours":"available","labymod":"available"}
+}

@@ -21,7 +21,7 @@ public final class HarnessAuth {
     public record Session(String token, String uuid, String name) {
     }
 
-    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(6)).build();
+    private static final HttpClient HTTP = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
 
     private HarnessAuth() {
     }
@@ -79,6 +79,16 @@ public final class HarnessAuth {
 
     public static int putWorn(String base, Session session, byte[] png) throws Exception {
         return put(base, session, "/v1/capes/" + session.uuid(), png, null);
+    }
+
+    /** Upload API fixtures are separate from legacy gallery entries on some servers. */
+    public static void putCatalogUpload(String base, String bearer, String id, byte[] png) throws Exception {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(trim(base) + "/v1/uploads/" + id))
+                .timeout(Duration.ofSeconds(8)).header("Authorization", "Bearer " + bearer)
+                .header("Content-Type", "multipart/form-data; boundary=quarkos")
+                .PUT(HttpRequest.BodyPublishers.ofByteArray(multipart(png, "Flow catalog cape"))).build();
+        HttpResponse<String> response = HTTP.send(request, HttpResponse.BodyHandlers.ofString());
+        if (response.statusCode()/100 != 2) throw new dev.quarkos.capes.client.net.CatalogClient.Failure(response.statusCode(),"error");
     }
 
     private static int put(String base, Session session, String path, byte[] png, String title) throws Exception {
@@ -142,7 +152,7 @@ public final class HarnessAuth {
 
     private static String trim(String base) {
         if (base == null || base.isBlank()) {
-            return "http://127.0.0.1:8787";
+            return dev.quarkos.capes.client.net.CapeCalls.DEFAULT_SERVICE_URL;
         }
         return base.endsWith("/") ? base.substring(0, base.length() - 1) : base;
     }

@@ -1,6 +1,8 @@
 package dev.quarkos.capes.client.harness;
 
-import dev.quarkos.capes.client.net.LabyCatalog;
+//? if dev_catalog {
+/*import dev.quarkos.capes.client.net.LabyCatalog;
+*///?}
 import net.minecraft.client.gui.components.AbstractWidget;
 import net.minecraft.client.gui.components.events.ContainerEventHandler;
 import net.minecraft.client.gui.components.events.GuiEventListener;
@@ -48,7 +50,10 @@ final class HarnessChecks {
     }
 
     static void catalogHidden(Screen screen) {
-        if (!Boolean.getBoolean("quarkos_capes.harness") || LabyCatalog.enabled() || screen == null) return;
+        if (!Boolean.getBoolean("quarkos_capes.harness") || screen == null) return;
+//? if dev_catalog {
+        /*if (LabyCatalog.enabled()) return;
+*///?}
         inspect(screen);
         try {
             Object categories = screen.getClass().getMethod("getCategorizedEntries").invoke(screen);
@@ -74,9 +79,7 @@ final class HarnessChecks {
 
     private static void check(Component label) {
         String value = label.getString();
-        for (String key : new String[] {"previous", "next"}) {
-            if (value.contains(Component.translatable("text.quarkos_capes.laby." + key).getString()))
-                throw new IllegalStateException("Dev catalog control visible without exact true flag: " + value);
-        }
+        if (value.toLowerCase(java.util.Locale.ROOT).contains("labymod catalog"))
+            throw new IllegalStateException("Dev catalog control visible: " + value);
     }
 }

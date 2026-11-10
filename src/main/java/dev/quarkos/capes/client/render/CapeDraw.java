@@ -19,23 +19,25 @@ import java.util.UUID;
 /** One draw path for the world and the picker preview. */
 public final class CapeDraw {
     private static byte[] localPng;
+    private static byte[] rejectedPng;
 
     private CapeDraw() {
     }
 
     public static void syncLocal() {
         OwnerCape cape = CapeBook.preview && CapeBook.draft != null ? CapeBook.draft : OwnerCape.get();
-        if (cape.png == localPng && (cape.png.length == 0 || CapeTextures.get("local") != null)) {
+        if (cape.png == localPng && (cape.png.length == 0 || CapeTextures.get("local") != null || cape.png == rejectedPng)) {
             return;
         }
         localPng = cape.png;
         if (cape.png.length == 0) { CapeTextures.clear("local"); return; }
         if (CapeTextures.upload("local", cape.png, false, false) == null) {
+            rejectedPng = cape.png;
             CapeTextures.clear("local");
-        }
+        } else rejectedPng = null;
     }
 
-    public static void emit(PoseStack.Pose pose, VertexConsumer consumer, int light, UUID id, CapeBook.Choice choice) {
+    public static void emit(PoseStack.Pose pose, VertexConsumer consumer, int light, UUID id, CapeBook.Choice choice, boolean preview) {
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
             return;
         }
@@ -50,9 +52,9 @@ public final class CapeDraw {
         } else if (choice.kind() == CapeBook.Kind.CLOTH) {
             WaveCloth.Settings settings = ClientSettings.get().cloth;
             PlayerFacts.Fact fact = PlayerFacts.byUuid(id);
-            WaveCloth.Motion motion = fact == null ? WaveCloth.Motion.still() : ClothSim.motion(fact);
-            rememberGravity(pose, id, fact);
-            WaveCloth.State state = ClothSim.state(id);
+            WaveCloth.Motion motion = preview || fact == null ? WaveCloth.Motion.still() : ClothSim.motion(fact);
+            if (!preview) rememberGravity(pose, id, fact);
+            WaveCloth.State state = preview ? dev.quarkos.capes.sim.PreviewCloth.state(settings) : ClothSim.state(id);
             WaveCloth.ClassicPose classic = settings.movement() == WaveCloth.Movement.CLASSIC
                     ? WaveCloth.classic(settings, motion, state) : null;
             quads = CapeGeometry.cloth(
@@ -67,16 +69,14 @@ public final class CapeDraw {
                     settings.mesh() == WaveCloth.Mesh.BLOCKY,
                     McBridge.partialTick()
             );
-            ClothSim.markDrawn(id);
+            if (!preview) ClothSim.markDrawn(id);
         } else {
             quads = CapeGeometry.flat(frame, frames, choice.vertical());
         }
         for (CapeGeometry.Quad quad : quads) {
             McBridge.quad(consumer, pose, light, quad);
         }
-        if (CapeBook.preview) {
-            CapeBook.draws++;
-        }
+        if (!quads.isEmpty()) CapeBook.drawn(id, choice.texture(), preview);
     }
 
     public static CapeBook.Choice resolve(UUID id, boolean local, Identifier vanillaCape) {
@@ -91,9 +91,11 @@ public final class CapeDraw {
             if (!capeOn || (fact != null && fact.elytra())) {
                 return CapeBook.none();
             }
-            if (dev.quarkos.capes.DevFlags.CATALOG && LabyWear.showing()) {
+//? if dev_catalog {
+            /*if (LabyWear.showing()) {
                 return LabyWear.choice();
             }
+*///?}
             return CapeBook.local(cape, image);
         }
         PlayerFacts.Fact fact = PlayerFacts.byUuid(id);

@@ -8,6 +8,7 @@ stonecutter parameters {
     // Root branch id is empty. Named branches use their id ("forge").
     val loaderName = branch.id.ifEmpty { "fabric" }
     constants.match(loaderName, "fabric", "forge", "neoforge")
+    constants.put("dev_catalog", providers.gradleProperty("devCatalog").orNull == "true")
     replacements {
         // Active sources are written for 1.21.11, which already calls the class Identifier.
         string(current.parsed < "1.21.11") {

@@ -72,8 +72,9 @@ public class MissingCapeLayer extends RenderLayer {
         pose.translate(0.0F, player.isCrouching() ? 0.2F : 0.0F,
                 player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).isEmpty() ? 0.0F : 0.0625F);
         pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(player.isCrouching() ? 31.0F : 6.0F));
+        boolean preview = CapeBook.preview || CapeBook.renderingPreview;
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose.last(), consumer, CapeBook.preview ? 15728880 : light, player.getUUID(), choice);
+        CapeDraw.emit(pose.last(), consumer, preview ? 15728880 : light, player.getUUID(), choice, preview);
         pose.popPose();
     }
     *///?} else if <1.21.11 {
@@ -103,12 +104,13 @@ public class MissingCapeLayer extends RenderLayer {
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
             return;
         }
-        int bright = CapeBook.preview ? 15728880 : light;
+        boolean preview = CapeBook.preview || CapeBook.renderingPreview;
+        int bright = preview ? 15728880 : light;
         pose.pushPose();
         pose.translate(0.0F, player.isCrouching ? 0.2F : 0.0F, player.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
         pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(player.isCrouching ? 31.0F : 6.0F));
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose.last(), consumer, bright, id, choice);
+        CapeDraw.emit(pose.last(), consumer, bright, id, choice, preview);
         pose.popPose();
     }
     *///?} else {
@@ -138,13 +140,14 @@ public class MissingCapeLayer extends RenderLayer {
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
             return;
         }
-        int bright = CapeBook.preview ? 15728880 : light;
+        boolean preview = CapeBook.preview || avatar == CapeBook.previewState;
+        int bright = preview ? 15728880 : light;
         java.util.UUID drawn = id;
         pose.pushPose();
         pose.translate(0.0F, avatar.isCrouching ? 0.2F : 0.0F, avatar.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
         pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(avatar.isCrouching ? 31.0F : 6.0F));
         collector.submitCustomGeometry(pose, McBridge.cutout(choice.texture(), choice.kind()), (entry, consumer) ->
-                CapeDraw.emit(entry, consumer, bright, drawn, choice));
+                CapeDraw.emit(entry, consumer, bright, drawn, choice, preview));
         pose.popPose();
     }
     //?}

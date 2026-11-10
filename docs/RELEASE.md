@@ -2,7 +2,7 @@
 
 Client mod. Java 21. Nothing in this repository is uploaded. `scripts/release.sh` (and `./gradlew releaseAll -Prelease=true`) only writes `dist/`.
 
-Release jars are named `quarkos-capes-1.0.0+<loader>-<minecraft>.jar`. `dist/SHA256SUMS` is the checksum list. Those jars compile with the dev harness and the LabyMod try-on catalog removed: `DevFlags.HARNESS` and `DevFlags.CATALOG` are false, so the call sites are eliminated, and the jar also omits `client/harness/**`, `LabyCatalog`, `LabyBrowse`, `LabyWear`, `ShotCameraMixin`, and `ShotSkinMixin`.
+Release jars are named `quarkos-capes-1.0.0+<loader>-<minecraft>.jar`. `dist/SHA256SUMS` is the checksum list. Those jars compile with the dev harness and the LabyMod try-on catalog removed: `DevFlags.HARNESS` is false, the try-on classes are behind `//? if dev_catalog`, and the jar also omits `client/harness/**`, `LabyCatalog`, `LabyBrowse`, `LabyWear`, `ShotCameraMixin`, and `ShotSkinMixin`. `verifyReleaseJar` checks the baked service URL, the license notices, and that those catalog classes are absent. The default URL is `http://127.0.0.1:8787`. That check rejects localhost unless the build passes `-PallowLocalService=true`. A published jar needs `-PserviceUrl=<production URL>` and must not use the local override. The current verification matrix is in `docs/STATUS.md`.
 
 ## Version matrix
 
@@ -30,12 +30,14 @@ A version or loader that fails to build, fails its unit tests, or cannot show a 
 
 ```
 ./gradlew :1.21.11:test
-scripts/release.sh
+scripts/release.sh -PallowLocalService=true
 ```
 
-`scripts/release.sh` is `./gradlew releaseAll -Prelease=true`. Fabric entries in `dist/` are the intermediary `remapJar` outputs, with Cloth Config, OkHttp, and Okio nested under `META-INF/jars`. Forge entries are the ForgeGradle jars. NeoForge entries are the ModDevGradle jars, with OkHttp and Okio under `META-INF/jarjar` (and Cloth Config on 1.21.1). Dev runs (`runClient`, unit tests) keep the harness and the catalog. Do not pass `-Prelease=true` for a client screenshot: the harness is gone from that compile.
+`scripts/release.sh` is `./gradlew releaseAll -Prelease=true`. Until a production service URL exists, add `-PallowLocalService=true` or `verifyReleaseJar` (wired to `build`) fails on the localhost default. Fabric entries in `dist/` are the intermediary `remapJar` outputs, with Cloth Config, OkHttp, and Okio nested under `META-INF/jars`. Forge entries are the ForgeGradle jars. The Forge 1.20.1 jar is rewritten to SRG names after compile. NeoForge entries are the ModDevGradle jars, with OkHttp and Okio under `META-INF/jarjar` (and Cloth Config on 1.21.1). Dev runs (`runClient`, unit tests) keep the harness. Do not pass `-Prelease=true` for a client screenshot: the harness is gone from that compile.
 
-GitHub Actions (`.github/workflows/build.yml`) runs `build` for every version on push. Gradle on that runner is Java 25; the mod still compiles for Java 21. The release job runs only on manual `workflow_dispatch`, uploads `dist/` as an artifact, and does not publish. The workflow has no tokens.
+The 25-flow client harness is `./gradlew :1.21.11:runClient -Ponly=flows -PserverUrl=http://127.0.0.1:8787 -Pshots=<absolute dir>`. It expects the local site on that URL. Shots land in the directory you pass. Link claiming is `PASS-SKIP` unless `-PlinkCode` is set.
+
+GitHub Actions (`.github/workflows/build.yml`) runs `build` for every version on push, with `-PallowLocalService=true` so the unset production URL does not fail the jar check. Gradle on that runner is Java 25; the mod still compiles for Java 21. The release job runs only on manual `workflow_dispatch`, uploads `dist/` as an artifact, and does not publish. The workflow has no tokens.
 
 ## Modrinth
 
@@ -88,9 +90,10 @@ Relations: Fabric files require Fabric API. Mod Menu is optional on Fabric. Forg
 First release of the client.
 
 - Local cape: flat, frame strip, cloth, and a cube cloak. Bundled samples are bands, slide, and the fitted cloak.
-- Settings with My Cape, Style, Physics, Sources, Gallery, and Advanced. The player preview stays on every category. Toggles read On and Off. Press O, or use Mod Menu on Fabric.
-- Read-only OptiFine, LabyMod, MinecraftCapes, Cosmetica, and Cloaks+ toggles, default off. Offline mode is the default and sends no HTTP.
-- Gallery search, equip, publish, unpublish, and report against a sharing service you run.
-- A 2:1 cape image is used on the elytra. The cape mesh hides while elytra is equipped.
+- Settings with My Cape, Style, Physics, Sources, Gallery, Advanced, and Browse. Press O, or use Mod Menu on Fabric. Cloth Config on Fabric and on Forge/NeoForge before 1.21.2; native controls after that.
+- Read-only OptiFine, LabyMod, MinecraftCapes, Cosmetica, and Cloaks+ toggles, default off. Offline mode is the default and sends no HTTP. Browse and Gallery offer Go online.
+- Gallery search, equip, publish, unpublish, and report against a sharing service you run. Browse can search the website catalog, wear or unwear a cape, and claim a link code. Other players' website wearing references are shown when Show others is on.
+- A 2:1 cape image is used on the elytra. On 1.21.1 through 1.21.10 the custom elytra skin is cached per player. The cape mesh hides while elytra is equipped.
+- On 1.21.11, wave and model capes use `entityCutoutNoCull` so a shader pack does not drop them on the armor pass. Flat single-frame capes stay on the vanilla cape path. If another mod removes the vanilla cape layer, a fallback layer that is not itself a `CapeLayer` draws the selected cape.
 - Fabric and Forge for 1.20.1, 1.21.1, 1.21.4, 1.21.8, and 1.21.11. NeoForge for 1.21.1 (21.1.265), 1.21.4 (21.4.161), 1.21.8 (21.8.57), and 1.21.11 (21.11.48).
-- Release jars do not contain the dev client harness or the LabyMod try-on catalog.
+- Release jars do not contain the dev client harness or the LabyMod try-on catalog. `verifyReleaseJar` rejects a localhost service URL unless `-PallowLocalService=true`.

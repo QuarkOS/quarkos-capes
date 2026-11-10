@@ -1,12 +1,16 @@
 //? if forge || neoforge {
-/*
-//? if <1.21.2 {
-package dev.quarkos.capes.client.screen;
+
+/*//? if <1.21.2 {
+/^package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.local.ClientSettings;
-import dev.quarkos.capes.client.net.LabyBrowse;
-import dev.quarkos.capes.client.net.LabyCatalog;
+//? if dev_catalog {
+/^¹import dev.quarkos.capes.client.net.LabyBrowse;
+¹^///?}
+//? if dev_catalog {
+/^¹import dev.quarkos.capes.client.net.LabyCatalog;
+¹^///?}
 import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.client.render.CapeBook;
 import dev.quarkos.capes.sim.WaveCloth;
@@ -15,6 +19,13 @@ import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
 import me.shedaniel.clothconfig2.gui.ClothConfigScreen;
 import me.shedaniel.clothconfig2.gui.entries.BooleanListEntry;
+import me.shedaniel.clothconfig2.gui.entries.TooltipListEntry;
+import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.components.events.GuiEventListener;
+import net.minecraft.client.gui.narration.NarratableEntry;
+import java.util.List;
+import java.util.Optional;
+import me.shedaniel.clothconfig2.gui.entries.EnumListEntry;
 import me.shedaniel.clothconfig2.gui.entries.IntegerSliderEntry;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.GuiGraphics;
@@ -25,44 +36,49 @@ import net.minecraft.network.chat.Component;
 
 final class ClothCapeScreen {
     private static boolean busy;
+    private static Screen parentScreen;
+    private static Screen current;
     private static String note = "";
 
     private ClothCapeScreen() {
     }
 
+    static boolean isOpen(Screen screen) { return screen != null && screen == current; }
+
+    static Screen refreshed(ClothConfigScreen previous) {
+        int tab = previous.selectedCategoryIndex;
+        Screen fresh = create(parentScreen);
+        if (fresh instanceof ClothConfigScreen cloth) cloth.selectedCategoryIndex = tab;
+        return fresh;
+    }
+
     static Screen create(Screen parent) {
+        parentScreen = parent;
         ClientSettings settings = ClientSettings.get();
+        Held held = new Held();
         ConfigBuilder builder = ConfigBuilder.create()
                 .setParentScreen(parent)
                 .setTitle(Component.translatable("text.quarkos_capes.title"))
                 .setDoesConfirmSave(false)
                 .setAlwaysShowTabs(true)
-                .setSavingRunnable(() -> CapeBoard.save(value -> note = value));
+                .setTransparentBackground(true)
+                .setSavingRunnable(() -> { held.edits.apply(); CapeBoard.save(value -> note = value); });
         ConfigEntryBuilder fields = builder.entryBuilder();
-        Held held = new Held();
         ConfigCategory mine = category(builder, "text.quarkos_capes.tab.mine");
-        held.bands = toggle(fields, mine, "text.quarkos_capes.sample.bands", CapeBoard.sampleOn("bands"), true);
-        held.slide = toggle(fields, mine, "text.quarkos_capes.sample.slide", CapeBoard.sampleOn("slide"), false);
-        held.cloak = toggle(fields, mine, "text.quarkos_capes.sample.cloak", CapeBoard.sampleOn("cloak"), false);
-        held.save = toggle(fields, mine, "text.quarkos_capes.button.save", false, false);
+        for (String sample : List.of("bands", "slide", "cloak")) mine.addEntry(new SampleRow(sample));
+        mine.addEntry(new ActionRow("text.quarkos_capes.button.save", () -> { held.edits.apply(); CapeBoard.save(value -> note = value); }));
+        mine.addEntry(new ActionRow("text.quarkos_capes.button.publish", () -> CapeBoard.publish(value -> note = value)));
+        mine.addEntry(new ActionRow("text.quarkos_capes.button.unpublish", () -> CapeBoard.unpublish(value -> note = value)));
 
         ConfigCategory style = category(builder, "text.quarkos_capes.tab.style");
-        held.flat = toggle(fields, style, "text.quarkos_capes.style.flat", CapeBoard.styleOn("flat"), true);
-        held.frames = toggle(fields, style, "text.quarkos_capes.style.frames", CapeBoard.styleOn("frames"), false);
-        held.wave = toggle(fields, style, "text.quarkos_capes.style.wave", CapeBoard.styleOn("wave"), false);
-        held.model = toggle(fields, style, "text.quarkos_capes.style.model", CapeBoard.styleOn("model"), false);
+        held.style = choice(fields, style, "style", CapeChoices.Style.class, CapeChoices.style());
         held.showBack = toggle(fields, style, "text.quarkos_capes.preview.back", CapeBook.previewBack, true);
         held.animation = toggle(fields, style, "text.quarkos_capes.toggle.animation", OwnerCape.get().animateFrames, false);
 
         ConfigCategory physics = category(builder, "text.quarkos_capes.tab.physics");
-        held.classic = toggle(fields, physics, "text.quarkos_capes.movement.classic", CapeBoard.movementOn(WaveCloth.Movement.CLASSIC), false);
-        held.simulation = toggle(fields, physics, "text.quarkos_capes.movement.simulation", CapeBoard.movementOn(WaveCloth.Movement.SIMULATION), false);
-        held.simulationV2 = toggle(fields, physics, "text.quarkos_capes.movement.simulation_v2", CapeBoard.movementOn(WaveCloth.Movement.SIMULATION_V2), true);
-        held.dungeons = toggle(fields, physics, "text.quarkos_capes.movement.dungeons", CapeBoard.movementOn(WaveCloth.Movement.DUNGEONS), false);
-        held.smooth = toggle(fields, physics, "text.quarkos_capes.mesh.smooth", CapeBoard.meshOn(WaveCloth.Mesh.SMOOTH), true);
-        held.blocky = toggle(fields, physics, "text.quarkos_capes.mesh.blocky", CapeBoard.meshOn(WaveCloth.Mesh.BLOCKY), false);
-        held.windOff = toggle(fields, physics, "text.quarkos_capes.wind.none", CapeBoard.windOn(WaveCloth.Wind.NONE), true);
-        held.waves = toggle(fields, physics, "text.quarkos_capes.wind.waves", CapeBoard.windOn(WaveCloth.Wind.WAVES), false);
+        held.movement = choice(fields, physics, "model", WaveCloth.Movement.class, settings.cloth.movement());
+        held.mesh = choice(fields, physics, "look", WaveCloth.Mesh.class, settings.cloth.mesh());
+        held.wind = choice(fields, physics, "wind", WaveCloth.Wind.class, settings.cloth.wind());
         held.gravity = slider(fields, physics, "text.quarkos_capes.physics.gravity", settings.cloth.gravity(), 5, 32, 25);
         held.height = slider(fields, physics, "text.quarkos_capes.physics.height", settings.cloth.heightMultiplier(), 4, 16, 6);
         held.strafe = slider(fields, physics, "text.quarkos_capes.physics.strafe", settings.cloth.straveMultiplier(), 1, 8, 2);
@@ -74,27 +90,54 @@ final class ClothCapeScreen {
         held.minecraftCapes = toggle(fields, sources, "text.quarkos_capes.toggle.minecraftcapes", settings.enableMinecraftCapesMod, false);
         held.cosmetica = toggle(fields, sources, "text.quarkos_capes.toggle.cosmetica", settings.enableCosmetica, false);
         held.cloaks = toggle(fields, sources, "text.quarkos_capes.toggle.cloaksplus", settings.enableCloaksPlus, false);
-        if (dev.quarkos.capes.DevFlags.CATALOG && LabyCatalog.enabled()) {
-            held.labyPrevious = toggle(fields, sources, "text.quarkos_capes.laby.previous", false, false);
-            held.labyNext = toggle(fields, sources, "text.quarkos_capes.laby.next", false, false);
+//? if dev_catalog {
+        /^¹if (LabyCatalog.enabled()) {
+            sources.addEntry(new ActionRow("text.quarkos_capes.laby.previous", () -> LabyBrowse.previous(() -> {})));
+            sources.addEntry(new ActionRow("text.quarkos_capes.laby.next", () -> LabyBrowse.next(() -> {})));
             if (!LabyBrowse.status().isBlank()) {
                 sources.addEntry(fields.startTextDescription(Component.literal(LabyBrowse.status())).build());
             }
         }
+¹^///?}
+
 
         ConfigCategory gallery = category(builder, "text.quarkos_capes.tab.gallery");
-        held.publish = toggle(fields, gallery, "text.quarkos_capes.button.publish", false, false);
-        held.unpublish = toggle(fields, gallery, "text.quarkos_capes.button.unpublish", false, false);
-        held.report = toggle(fields, gallery, "text.quarkos_capes.gallery.report", false, false);
+        gallery.addEntry(new ActionRow("text.quarkos_capes.button.publish", () -> CapeBoard.publish(value -> note = value)));
+        gallery.addEntry(new ActionRow("text.quarkos_capes.button.unpublish", () -> CapeBoard.unpublish(value -> note = value)));
+        gallery.addEntry(new ActionRow("text.quarkos_capes.gallery.report", () -> CapeBoard.report(null, value -> note = value)));
 
         ConfigCategory advanced = category(builder, "text.quarkos_capes.tab.advanced");
         held.others = toggle(fields, advanced, "text.quarkos_capes.toggle.show_others", settings.showOthers, true);
         held.offline = toggle(fields, advanced, "text.quarkos_capes.toggle.local_only", settings.localOnly, true);
         held.elytra = toggle(fields, advanced, "text.quarkos_capes.toggle.elytra", settings.enableElytraTexture, true);
-        advanced.addEntry(fields.startStrField(Component.translatable("text.quarkos_capes.field.base_url"), settings.baseUrl)
-                .setDefaultValue("http://127.0.0.1:8787")
-                .setSaveConsumer(CapeBoard::baseUrl)
-                .build());
+        held.baseUrl = fields.startStrField(Component.translatable("text.quarkos_capes.field.base_url"), settings.baseUrl)
+                .setDefaultValue(dev.quarkos.capes.client.net.CapeCalls.DEFAULT_SERVICE_URL)
+                .setErrorSupplier(value -> dev.quarkos.capes.client.net.ServiceUrl.valid(value) ? Optional.empty()
+                        : Optional.of(Component.translatable("text.quarkos_capes.status.invalid_url")))
+                .build();
+        advanced.addEntry(held.baseUrl);
+
+        held.edits.track(held.style::getValue, value -> CapeBoard.style(CapeChoices.id(value)));
+        held.edits.track(held.animation::getValue, CapeBoard::animation);
+        held.edits.track(held.showBack::getValue, value -> CapeBook.previewBack = value);
+        held.edits.track(held.movement::getValue, CapeBoard::movement);
+        held.edits.track(held.mesh::getValue, CapeBoard::mesh);
+        held.edits.track(held.wind::getValue, CapeBoard::wind);
+        held.edits.track(held.gravity::getValue, CapeBoard::gravity);
+        held.edits.track(held.height::getValue, CapeBoard::height);
+        held.edits.track(held.strafe::getValue, CapeBoard::strafe);
+        held.edits.track(held.vector::getValue, CapeBoard::gravityVector);
+        held.edits.track(held.others::getValue, CapeBoard::showOthers);
+        held.edits.track(held.offline::getValue, CapeBoard::localOnly);
+        held.edits.track(held.elytra::getValue, CapeBoard::elytra);
+        held.edits.track(held.baseUrl::getValue, CapeBoard::baseUrl);
+        held.edits.track(held.optifine::getValue, value -> CapeBoard.provider("optifine", value));
+        held.edits.track(held.labymod::getValue, value -> CapeBoard.provider("labymod", value));
+        held.edits.track(held.minecraftCapes::getValue, value -> CapeBoard.provider("minecraftcapes", value));
+        held.edits.track(held.cosmetica::getValue, value -> CapeBoard.provider("cosmetica", value));
+        held.edits.track(held.cloaks::getValue, value -> CapeBoard.provider("cloaksplus", value));
+
+        category(builder, "text.quarkos_capes.site.browse").addEntry(fields.startTextDescription(Component.translatable("text.quarkos_capes.site.browse")).build());
 
         builder.setAfterInitConsumer(screen -> {
             PreviewPane pane = new PreviewPane(parent, held);
@@ -102,21 +145,44 @@ final class ClothCapeScreen {
             pane.setY(28);
             attach(screen, pane);
         });
-        return builder.build();
+        current = builder.build();
+        return current;
+    }
+
+    static int[] previewBounds(Screen screen) {
+        if (screen.width < 480 || screen.height < 300) return null;
+        int top = screen instanceof ClothConfigScreen cloth ? Math.max(80, cloth.listWidget.top + 8) : 80;
+        return new int[]{Math.max(8, screen.width - 110), top, screen.width - 8, screen.height - 84};
     }
 
     private static ConfigCategory category(ConfigBuilder builder, String key) {
         return builder.getOrCreateCategory(Component.translatable(key));
     }
 
+    private static <T extends Enum<T>> EnumListEntry<T> choice(ConfigEntryBuilder fields, ConfigCategory category, String key, Class<T> type, T value) {
+        EnumListEntry<T> entry = fields.startEnumSelector(Component.translatable("text.quarkos_capes.selector." + key), type, value)
+                .setDefaultValue(value).setEnumNameProvider(CapeChoices::name)
+                .setTooltipSupplier(selected -> compactHelp(CapeChoices.help(selected))).build();
+        category.addEntry(entry);
+        return entry;
+    }
+
+    private static Component hint;
+    private static java.util.Optional<Component[]> compactHelp(Component value) {
+        Screen screen = Minecraft.getInstance().screen;
+        if (screen != null && (screen.width < 480 || screen.height < 300)) {
+            hint = value;
+            return java.util.Optional.empty();
+        }
+        return java.util.Optional.of(new Component[]{value});
+    }
+
     private static BooleanListEntry toggle(ConfigEntryBuilder fields, ConfigCategory category, String key, boolean on, boolean fallback) {
         String name = Component.translatable(key).getString();
         BooleanListEntry entry = fields.startBooleanToggle(Component.translatable(key), on)
                 .setDefaultValue(fallback)
-                .setTooltip(Component.translatable(key.contains(".sample.") ? "text.quarkos_capes.tooltip.equip" : key.contains(".button.") ? key : "text.quarkos_capes.tooltip." + key.substring(key.lastIndexOf('.') + 1)))
+                .setTooltipSupplier(() -> compactHelp(Component.translatable(key.contains(".sample.") ? "text.quarkos_capes.tooltip.equip" : key.contains(".button.") ? key : "text.quarkos_capes.tooltip." + key.substring(key.lastIndexOf('.') + 1))))
                 .setYesNoTextSupplier(value -> CapeBoard.state(name, Boolean.TRUE.equals(value)))
-                .setSaveConsumer(value -> {
-                })
                 .build();
         category.addEntry(entry);
         return entry;
@@ -126,32 +192,20 @@ final class ClothCapeScreen {
         IntegerSliderEntry entry = fields.startIntSlider(Component.translatable(name), value, min, max)
                 .setDefaultValue(fallback)
                 .setTextGetter(current -> Component.translatable(name).append(" " + current))
-                .setSaveConsumer(current -> {
-                })
+                .setTooltipSupplier(() -> compactHelp(Component.translatable("text.quarkos_capes.tooltip." + name.substring(name.lastIndexOf('.') + 1))))
                 .build();
         category.addEntry(entry);
         return entry;
     }
 
     private static final class Held {
-        private BooleanListEntry bands;
-        private BooleanListEntry slide;
-        private BooleanListEntry cloak;
-        private BooleanListEntry save;
-        private BooleanListEntry flat;
-        private BooleanListEntry frames;
-        private BooleanListEntry wave;
-        private BooleanListEntry model;
+        private final SettingsEdits edits = new SettingsEdits();
+        private EnumListEntry<CapeChoices.Style> style;
+        private EnumListEntry<WaveCloth.Movement> movement;
+        private EnumListEntry<WaveCloth.Mesh> mesh;
+        private EnumListEntry<WaveCloth.Wind> wind;
         private BooleanListEntry animation;
         private BooleanListEntry showBack;
-        private BooleanListEntry classic;
-        private BooleanListEntry simulation;
-        private BooleanListEntry simulationV2;
-        private BooleanListEntry dungeons;
-        private BooleanListEntry smooth;
-        private BooleanListEntry blocky;
-        private BooleanListEntry windOff;
-        private BooleanListEntry waves;
         private IntegerSliderEntry gravity;
         private IntegerSliderEntry height;
         private IntegerSliderEntry strafe;
@@ -161,14 +215,10 @@ final class ClothCapeScreen {
         private BooleanListEntry minecraftCapes;
         private BooleanListEntry cosmetica;
         private BooleanListEntry cloaks;
-        private BooleanListEntry labyPrevious;
-        private BooleanListEntry labyNext;
-        private BooleanListEntry publish;
-        private BooleanListEntry unpublish;
-        private BooleanListEntry report;
         private BooleanListEntry others;
         private BooleanListEntry offline;
         private BooleanListEntry elytra;
+        private me.shedaniel.clothconfig2.gui.entries.StringListEntry baseUrl;
     }
 
     private static final class PreviewPane extends AbstractWidget {
@@ -189,16 +239,25 @@ final class ClothCapeScreen {
                 minecraft.execute(() -> minecraft.setScreen(new CapeGalleryScreen(parent)));
                 return;
             }
+            if (minecraft.screen instanceof ClothConfigScreen cloth
+                    && cloth.getSelectedCategory().getString().equals(Component.translatable("text.quarkos_capes.site.browse").getString())) {
+                minecraft.execute(() -> minecraft.setScreen(new BrowseScreen(parent))); return;
+            }
             sync();
+            if (hint != null) {
+                graphics.drawString(minecraft.font, minecraft.font.plainSubstrByWidth(hint.getString(), minecraft.screen.width - 16), 8, minecraft.screen.height - 42, 0xFFB6C8DD);
+                hint = null;
+            }
             if (!note.isBlank()) graphics.drawString(minecraft.font,
                     minecraft.font.plainSubstrByWidth(note, Math.max(20, minecraft.screen.width - 16)),
                     8, minecraft.screen.height - 42, 0xFFE8B84A);
             if (minecraft.screen instanceof ClothConfigScreen cloth) {
-                cloth.listWidget.updateSize(Math.max(150, cloth.width - 120), cloth.listWidget.height, cloth.listWidget.top, cloth.listWidget.bottom);
+                cloth.listWidget.updateSize(Math.max(120, cloth.width - (cloth.width < 480 || cloth.height < 300 ? 16 : 120)), cloth.listWidget.height, cloth.listWidget.top, cloth.listWidget.bottom);
             }
-            if (minecraft.player != null) {
+            if (minecraft.player != null && minecraft.screen.width >= 480 && minecraft.screen.height >= 300) {
                 CapeBoard.show();
-                McBridge.preview(graphics, getX(), getY() + 16, minecraft.screen.width - 8, minecraft.screen.height - 60, minecraft.player);
+                int[] bounds = previewBounds(minecraft.screen);
+                McBridge.preview(graphics, bounds[0], bounds[1], bounds[2], bounds[3], minecraft.player);
             }
             if (minecraft.screen instanceof ClothConfigScreen screen
                     && screen.getSelectedCategory().getString().equals(Component.translatable("text.quarkos_capes.tab.gallery").getString())) {
@@ -214,106 +273,9 @@ final class ClothCapeScreen {
             if (busy) {
                 return;
             }
-            boolean dirty = false;
-            String sample = exclusiveSample();
-            if (sample != null && !CapeBoard.sampleOn(sample)) {
-                CapeBoard.equipSample(sample);
-                dirty = true;
-            } else if (!sampleMatches()) {
-                dirty = true;
-            }
-            String style = exclusive(new BooleanListEntry[] {held.flat, held.frames, held.wave, held.model},
-                    new String[] {"flat", "frames", "wave", "model"}, OwnerCape.get().style);
-            if (style != null && !style.equals(OwnerCape.get().style)) {
-                CapeBoard.style(style);
-                dirty = true;
-            } else if (!groupMatches(new BooleanListEntry[] {held.flat, held.frames, held.wave, held.model},
-                    new String[] {"flat", "frames", "wave", "model"}, OwnerCape.get().style)) {
-                dirty = true;
-            }
-            if (Boolean.TRUE.equals(held.animation.getValue()) != OwnerCape.get().animateFrames) {
-                CapeBoard.animation(Boolean.TRUE.equals(held.animation.getValue()));
-            }
-            WaveCloth.Movement movement = movementPick();
-            if (movement != null && !CapeBoard.movementOn(movement)) {
-                CapeBoard.movement(movement);
-                dirty = true;
-            }
-            WaveCloth.Mesh mesh = Boolean.TRUE.equals(held.blocky.getValue()) && !CapeBoard.meshOn(WaveCloth.Mesh.BLOCKY)
-                    ? WaveCloth.Mesh.BLOCKY
-                    : Boolean.TRUE.equals(held.smooth.getValue()) && !CapeBoard.meshOn(WaveCloth.Mesh.SMOOTH)
-                    ? WaveCloth.Mesh.SMOOTH : null;
-            if (mesh != null) {
-                CapeBoard.mesh(mesh);
-                dirty = true;
-            }
-            if (Boolean.TRUE.equals(held.waves.getValue()) && !CapeBoard.windOn(WaveCloth.Wind.WAVES)) {
-                CapeBoard.wind(WaveCloth.Wind.WAVES);
-                dirty = true;
-            } else if (Boolean.TRUE.equals(held.windOff.getValue()) && !CapeBoard.windOn(WaveCloth.Wind.NONE)) {
-                CapeBoard.wind(WaveCloth.Wind.NONE);
-                dirty = true;
-            }
-            if (held.gravity.getValue() != ClientSettings.get().cloth.gravity()) {
-                CapeBoard.gravity(held.gravity.getValue());
-            }
-            if (held.height.getValue() != ClientSettings.get().cloth.heightMultiplier()) {
-                CapeBoard.height(held.height.getValue());
-            }
-            if (held.strafe.getValue() != ClientSettings.get().cloth.straveMultiplier()) {
-                CapeBoard.strafe(held.strafe.getValue());
-            }
-            if (Boolean.TRUE.equals(held.vector.getValue()) != ClientSettings.get().cloth.computeGravityVector()) {
-                CapeBoard.gravityVector(Boolean.TRUE.equals(held.vector.getValue()));
-            }
-            CapeBoard.provider("optifine", Boolean.TRUE.equals(held.optifine.getValue()));
-            CapeBoard.provider("labymod", Boolean.TRUE.equals(held.labymod.getValue()));
-            CapeBoard.provider("minecraftcapes", Boolean.TRUE.equals(held.minecraftCapes.getValue()));
-            CapeBoard.provider("cosmetica", Boolean.TRUE.equals(held.cosmetica.getValue()));
-            CapeBoard.provider("cloaksplus", Boolean.TRUE.equals(held.cloaks.getValue()));
-            CapeBoard.showOthers(Boolean.TRUE.equals(held.others.getValue()));
-            CapeBoard.localOnly(Boolean.TRUE.equals(held.offline.getValue()));
-            CapeBoard.elytra(Boolean.TRUE.equals(held.elytra.getValue()));
-            if (dev.quarkos.capes.DevFlags.CATALOG && held.labyPrevious != null && Boolean.TRUE.equals(held.labyPrevious.getValue())) {
-                busy = true;
-                LabyBrowse.previous(() -> Minecraft.getInstance().execute(() -> {
-                    busy = false;
-                    Minecraft client = Minecraft.getInstance();
-                    int tab = client.screen instanceof ClothConfigScreen cloth ? cloth.selectedCategoryIndex : 0;
-                    client.setScreen(CapeScreens.openTab(parent, tab));
-                }));
-                return;
-            }
-            if (dev.quarkos.capes.DevFlags.CATALOG && held.labyNext != null && Boolean.TRUE.equals(held.labyNext.getValue())) {
-                busy = true;
-                LabyBrowse.next(() -> Minecraft.getInstance().execute(() -> {
-                    busy = false;
-                    Minecraft client = Minecraft.getInstance();
-                    int tab = client.screen instanceof ClothConfigScreen cloth ? cloth.selectedCategoryIndex : 0;
-                    client.setScreen(CapeScreens.openTab(parent, tab));
-                }));
-                return;
-            }
-            if (Boolean.TRUE.equals(held.save.getValue())) {
-                CapeBoard.save(value -> note = value);
-                dirty = true;
-            }
-            if (Boolean.TRUE.equals(held.publish.getValue())) {
-                CapeBoard.publish(ignored -> {
-                });
-                dirty = true;
-            }
-            if (Boolean.TRUE.equals(held.unpublish.getValue())) {
-                CapeBoard.unpublish(ignored -> {
-                });
-                dirty = true;
-            }
-            if (Boolean.TRUE.equals(held.report.getValue())) {
-                CapeBoard.report(null, ignored -> {
-                });
-                dirty = true;
-            }
-            CapeBook.previewBack = Boolean.TRUE.equals(held.showBack.getValue());
+            CapeChoices.Style style = CapeChoices.style();
+            held.edits.apply();
+            boolean dirty = style != CapeChoices.style();
             CapeBook.preview = true;
             if (dirty) {
                 busy = true;
@@ -326,62 +288,106 @@ final class ClothCapeScreen {
             }
         }
 
-        private String exclusiveSample() {
-            if (turnedOn(held.slide, "slide")) {
-                return "slide";
-            }
-            if (turnedOn(held.cloak, "cloak")) {
-                return "cloak";
-            }
-            if (turnedOn(held.bands, "bands")) {
-                return "bands";
-            }
+    }
+
+    private static class ActionRow extends TooltipListEntry<Object> {
+        protected final Button button;
+
+        private ActionRow(String key, Runnable action) {
+            super(Component.translatable(key), Optional::empty, false);
+            this.button = Button.builder(Component.translatable(key), pressed -> action.run()).bounds(0, 0, 140, 20).build();
+        }
+
+        @Override
+        public void render(GuiGraphics graphics, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float delta) {
+            button.setWidth(Math.min(140, entryWidth));
+            button.setX(x);
+            button.setY(y);
+            button.render(graphics, mouseX, mouseY, delta);
+        }
+
+        @Override
+        public int getItemHeight() {
+            return 24;
+        }
+
+        @Override
+        public Object getValue() {
             return null;
         }
 
-        private boolean turnedOn(BooleanListEntry entry, String id) {
-            return Boolean.TRUE.equals(entry.getValue()) && !CapeBoard.sampleOn(id);
+        @Override
+        public Optional<Object> getDefaultValue() {
+            return Optional.empty();
         }
 
-        private boolean sampleMatches() {
-            return Boolean.TRUE.equals(held.bands.getValue()) == CapeBoard.sampleOn("bands")
-                    && Boolean.TRUE.equals(held.slide.getValue()) == CapeBoard.sampleOn("slide")
-                    && Boolean.TRUE.equals(held.cloak.getValue()) == CapeBoard.sampleOn("cloak");
+        @Override
+        public List<? extends GuiEventListener> children() {
+            return List.of(button);
         }
 
-        private String exclusive(BooleanListEntry[] entries, String[] ids, String current) {
-            for (int i = 0; i < entries.length; i++) {
-                if (Boolean.TRUE.equals(entries[i].getValue()) && !ids[i].equals(current)) {
-                    return ids[i];
-                }
-            }
+        //? if <1.21 {
+        private boolean dragging;
+
+        @Override
+        public void setFocused(GuiEventListener listener) {
+        }
+
+        @Override
+        public GuiEventListener getFocused() {
             return null;
         }
 
-        private boolean groupMatches(BooleanListEntry[] entries, String[] ids, String current) {
-            for (int i = 0; i < entries.length; i++) {
-                if (Boolean.TRUE.equals(entries[i].getValue()) != ids[i].equals(current)) {
-                    return false;
-                }
-            }
-            return true;
+        @Override
+        public boolean isDragging() {
+            return dragging;
         }
 
-        private WaveCloth.Movement movementPick() {
-            if (Boolean.TRUE.equals(held.classic.getValue()) && !CapeBoard.movementOn(WaveCloth.Movement.CLASSIC)) {
-                return WaveCloth.Movement.CLASSIC;
-            }
-            if (Boolean.TRUE.equals(held.simulation.getValue()) && !CapeBoard.movementOn(WaveCloth.Movement.SIMULATION)) {
-                return WaveCloth.Movement.SIMULATION;
-            }
-            if (Boolean.TRUE.equals(held.dungeons.getValue()) && !CapeBoard.movementOn(WaveCloth.Movement.DUNGEONS)) {
-                return WaveCloth.Movement.DUNGEONS;
-            }
-            if (Boolean.TRUE.equals(held.simulationV2.getValue()) && !CapeBoard.movementOn(WaveCloth.Movement.SIMULATION_V2)) {
-                return WaveCloth.Movement.SIMULATION_V2;
-            }
-            return null;
+        @Override
+        public void setDragging(boolean dragging) {
+            this.dragging = dragging;
         }
+
+        @Override
+        public NarratableEntry.NarrationPriority narrationPriority() {
+            return NarratableEntry.NarrationPriority.NONE;
+        }
+
+        @Override
+        public void updateNarration(NarrationElementOutput output) {
+        }
+        //?}
+
+        @Override
+        public List<? extends NarratableEntry> narratables() {
+            return List.of(button);
+        }
+    }
+
+    private static final class SampleRow extends ActionRow {
+        private final String sample;
+        private SampleRow(String sample) {
+            super("text.quarkos_capes.sample." + sample, () -> {
+                CapeBoard.equipSample(sample);
+                Minecraft.getInstance().setScreen(CapeScreens.openTab(parentScreen, 0));
+            });
+            this.sample = sample;
+        }
+        @Override public void render(GuiGraphics graphics, int index, int y, int x, int entryWidth, int entryHeight, int mouseX, int mouseY, boolean hovered, float delta) {
+            var font = Minecraft.getInstance().font;
+            var texture = switch (sample) {
+                case "slide" -> dev.quarkos.capes.client.render.CapeTextures.slideTexture();
+                case "cloak" -> dev.quarkos.capes.client.render.CapeTextures.cloakTexture();
+                default -> dev.quarkos.capes.client.render.CapeTextures.bandsTexture();
+            };
+            McBridge.capeThumb(graphics, texture, x, y + 2, 20, 32, sample.equals("slide") ? 256 : 64, 32, 64, 32);
+            graphics.drawString(font, font.plainSubstrByWidth(getFieldName().getString(), Math.max(1, entryWidth - 120)), x + 28, y + 14, 0xFFFFFFFF);
+            button.active = !CapeBoard.sampleOn(sample);
+            button.setMessage(Component.translatable(button.active ? "text.quarkos_capes.gallery.equip" : "text.quarkos_capes.gallery.equipped"));
+            button.setWidth(80); button.setX(x + Math.max(28, entryWidth - 84)); button.setY(y + 8);
+            button.render(graphics, mouseX, mouseY, delta);
+        }
+        @Override public int getItemHeight() { return 40; }
     }
 
     private static void attach(Screen screen, AbstractWidget widget) {
@@ -396,5 +402,5 @@ final class ClothCapeScreen {
         }
     }
 }
-//?}
+^///?}
 *///?}

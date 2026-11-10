@@ -16,7 +16,7 @@ public final class ClientSettings {
 
     public boolean showOthers = true;
     public boolean localOnly = true;
-    public String baseUrl = CapeCalls.DEFAULT_BASE;
+    public String baseUrl = CapeCalls.DEFAULT_SERVICE_URL;
     public boolean enableOptifine;
     public boolean enableLabyMod;
     public boolean enableMinecraftCapesMod;
@@ -37,7 +37,7 @@ public final class ClientSettings {
                 Map<String, Object> root = JsonValues.object(JsonValues.parse(Files.readString(file)));
                 settings.showOthers = bool(root, "showOthers", true);
                 settings.localOnly = bool(root, "localOnly", true);
-                if (root.get("baseUrl") instanceof String url && !url.isBlank()) {
+                if (root.get("baseUrl") instanceof String url && dev.quarkos.capes.client.net.ServiceUrl.valid(url)) {
                     settings.baseUrl = url;
                 }
                 settings.enableOptifine = bool(root, "enableOptifine", false);

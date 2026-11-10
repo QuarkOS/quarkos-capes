@@ -5,6 +5,7 @@ import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.render.CapeBook;
 import dev.quarkos.capes.client.render.CapeDraw;
 import dev.quarkos.capes.client.render.CapeLayerWatch;
+import dev.quarkos.capes.client.render.CapeRenderPass;
 import dev.quarkos.capes.client.render.PlayerFacts;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.entity.layers.CapeLayer;
@@ -36,31 +37,39 @@ public class CapeLayerMixin {
     /*@Inject(method = "render", at = @At("HEAD"), cancellable = true)
     private void quarkosCapes(PoseStack pose, MultiBufferSource buffers, int light, AbstractClientPlayer player, float limbSwing, float limbSwingAmount, float partial, float age, float yaw, float pitch, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
+        CapeLayerWatch.textureOverride = null;
         boolean local = client.player == player;
-        if (player.isInvisible() || player.isSpectator()) { ci.cancel(); return; }
+        if (!CapeRenderPass.allowed(CapeRenderPass.guiDepth > 0 || CapeBook.renderingPreview || CapeBook.preview,
+                client.getCameraEntity() == player, client.options.getCameraType().isFirstPerson(), CapeRenderPass.shadow())) {
+            ci.cancel(); return;
+        }
+        if (player.isInvisible() || player.isSpectator() || player.isSleeping()
+                || player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).is(net.minecraft.world.item.Items.ELYTRA)
+                || !(local ? client.options.isModelPartEnabled(PlayerModelPart.CAPE) : player.isModelPartShown(PlayerModelPart.CAPE))) {
+            if (local) CapeLayerWatch.hidden();
+            ci.cancel(); return;
+        }
         //? if <1.21 {
         Identifier vanilla = player.getCloakTextureLocation();
         //?} else {
         Identifier vanilla = player.getSkin() == null ? null : player.getSkin().capeTexture();
         //?}
         CapeBook.Choice choice = CapeDraw.resolve(player.getUUID(), local, vanilla);
-        CapeLayerWatch.textureOverride = null;
-        if (local) {
-            CapeLayerWatch.local(choice.texture());
-        }
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
-            return;
+            if (local) CapeLayerWatch.hidden();
+            ci.cancel(); return;
         }
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1) {
             CapeLayerWatch.textureOverride = choice.texture();
             return;
         }
+        boolean preview = CapeBook.renderingPreview || CapeBook.preview;
         pose.pushPose();
-        pose.translate(0.0F, player.isCrouching() ? 0.2F : 0.0F,
-                player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).isEmpty() ? 0.0F : 0.0625F);
-        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(player.isCrouching() ? 31.0F : 6.0F));
+        ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
+        pose.translate(0.0F, 0.0F, player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).isEmpty() ? 0.0F : 0.0625F);
+        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(6.0F));
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose.last(), consumer, CapeBook.preview ? 15728880 : light, player.getUUID(), choice);
+        CapeDraw.emit(pose.last(), consumer, preview ? 15728880 : light, player.getUUID(), choice, preview);
         pose.popPose();
         ci.cancel();
     }
@@ -96,63 +105,79 @@ public class CapeLayerMixin {
     private void quarkosCapes(PoseStack pose, MultiBufferSource buffers, int light, PlayerRenderState state, float yRot, float xRot, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
         boolean local = client.player != null && client.player.getId() == state.id;
-        if (state.isInvisible || state.isSpectator) { ci.cancel(); return; }
+        boolean preview = CapeBook.renderingPreview || CapeBook.preview;
+        if (!CapeRenderPass.allowed(CapeRenderPass.guiDepth > 0 || preview,
+                client.getCameraEntity() != null && client.getCameraEntity().getId() == state.id,
+                client.options.getCameraType().isFirstPerson(), CapeRenderPass.shadow())) {
+            ci.cancel(); return;
+        }
+        if (state.isInvisible || state.isSpectator
+                || state.chestEquipment.is(net.minecraft.world.item.Items.ELYTRA)
+                || !(local ? client.options.isModelPartEnabled(PlayerModelPart.CAPE) : state.showCape)) {
+            if (local) CapeLayerWatch.hidden();
+            ci.cancel(); return;
+        }
         PlayerFacts.Fact fact = PlayerFacts.byEntity(state.id);
         java.util.UUID id = fact != null ? fact.id() : (local ? client.player.getUUID() : null);
         if (id == null) {
-            if (local) {
-                CapeLayerWatch.local(null);
-            }
+            if (local) CapeLayerWatch.hidden();
             return;
         }
         Identifier vanilla = state.skin == null ? null : state.skin.capeTexture();
         CapeBook.Choice choice = CapeDraw.resolve(id, local, vanilla);
-        if (local) {
-            CapeLayerWatch.local(choice.texture());
-        }
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
-            return;
+            if (local) CapeLayerWatch.hidden();
+            ci.cancel(); return;
         }
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1 && state.skin != null) {
             state.showCape = true;
             Identifier cape = choice.texture();
             state.skin = new PlayerSkin(state.skin.texture(), state.skin.textureUrl(), cape, state.skin.elytraTexture(), state.skin.model(), state.skin.secure());
-            if (CapeBook.preview) {
-                CapeBook.draws++;
-            }
             return;
         }
-        int bright = CapeBook.preview ? 15728880 : light;
-        java.util.UUID drawn = id;
+        int bright = preview ? 15728880 : light;
         pose.pushPose();
-        pose.translate(0.0F, state.isCrouching ? 0.2F : 0.0F, state.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
-        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(state.isCrouching ? 31.0F : 6.0F));
+        ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
+        pose.translate(0.0F, 0.0F, state.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
+        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(6.0F));
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose.last(), consumer, bright, drawn, choice);
+        CapeDraw.emit(pose.last(), consumer, bright, id, choice, preview);
         pose.popPose();
         ci.cancel();
     }
     *///?} else {
+    @org.spongepowered.asm.mixin.Shadow
+    private boolean hasLayer(net.minecraft.world.item.ItemStack stack, net.minecraft.client.resources.model.EquipmentClientInfo.LayerType type) {
+        throw new AssertionError();
+    }
+
     @Inject(method = "submit", at = @At("HEAD"), cancellable = true)
     private void quarkosCapes(PoseStack pose, SubmitNodeCollector collector, int light, AvatarRenderState state, float yRot, float xRot, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
         boolean local = client.player != null && client.player.getId() == state.id;
-        if (state.isInvisible || state.isSpectator) { ci.cancel(); return; }
+        boolean preview = state == CapeBook.previewState;
+        if (!CapeRenderPass.allowed(CapeRenderPass.guiDepth > 0 || preview,
+                client.getCameraEntity() != null && client.getCameraEntity().getId() == state.id,
+                client.options.getCameraType().isFirstPerson(), CapeRenderPass.shadow())) {
+            ci.cancel(); return;
+        }
+        if (state.isInvisible || state.isSpectator || state.hasPose(net.minecraft.world.entity.Pose.SLEEPING)
+                || hasLayer(state.chestEquipment, net.minecraft.client.resources.model.EquipmentClientInfo.LayerType.WINGS)
+                || !(local ? client.options.isModelPartEnabled(PlayerModelPart.CAPE) : state.showCape)) {
+            if (local) CapeLayerWatch.hidden();
+            ci.cancel(); return;
+        }
         PlayerFacts.Fact fact = PlayerFacts.byEntity(state.id);
         java.util.UUID id = fact != null ? fact.id() : (local ? client.player.getUUID() : null);
         if (id == null) {
-            if (local) {
-                CapeLayerWatch.local(null);
-            }
+            if (local) CapeLayerWatch.hidden();
             return;
         }
         Identifier vanilla = state.skin != null && state.skin.cape() != null ? state.skin.cape().texturePath() : null;
         CapeBook.Choice choice = CapeDraw.resolve(id, local, vanilla);
-        if (local) {
-            CapeLayerWatch.local(choice.texture());
-        }
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
-            return;
+            if (local) CapeLayerWatch.hidden();
+            ci.cancel(); return;
         }
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1 && state.skin != null) {
             state.showCape = true;
@@ -164,18 +189,18 @@ public class CapeLayerMixin {
                     state.skin.model(),
                     state.skin.secure()
             );
-            if (CapeBook.preview) {
-                CapeBook.draws++;
-            }
             return;
         }
-        int bright = CapeBook.preview ? 15728880 : light;
+        int bright = preview ? 15728880 : light;
         java.util.UUID drawn = id;
         pose.pushPose();
-        pose.translate(0.0F, state.isCrouching ? 0.2F : 0.0F, state.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
-        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(state.isCrouching ? 31.0F : 6.0F));
+        if (hasLayer(state.chestEquipment, net.minecraft.client.resources.model.EquipmentClientInfo.LayerType.HUMANOID)) {
+            pose.translate(0.0F, -0.053125F, 0.06875F);
+        }
+        ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
+        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(6.0F));
         collector.submitCustomGeometry(pose, McBridge.cutout(choice.texture(), choice.kind()), (entry, consumer) ->
-                CapeDraw.emit(entry, consumer, bright, drawn, choice));
+                CapeDraw.emit(entry, consumer, bright, drawn, choice, preview));
         pose.popPose();
         ci.cancel();
     }

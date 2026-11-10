@@ -3,8 +3,8 @@
   "id": "${id}",
   "version": "${version}",
   "name": "${name}",
-  "description": "A cape you pick, with frames, cloth, and a cube model, plus read-only public cape APIs and a shared gallery.",
-  "authors": ["Emilio Schwaiger"],
+  "description": "Choose, browse and share capes with animation, cloth physics and custom models.",
+  "authors": ["Emilio Schwaiger (QuarkOS)"],
   "license": "MIT",
   "icon": "assets/quarkos_capes/icon.png",
   "environment": "client",
@@ -18,10 +18,14 @@
     "fabricloader": ">=0.16.0",
     "minecraft": "${minecraft}",
     "java": "${java}",
-    "fabric-api": "*",
-    "cloth-config": "*"
+    "fabric-api": ">=${fabric_api}",
+    "cloth-config": ">=${cloth}"
   },
   "suggests": {
-    "modmenu": "*"
+    "modmenu": ">=${modmenu}"
+  },
+  "contact": {
+    "homepage": "https://example.org/quarkos-capes",
+    "sources": "https://example.org/quarkos-capes/source"
   }
 }
