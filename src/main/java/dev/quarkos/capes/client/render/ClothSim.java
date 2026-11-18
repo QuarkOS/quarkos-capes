@@ -13,6 +13,8 @@ public final class ClothSim {
         final WaveCloth.State state = new WaveCloth.State();
         WaveCloth.Movement movement = WaveCloth.Movement.SIMULATION_V2;
         int lastDraw;
+        int entityId = -1;
+        int playerTick = -1;
         float gravX;
         float gravY = -1f;
         float gravZ;
@@ -38,6 +40,13 @@ public final class ClothSim {
                 SLOTS.remove(entry.getKey(), slot);
                 continue;
             }
+            if (slot.entityId != fact.entityId()) {
+                slot.entityId = fact.entityId();
+                slot.playerTick = -1;
+                slot.state.reset();
+            }
+            if (slot.playerTick == fact.tickAge() && slot.movement == settings.movement()) continue;
+            slot.playerTick = fact.tickAge();
             WaveCloth.Motion motion = motion(fact, slot);
             if (slot.movement != settings.movement()) {
                 slot.movement = settings.movement();
@@ -70,13 +79,13 @@ public final class ClothSim {
 
     private static WaveCloth.Motion motion(PlayerFacts.Fact fact, Slot slot) {
         return WaveCloth.playerMotion(
-                fact.x() - fact.px(), fact.y() - fact.py(), fact.z() - fact.pz(), fact.yRot(),
+                fact.x() - fact.px(), fact.y() - fact.py(), fact.z() - fact.pz(), fact.bodyYaw(), fact.turn(),
                 fact.underwater(),
                 fact.swimming(),
                 fact.xRot(),
                 fact.sneaking(),
                 fact.sneakStarted(),
-                System.currentTimeMillis(),
+                fact.tickAge() * 50L,
                 slot.gravX,
                 slot.gravY,
                 slot.gravZ

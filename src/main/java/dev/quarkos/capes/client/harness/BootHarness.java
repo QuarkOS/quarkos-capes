@@ -36,6 +36,7 @@ public final class BootHarness {
             if (++opened < 12) return;
             // Resolve every configured target: title-only boot would otherwise leave cape mixins unloaded.
             Class<?>[] targets = {
+                    net.minecraft.client.gui.screens.PauseScreen.class,
                     net.minecraft.client.renderer.entity.layers.CapeLayer.class,
                     net.minecraft.client.Camera.class, net.minecraft.client.player.AbstractClientPlayer.class,
                     //? if >=26.2 {

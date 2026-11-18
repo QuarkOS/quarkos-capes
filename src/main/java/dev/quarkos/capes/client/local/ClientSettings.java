@@ -12,11 +12,11 @@ import java.util.Map;
 
 /** Viewer settings in {@code config/quarkos_capes.json}. Defaults keep the network idle. */
 public final class ClientSettings {
-    private static ClientSettings current = new ClientSettings();
+    private static volatile ClientSettings current = new ClientSettings();
 
     public boolean showOthers = true;
-    public boolean localOnly = true;
-    public String baseUrl = CapeCalls.DEFAULT_SERVICE_URL;
+    public volatile boolean localOnly = true;
+    public volatile String baseUrl = CapeCalls.DEFAULT_SERVICE_URL;
     public boolean enableOptifine;
     public boolean enableLabyMod;
     public boolean enableMinecraftCapesMod;
@@ -38,7 +38,7 @@ public final class ClientSettings {
                 settings.showOthers = bool(root, "showOthers", true);
                 settings.localOnly = bool(root, "localOnly", true);
                 if (root.get("baseUrl") instanceof String url && dev.quarkos.capes.client.net.ServiceUrl.valid(url)) {
-                    settings.baseUrl = url;
+                    settings.baseUrl = url.trim();
                 }
                 settings.enableOptifine = bool(root, "enableOptifine", false);
                 settings.enableLabyMod = bool(root, "enableLabyMod", false);

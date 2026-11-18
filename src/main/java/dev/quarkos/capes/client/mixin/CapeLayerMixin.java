@@ -178,7 +178,7 @@ public class CapeLayerMixin {
             return;
         }
         Identifier vanilla = state.skin != null && state.skin.cape() != null ? state.skin.cape().texturePath() : null;
-        CapeBook.Choice choice = CapeDraw.resolve(id, local, vanilla);
+        CapeBook.Choice choice = CapeDraw.resolve(id, local, vanilla, preview);
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
             if (local) CapeLayerWatch.hidden();
             ci.cancel(); return;
@@ -195,20 +195,12 @@ public class CapeLayerMixin {
             );
             return;
         }
-        int bright = preview ? 15728880 : light;
-        java.util.UUID drawn = id;
         pose.pushPose();
         if (hasLayer(state.chestEquipment, net.minecraft.client.resources.model.EquipmentClientInfo.LayerType.HUMANOID)) {
             pose.translate(0.0F, -0.053125F, 0.06875F);
         }
         ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
-        //? if >=26.1 {
-        /*pose.rotateDegrees(com.mojang.math.Axis.XP, 6.0F);
-        *///?} else {
-        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(6.0F));
-        //?}
-        collector.submitCustomGeometry(pose, McBridge.cutout(choice.texture(), choice.kind()), (entry, consumer) ->
-                CapeDraw.emit(entry, consumer, bright, drawn, choice, preview));
+        CapeDraw.submit(pose, collector, light, state, id, choice, preview);
         pose.popPose();
         ci.cancel();
     }

@@ -72,7 +72,11 @@ public final class WaveCloth {
             float gravZ
     ) {
         public static Motion still() {
-            return new Motion(0, 0, 0, false, false, 0, false, false, 0, 0, -1, 0);
+            return idle(0);
+        }
+
+        public static Motion idle(long timeMs) {
+            return new Motion(0, 0, 0, false, false, 0, false, false, timeMs, 0, -1, 0);
         }
     }
 
@@ -80,11 +84,18 @@ public final class WaveCloth {
     public static Motion playerMotion(double dx, double dy, double dz, float yaw, boolean underwater,
                                       boolean swimming, float pitch, boolean sneaking, boolean sneakStarted,
                                       long timeMs, float gravX, float gravY, float gravZ) {
+        return playerMotion(dx, dy, dz, yaw, 0f, underwater, swimming, pitch, sneaking, sneakStarted,
+                timeMs, gravX, gravY, gravZ);
+    }
+
+    public static Motion playerMotion(double dx, double dy, double dz, float yaw, float turn, boolean underwater,
+                                      boolean swimming, float pitch, boolean sneaking, boolean sneakStarted,
+                                      long timeMs, float gravX, float gravY, float gravZ) {
         if (!Double.isFinite(dx) || !Double.isFinite(dy) || !Double.isFinite(dz)
                 || dx * dx + dy * dy + dz * dz > 16.0) dx = dy = dz = 0;
         double radians = Math.toRadians(yaw);
         float forward = (float) (-dx * Math.sin(radians) + dz * Math.cos(radians));
-        float lateral = (float) (dx * Math.cos(radians) + dz * Math.sin(radians));
+        float lateral = (float) (dx * Math.cos(radians) + dz * Math.sin(radians)) - clamp(turn, -45f, 45f) * 0.04f;
         return new Motion(forward, (float) dy, lateral, underwater, swimming, pitch, sneaking, sneakStarted,
                 timeMs, gravX, gravY, gravZ);
     }
@@ -147,16 +158,18 @@ public final class WaveCloth {
 
     private static ClassicPose classic(Settings settings, Motion motion, float[] pitch, float[] roll) {
         Settings tuned = settings.clamped();
-        float trail = clamp(motion.forward * 1.6f, -0.35f, 1.25f);
+        float trail = clamp(Math.abs(motion.forward) * 2.8f, 0f, 1.25f) / weight(tuned, motion);
         float lift = clamp(-motion.vertical * (tuned.heightMultiplier / 6f) * 0.4f, -0.7f, 0.9f);
         if (motion.sneakStarted) {
             lift += 0.3f;
         }
-        float side = tuned.movement == Movement.SIMULATION ? 0f : motion.lateral * tuned.straveMultiplier * 0.08f;
+        float side = motion.lateral * tuned.straveMultiplier * 0.08f;
+        double travel = ripplePhase(motion);
         for (int i = 0; i < SEGMENTS; i++) {
             float along = i / (float) (SEGMENTS - 1);
-            pitch[i] = (trail + lift) * along + windBend(tuned, motion, i);
-            roll[i] = side * along;
+            float ripple = (float) Math.sin(travel - along * 6.0) * (0.09f + Math.min(0.25f, trail)) * along;
+            pitch[i] = (trail + lift) * along + ripple + windBend(tuned, motion, i);
+            roll[i] = (side + 0.035f * (float) Math.sin(travel * 0.6)) * along;
         }
         return new ClassicPose(pitch, roll);
     }
@@ -204,10 +217,8 @@ public final class WaveCloth {
      * Every link of the shape is at most one rest length.
      */
     private static void shape(Settings tuned, Motion motion, float[] tx, float[] ty, float[] tz) {
-        float gravity = motion.underwater ? tuned.gravity / 10f : tuned.gravity;
-        float weight = gravity / 25f;
         float speed = Math.abs(motion.forward);
-        float lift = liftDegrees(speed) / (0.65f + 0.35f * weight);
+        float lift = liftDegrees(speed) / weight(tuned, motion);
         if (motion.vertical > 0f) {
             lift += Math.min(12f, motion.vertical * tuned.heightMultiplier);
         } else if (motion.vertical < 0f) {
@@ -220,7 +231,6 @@ public final class WaveCloth {
             lift *= 0.55f;
         }
         lift = clamp(lift, 0f, 80f);
-        float dir = 1f; // The body prevents the chain from swinging through the torso when reversing.
         float sideAmp = tuned.movement == Movement.SIMULATION ? 0f : motion.lateral * tuned.straveMultiplier * 0.08f;
         if (tuned.computeGravityVector) {
             sideAmp += motion.gravX * 0.15f;
@@ -231,21 +241,23 @@ public final class WaveCloth {
         ty[0] = 0f;
         tz[0] = 0f;
         float pitch = (float) Math.toRadians(lift);
-        float dx = (float) Math.sin(pitch) * dir;
+        float dx = (float) Math.sin(pitch);
         float dy = -(float) Math.cos(pitch);
         // Perpendicular to the hang, in the swing plane, so the ripple is a belly in the cloth.
-        float px = (float) Math.cos(pitch) * dir;
+        float px = (float) Math.cos(pitch);
         float py = (float) Math.sin(pitch);
-        // Double, not float. currentTimeMillis * a small rate underflows a float and the wave freezes.
-        double travel = motion.timeMs * 0.008;
-        float amp = speed < 0.03f ? 0f : 3.2f;
+        double travel = ripplePhase(motion);
+        float speedBlend = clamp(speed / 0.27f, 0f, 1f);
+        float amp = 0.65f + 2.55f * speedBlend;
+        float idleBelly = 0.65f * (1f - speedBlend);
+        float idleSway = tuned.movement == Movement.SIMULATION ? 0f : 0.24f * (float) Math.sin(travel * 0.6);
         for (int i = 1; i < SEGMENTS; i++) {
             float along = i / (float) (SEGMENTS - 1);
             // Zero at the shoulder and the hem, so the ripple is a belly and the chord stays at the lift.
-            float bulge = (float) (Math.sin(travel - along * 6.0) * amp * Math.sin(along * Math.PI));
+            float bulge = (idleBelly + (float) Math.sin(travel - along * 6.0) * amp) * (float) Math.sin(along * Math.PI);
             tx[i] = Math.max(0f, dx * i + px * bulge);
             ty[i] = dy * i + py * bulge;
-            tz[i] = sideAmp * along * 4f;
+            tz[i] = (sideAmp * 4f + idleSway) * along;
         }
         for (int i = 0; i < SEGMENTS - 1; i++) {
             float lx = tx[i + 1] - tx[i];
@@ -264,7 +276,7 @@ public final class WaveCloth {
     /** How far a moving cape swings back from a straight hang, in degrees. */
     private static float liftDegrees(float speed) {
         if (speed < 0.03f) {
-            return 0f;
+            return 52f * speed / 0.03f;
         }
         if (speed < 0.2f) {
             float t = (speed - 0.03f) / 0.17f;
@@ -272,6 +284,14 @@ public final class WaveCloth {
         }
         float t = Math.min(1f, (speed - 0.2f) / 0.25f);
         return 64f + t * 10f;
+    }
+
+    private static float weight(Settings settings, Motion motion) {
+        return 0.65f + 0.35f * settings.gravity / (motion.underwater ? 250f : 25f);
+    }
+
+    private static double ripplePhase(Motion motion) {
+        return motion.timeMs * (motion.underwater ? 0.003 : 0.008);
     }
 
     public static void run(State state, Settings settings, Motion motion, int ticks) {

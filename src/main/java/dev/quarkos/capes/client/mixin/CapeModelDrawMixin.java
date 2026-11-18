@@ -1,6 +1,7 @@
 package dev.quarkos.capes.client.mixin;
 
 import dev.quarkos.capes.client.render.CapeBook;
+import dev.quarkos.capes.client.render.CapeRenderPass;
 import dev.quarkos.capes.client.render.PlayerFacts;
 import net.minecraft.client.Minecraft;
 import org.spongepowered.asm.mixin.Mixin;
@@ -51,12 +52,18 @@ public class CapeModelDrawMixin {
     private void quarkosDrawn(SubmitNodeStorage.ModelSubmit<?> submit, RenderType type, VertexConsumer consumer,
                               OutlineBufferSource outlines, MultiBufferSource.BufferSource crumbling, CallbackInfo ci) {
         //?}
-        if (!(submit.model() instanceof PlayerCapeModel) || !(submit.state() instanceof AvatarRenderState state)) return;
+        if (!(submit.model() instanceof PlayerCapeModel model) || !(submit.state() instanceof AvatarRenderState state)) return;
         var client = Minecraft.getInstance();
         var fact = PlayerFacts.byEntity(state.id);
         var id = fact != null ? fact.id() : client.player != null && client.player.getId() == state.id ? client.player.getUUID() : null;
-        if (id != null && state.skin != null && state.skin.cape() != null)
-            CapeBook.drawn(id, state.skin.cape().texturePath(), state == CapeBook.previewState);
+        if (id == null || state.skin == null || state.skin.cape() == null) return;
+        boolean preview = CapeRenderPass.guiDepth > 0 || state == CapeBook.previewState;
+        CapeBook.drawn(id, state.skin.cape().texturePath(), preview);
+        if (dev.quarkos.capes.DevFlags.HARNESS && !preview && !CapeRenderPass.shadow()
+                && dev.quarkos.capes.client.harness.CapeMotionCapture.tracking(id, CapeBook.Kind.QUAD)) {
+            var cape = model.body.getChild("cape");
+            dev.quarkos.capes.client.harness.CapeMotionCapture.vanilla(id, cape.xRot, cape.yRot, cape.zRot);
+        }
     }
     //?}
 }

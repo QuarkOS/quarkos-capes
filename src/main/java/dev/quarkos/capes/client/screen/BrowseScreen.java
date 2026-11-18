@@ -2,6 +2,7 @@ package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.local.ClientSettings;
 import dev.quarkos.capes.client.local.OwnerCape;
+import dev.quarkos.capes.client.net.CapeHttp;
 import dev.quarkos.capes.client.net.CatalogClient;
 import dev.quarkos.capes.client.net.SiteApi;
 import dev.quarkos.capes.client.screen.ui.CapeTheme;
@@ -105,7 +106,8 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
     }
 
     @Override protected String namespace() { return "browse"; }
-    @Override protected boolean offline() { return catalog.offline(); }
+    @Override protected boolean localOnly() { return catalog.offline(); }
+    @Override protected CapeHttp.ServiceIssue serviceIssue() { return catalog == SITE ? CapeHttp.serviceIssue() : null; }
     @Override protected boolean equipped(CatalogClient.Item item) { return isWearing(item); }
     @Override protected String key(CatalogClient.Item item) { return item.source() + "/" + item.id(); }
     @Override protected Component title(CatalogClient.Item item) { return Component.literal(item.title()); }
@@ -143,13 +145,15 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
 
     @Override
     protected void openedOnline() {
+        if (catalog == SITE && minecraft.player == null) return;
         int request = ++wearingRequest;
         catalog.wearing(item -> {
             if (minecraft.screen != this || request != wearingRequest || offline()) return;
             wearing = item;
             rebuild();
         }, error -> {
-            if (minecraft.screen == this && request == wearingRequest && status().isBlank()) setStatus(error);
+            if (minecraft.screen == this && request == wearingRequest && !offline() && status().isBlank()
+                    && !error.equals(SiteApi.message("signin"))) setStatus(error);
         });
     }
 

@@ -2,6 +2,8 @@ package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.local.ClientSettings;
 import dev.quarkos.capes.client.local.OwnerCape;
+import dev.quarkos.capes.client.net.CapeHttp;
+import dev.quarkos.capes.client.net.ServiceResponse;
 import dev.quarkos.capes.client.render.CapeTextures;
 import dev.quarkos.capes.client.screen.ui.CapeGridLayout;
 import dev.quarkos.capes.client.screen.ui.CapeGridLayout.Rect;
@@ -19,6 +21,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.function.Consumer;
 
@@ -42,7 +45,8 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
     private Rect body, details, statusLine;
     private EditBox search;
     private int titleWidth, emptyY, page, offset, generation;
-    private boolean compact, initialized, returnToLastPage;
+    private boolean compact, initialized, returnToLastPage, openedOnline;
+    private CapeHttp.ServiceIssue displayedIssue;
     private Integer total;
     private String input = "", query = "", cursor = "", next;
     private String status = "";
@@ -70,7 +74,9 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         requestPreview(item, ready, error);
     }
 
-    protected boolean offline() { return ClientSettings.get().localOnly; }
+    protected boolean localOnly() { return ClientSettings.get().localOnly; }
+    protected CapeHttp.ServiceIssue serviceIssue() { return null; }
+    protected final boolean offline() { return localOnly() || serviceIssue() != null; }
     protected Action headerAction() { return null; }
     protected Component creditNotice(T item) { return null; }
     protected void openedOnline() { }
@@ -80,6 +86,11 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
     public final String status() { return status; }
     public final boolean isLoading() { return loading; }
     public final boolean previewReady() { return draft != null; }
+    public final String unavailableUrl() { return displayedIssue == null ? "" : displayedIssue.url(); }
+    public final Component emptyHeading() {
+        return text(displayedIssue != null ? "site.unreachable"
+                : localOnly() ? "site.offline_title" : loading ? "status.loading" : "ui.no_capes");
+    }
     protected final OwnerCape draft() { return draft; }
 
     public final Component pageLabel() {
@@ -101,7 +112,11 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         }
         initialized = true;
         loadPage();
-        if (!offline()) openedOnline();
+    }
+
+    @Override
+    public void tick() {
+        if (!Objects.equals(displayedIssue, serviceIssue())) submitSearch();
     }
 
     protected final void searchFor(String value) {
@@ -131,7 +146,8 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         boolean focused = search != null && search.isFocused();
         resetWidgets();
 
-        int sideWidth = offline() ? 0 : CapeGridLayout.previewWidth(frame);
+        boolean offline = displayedIssue != null || localOnly();
+        int sideWidth = offline ? 0 : CapeGridLayout.previewWidth(frame);
         int footerY = frame.bottom() - CapeTheme.CONTROL;
         List<Filter> filters = filters();
         boolean regularSingleRow = frame.width() >= 512 || filters.isEmpty();
@@ -145,6 +161,16 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         button(text("site.back"), new Rect(frame.right() - backWidth, frame.y(), backWidth, CapeTheme.CONTROL), Face.BUTTON, this::onClose);
         if (headerAction != null) {
             addAction(headerAction, new Rect(headerLeft, frame.y(), headerActionWidth, CapeTheme.CONTROL));
+        }
+        if (displayedIssue != null) {
+            titleWidth = headerLeft - frame.x() - 7;
+            body = new Rect(frame.x(), frame.y() + 26, frame.width(), frame.height() - 26);
+            details = new Rect(0, 0, 0, 0);
+            statusLine = new Rect(0, 0, 0, 0);
+            search = null;
+            emptyY = body.centerY() - 28;
+            emptyAction("site.retry_action", wrongService() ? 39 : 28, this::retryService);
+            return;
         }
         // Move paging into the header when two card rows need the full body height.
         Rect headerPager = compact ? new Rect(headerLeft - 180, frame.y(), 174, CapeTheme.CONTROL) : null;
@@ -162,17 +188,17 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         search.setValue(input);
         updateSuggestion();
         search.setResponder(value -> { input = value; updateSuggestion(); });
-        if (focused && !offline()) setInitialFocus(search);
-        search.active = !offline();
+        if (focused && !offline) setInitialFocus(search);
+        search.active = !offline;
         button(text("site.search"), new Rect(frame.x() + searchWidth - submitWidth, controlsY, submitWidth, CapeTheme.CONTROL),
-                Face.BUTTON, this::submitSearch).active = !offline() && !loading;
+                Face.BUTTON, this::submitSearch).active = !offline && !loading;
         Rect filterRow = new Rect(frame.right() - filterWidth, controlsY + (singleRow ? 0 : 24), filterWidth, CapeTheme.CONTROL);
         for (int i = 0; i < filters.size(); i++) {
             Filter filter = filters.get(i);
             button(filter.label(), filterRow.cell(i, filters.size(), 4), Face.CYCLE, () -> {
                 filter.cycle().run();
                 submitSearch();
-            }).active = !offline();
+            }).active = !offline;
         }
 
         body = compact ? CapeGridLayout.gridPanel(frame, controlsY + 24, frame.bottom(), sideWidth) : regularBody;
@@ -196,13 +222,15 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
             loadThumbnail(item);
         }
 
-        List<Action> actions = offline() ? List.of() : actions();
+        List<Action> actions = offline ? List.of() : actions();
         int compactActionWidth = sideWidth == 0 && !actions.isEmpty() ? frame.width() * 52 / 100 : 0;
         int pagerWidth = Math.min(204, body.width() - (compactActionWidth > 0 ? compactActionWidth + 6 : 0));
         Rect pager = compact ? headerPager : new Rect(body.x(), footerY, pagerWidth, CapeTheme.CONTROL);
         button(text("site.previous"), pager.cell(0, 3, 4), Face.BUTTON, () -> turn(-1)).active = !loading && (page > 0 || !history.isEmpty());
         button(text("site.next"), pager.cell(1, 3, 4), Face.BUTTON, () -> turn(1)).active = !loading && (page + 1 < grid.pages(items.size()) || next != null);
-        button(text("site.retry_button"), pager.cell(2, 3, 4), Face.BUTTON, this::loadPage).active = !loading && !offline();
+        if (!offline) {
+            button(text("site.retry_button"), pager.cell(2, 3, 4), Face.BUTTON, this::loadPage).active = !loading;
+        }
 
         if (sideWidth > 0) {
             int inset = 7;
@@ -218,13 +246,15 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
             addActions(actions, new Rect(frame.right() - compactActionWidth, footerY, compactActionWidth, CapeTheme.CONTROL));
         }
 
-        emptyY = body.centerY() - (offline() ? 24 : 4);
-        if (offline()) {
-            int w = Math.min(112, body.width() - 16);
-            int y = Math.min(body.bottom() - CapeTheme.CONTROL - 4, emptyY + 28);
-            button(text("site.go_online"), new Rect(body.centerX() - w / 2, Math.max(body.y() + 3, y), w, CapeTheme.CONTROL),
-                    Face.PRIMARY, this::goOnline);
-        }
+        emptyY = body.centerY() - (offline ? 24 : 4);
+        if (offline) emptyAction("site.go_online", 28, this::goOnline);
+    }
+
+    private void emptyAction(String label, int offset, Runnable action) {
+        int w = Math.min(112, body.width() - 16);
+        int y = Math.min(body.bottom() - CapeTheme.CONTROL - 4, emptyY + offset);
+        button(text(label), new Rect(body.centerX() - w / 2, Math.max(body.y() + 3, y), w, CapeTheme.CONTROL),
+                Face.PRIMARY, action);
     }
 
     private void addAction(Action action, Rect rect) {
@@ -243,10 +273,16 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         CapeBoard.localOnly(false);
         CapeBoard.save(ignored -> { });
         submitSearch();
-        openedOnline();
+    }
+
+    private void retryService() {
+        CapeHttp.retryService();
+        submitSearch();
     }
 
     private void loadPage() {
+        displayedIssue = serviceIssue();
+        if (displayedIssue != null) openedOnline = false;
         int ticket = ++generation;
         clearArt();
         selection.select(null);
@@ -268,6 +304,10 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
             status = result.status();
             loading = false;
             rebuild();
+            if (!openedOnline) {
+                openedOnline = true;
+                openedOnline();
+            }
         }, error -> {
             if (!current(ticket)) return;
             loading = false;
@@ -360,23 +400,23 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
     //?}
 
     private boolean scrollGrid(double x, double y, double vertical) {
-        if (!body.contains(x, y) || vertical == 0) return false;
+        if (offline() || !body.contains(x, y) || vertical == 0) return false;
         turn(vertical > 0 ? -1 : 1);
         return true;
     }
 
     //? if >=1.21.9 {
     @Override public boolean keyPressed(net.minecraft.client.input.KeyEvent event) {
-        return submitKey(event.key()) || super.keyPressed(event);
+        return submitKey(event.isConfirmation()) || super.keyPressed(event);
     }
     //?} else {
     /*@Override public boolean keyPressed(int key, int scan, int modifiers) {
-        return submitKey(key) || super.keyPressed(key, scan, modifiers);
+        return submitKey(key == 257 || key == 335) || super.keyPressed(key, scan, modifiers);
     }
     *///?}
 
-    private boolean submitKey(int key) {
-        if (search == null || !search.isFocused() || offline() || (key != 257 && key != 335)) return false;
+    private boolean submitKey(boolean confirm) {
+        if (!confirm || search == null || !search.isFocused() || offline()) return false;
         submitSearch();
         return true;
     }
@@ -420,12 +460,20 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
     }
 
     private void drawEmpty(GuiGraphics graphics) {
-        Component heading = text(offline() ? "site.offline_title" : loading ? "status.loading" : "ui.no_capes");
-        int y = offline() ? Math.max(body.y() + 3, emptyY) : emptyY;
-        CapeTheme.centered(graphics, font, heading, body.centerX(), y, body.width() - 12, CapeTheme.TEXT);
-        if (offline() && body.height() >= 63) {
-            CapeTheme.centered(graphics, font, text("site.offline_help"), body.centerX(), y + 12, body.width() - 12, CapeTheme.MUTED);
+        boolean offline = displayedIssue != null || localOnly();
+        int y = offline ? Math.max(body.y() + 3, emptyY) : emptyY;
+        CapeTheme.centered(graphics, font, emptyHeading(), body.centerX(), y, body.width() - 12, CapeTheme.TEXT);
+        if (offline && body.height() >= 63) {
+            Component detail = displayedIssue == null ? text("site.offline_help") : Component.literal(displayedIssue.url());
+            CapeTheme.centered(graphics, font, detail, body.centerX(), y + 12, body.width() - 12, CapeTheme.MUTED);
+            if (wrongService()) {
+                CapeTheme.centered(graphics, font, text("site.wrong_service"), body.centerX(), y + 23, body.width() - 12, CapeTheme.MUTED);
+            }
         }
+    }
+
+    private boolean wrongService() {
+        return displayedIssue != null && displayedIssue.reason() == ServiceResponse.OfflineReason.WRONG_SERVICE;
     }
 
     @Override
@@ -434,6 +482,7 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         selection.select(null);
         clearArt();
         initialized = false;
+        openedOnline = false;
         super.removed();
     }
 

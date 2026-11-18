@@ -1,7 +1,9 @@
 package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.local.ClientSettings;
+import dev.quarkos.capes.client.local.LocalFiles;
 import dev.quarkos.capes.client.local.OwnerCape;
+import dev.quarkos.capes.client.net.CapeHttp;
 import dev.quarkos.capes.client.render.CapeTextures;
 import dev.quarkos.capes.client.screen.ui.CapeGridLayout;
 import dev.quarkos.capes.client.screen.ui.CapeGridLayout.Rect;
@@ -49,7 +51,14 @@ public final class CapeScreen extends CapeUiScreen {
         this.parent = parent;
     }
 
+    @Override
+    public void added() {
+        super.added();
+        CapeHttp.checkService();
+    }
+
     public String status() { return note; }
+    public boolean online() { return !ClientSettings.get().localOnly && CapeHttp.serviceIssue() == null; }
     public Button sampleCard(String id) { return cards.get(id); }
     public Button styleChip(CapeStyles.Chip chip) { return chips.get(chip); }
 
@@ -218,7 +227,7 @@ public final class CapeScreen extends CapeUiScreen {
                     sidebar.bottom() - 11, sidebar.width() - 14, CapeTheme.MUTED);
         }
         CapeTheme.panel(graphics, footer);
-        CapeTheme.connectionStatus(graphics, font, statusPill, !ClientSettings.get().localOnly);
+        CapeTheme.connectionStatus(graphics, font, statusPill, online());
         if (!note.isBlank()) {
             int noteX = statusPill.right() + 8;
             int noteWidth = actions.x() - noteX - 4;
@@ -232,6 +241,7 @@ public final class CapeScreen extends CapeUiScreen {
 
     @Override
     public void removed() {
+        LocalFiles.autosave(true);
         clearCurrentTexture();
         super.removed();
     }

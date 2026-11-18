@@ -133,25 +133,18 @@ public class MissingCapeLayer extends RenderLayer {
             return;
         }
         Identifier vanilla = avatar.skin != null && avatar.skin.cape() != null ? avatar.skin.cape().texturePath() : null;
-        CapeBook.Choice choice = CapeDraw.resolve(id, local, vanilla);
+        boolean preview = CapeRenderPass.guiDepth > 0 || avatar == CapeBook.previewState;
+        CapeBook.Choice choice = CapeDraw.resolve(id, local, vanilla, preview);
         if (local) {
             CapeLayerWatch.local(choice.texture());
         }
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) {
             return;
         }
-        boolean preview = CapeRenderPass.guiDepth > 0 || avatar == CapeBook.previewState;
-        int bright = preview ? 15728880 : light;
-        java.util.UUID drawn = id;
         pose.pushPose();
-        pose.translate(0.0F, avatar.isCrouching ? 0.2F : 0.0F, avatar.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
-        //? if >=26.1 {
-        /*pose.rotateDegrees(com.mojang.math.Axis.XP, avatar.isCrouching ? 31.0F : 6.0F);
-        *///?} else {
-        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(avatar.isCrouching ? 31.0F : 6.0F));
-        //?}
-        collector.submitCustomGeometry(pose, McBridge.cutout(choice.texture(), choice.kind()), (entry, consumer) ->
-                CapeDraw.emit(entry, consumer, bright, drawn, choice, preview));
+        if (!avatar.chestEquipment.isEmpty()) pose.translate(0.0F, -0.053125F, 0.06875F);
+        if (owner.getModel() instanceof net.minecraft.client.model.player.PlayerModel model) model.body.translateAndRotate(pose);
+        CapeDraw.submit(pose, collector, light, avatar, id, choice, preview);
         pose.popPose();
     }
     //?}

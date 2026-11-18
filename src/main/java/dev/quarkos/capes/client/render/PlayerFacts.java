@@ -1,6 +1,7 @@
 package dev.quarkos.capes.client.render;
 
 import net.minecraft.client.Minecraft;
+import net.minecraft.util.Mth;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.entity.player.PlayerModelPart;
@@ -24,6 +25,9 @@ public final class PlayerFacts {
             boolean capePart,
             float xRot,
             float yRot,
+            float bodyYaw,
+            float turn,
+            int tickAge,
             double x,
             double y,
             double z,
@@ -73,6 +77,9 @@ public final class PlayerFacts {
                     player.isModelPartShown(PlayerModelPart.CAPE),
                     player.getXRot(),
                     player.getYRot(),
+                    player.yBodyRot,
+                    previous == null ? 0f : Mth.wrapDegrees(player.getYRot() - previous.yRot()),
+                    player.tickCount,
                     player.getX(),
                     player.getY(),
                     player.getZ(),

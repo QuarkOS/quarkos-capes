@@ -184,6 +184,7 @@ tasks {
                 var next = line
                 if (legacyCapeMixin) next = next.replace("ElytraTextureMixin", "ElytraTextureMixin121")
                 if (unobfuscated) next = next.replace("JAVA_21", "JAVA_${requiredJava.majorVersion}")
+                if (sc.current.parsed >= "26.3") next = next.replace("\"CapePauseButtonMixin\"", "\"CapePauseButtonMixin\", \"CapeKeyMixin\"")
                 if (releaseBuild) {
                     next = next.replace(", \"ShotCameraMixin\", \"ShotSkinMixin\"", "")
                 }

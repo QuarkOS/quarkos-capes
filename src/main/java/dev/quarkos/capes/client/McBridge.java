@@ -283,7 +283,11 @@ public final class McBridge {
                     new Vector3f(0f, player.getBbHeight() / 2f, 0f), pose, camera, player);
             *///?} else {
             var state = Minecraft.getInstance().getEntityRenderDispatcher().extractEntity(player, 1f);
+            dev.quarkos.capes.client.render.CapeBook.previewState = state;
             state.lightCoords = 15728880;
+            if (state instanceof net.minecraft.client.renderer.entity.state.AvatarRenderState avatar) {
+                avatar.capeFlap = avatar.capeLean = avatar.capeLean2 = 0f;
+            }
             if (state instanceof net.minecraft.client.renderer.entity.state.LivingEntityRenderState living) {
                 living.bodyRot = 180f; living.yRot = 0f; living.xRot = 0f;
                 if (living.scale != 0f && living.scale != 1f) {

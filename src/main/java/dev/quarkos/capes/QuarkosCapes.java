@@ -58,7 +58,8 @@ public final class QuarkosCapes implements ClientModInitializer {
             CapeHttp.tick(client);
             dev.quarkos.capes.client.net.SiteApi.tick(client);
         }
-        if ((client.screen == null || client.screen instanceof net.minecraft.client.gui.screens.TitleScreen) && OPEN != null && OPEN.consumeClick()) {
+        if (client.getOverlay() == null && (client.screen == null && client.player != null
+                || client.screen instanceof net.minecraft.client.gui.screens.TitleScreen) && OPEN != null && OPEN.consumeClick()) {
             McBridge.setScreen(client, CapeScreens.open(client.screen));
         }
         if (Boolean.getBoolean("quarkos_capes.prodSmoke")) {
@@ -69,6 +70,7 @@ public final class QuarkosCapes implements ClientModInitializer {
         if (!CapeScreens.isSettings(client.screen)) {
             CapeBook.preview = false;
             CapeBook.draft = null;
+            CapeBook.previewState = null;
         }
         if (Boolean.getBoolean("quarkos_capes.store")) {
             dev.quarkos.capes.client.StoreCapture.tick(client);

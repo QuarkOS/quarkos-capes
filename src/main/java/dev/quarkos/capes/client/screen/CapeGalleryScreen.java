@@ -35,6 +35,8 @@ public final class CapeGalleryScreen extends CapeBrowserScreen<CapeGalleryScreen
 
     public void search(String query) { searchFor(query); }
 
+    @Override protected boolean localOnly() { return false; }
+
     public List<GalleryPages.Entry> sharedEntries() {
         return items().stream().map(Row::entry).filter(java.util.Objects::nonNull).toList();
     }
@@ -113,17 +115,18 @@ public final class CapeGalleryScreen extends CapeBrowserScreen<CapeGalleryScreen
                         && (id.contains(needle) || name.toLowerCase(Locale.ROOT).contains(needle))) samples.put(name.trim(), row);
             }
         }
-        if (source == 1) {
+        if (source == 1 || ClientSettings.get().localOnly) {
             ready.accept(results(List.copyOf(samples.values()), null, ""));
             return;
         }
+        if (!samples.isEmpty()) ready.accept(results(List.copyOf(samples.values()), null, ""));
         CapeHttp.gallery(query, STYLES[style], 20, cursor, result -> {
             List<Row> rows = merge(query, samples, result.entries());
             String status = query.isBlank() ? "" : Component.translatable("text.quarkos_capes.gallery.search_result", query, result.entries().size()).getString();
             ready.accept(results(rows, result.nextCursor(), status));
         }, note -> {
             if (samples.isEmpty()) error.accept(note);
-            else ready.accept(results(List.copyOf(samples.values()), null, note));
+            else if (CapeHttp.serviceIssue() == null) ready.accept(results(List.copyOf(samples.values()), null, note));
         });
     }
 

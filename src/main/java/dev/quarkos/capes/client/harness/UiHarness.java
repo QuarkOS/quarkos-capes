@@ -1,5 +1,7 @@
 package dev.quarkos.capes.client.harness;
 
+import com.mojang.blaze3d.platform.InputConstants;
+import dev.quarkos.capes.QuarkosCapes;
 import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.local.ClientSettings;
 import dev.quarkos.capes.client.local.OwnerCape;
@@ -14,10 +16,14 @@ import dev.quarkos.capes.client.screen.LinkScreen;
 import dev.quarkos.capes.client.screen.ui.CapeStyles;
 import dev.quarkos.capes.client.screen.ui.CapeTheme;
 import dev.quarkos.capes.client.screen.ui.CapeUiScreen;
+import dev.quarkos.capes.sim.WaveCloth;
 import net.minecraft.client.CameraType;
+import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
+import net.minecraft.client.gui.screens.PauseScreen;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 
@@ -37,22 +43,25 @@ public final class UiHarness {
     private enum Scene {
         SELECT("select"), HOVER("select-hover"), STYLES("styles"), GALLERY("gallery"),
         OFFLINE("gallery-empty"), SETTINGS("settings"), LINK("link"),
-        WORLD_BACK("world-back"), WORLD_SIDE("world-side");
+        WORLD_BACK("world-back"), WORLD_SIDE("world-side"), PAUSE("ingame-pause"),
+        INGAME("ingame-wardrobe"), KEYBIND("ingame-keybind"), BAD_SERVICE("browse-404");
 
         final String file;
         Scene(String file) { this.file = file; }
 
         boolean world() { return this == WORLD_BACK || this == WORLD_SIDE; }
+        boolean fixedScale() { return world() || ordinal() >= PAUSE.ordinal(); }
     }
 
     private record Stage(Scene scene, int width, int height, int scale, boolean capture) {
-        String name() { return "ui-" + scene.file + (scene.world() ? "" : "-s" + scale); }
+        String name() { return "ui-" + scene.file + (scene.fixedScale() ? "" : "-s" + scale); }
     }
 
     private static final Path DIRECTORY = Path.of(System.getProperty("quarkos_capes.captures", "build/captures"));
     private static final long STAGE_TIMEOUT = 20_000_000_000L;
     // Vanilla fades to 80% of the previous alpha each tick, then interpolates both samples.
     private static final int SAVE_INDICATOR_FADE_TICKS = 28;
+    private static final String OPEN_LABEL = "text.quarkos_capes.title";
     private static final List<String> RESULTS = new ArrayList<>();
     private static List<Stage> stages;
     private static int index, age, pass, fail;
@@ -60,13 +69,19 @@ public final class UiHarness {
     private static boolean oldOffline, oldBack, oldHideGui, finished;
     private static CameraType oldCamera;
     private static OwnerCape oldCape;
+    private static WaveCloth.Settings oldCloth;
     private static String oldGalleryId;
     private static Screen expectedScreen;
+    private static Screen pauseMenu;
+    private static UiServiceProbe serviceProbe;
+    private static CapeMotionCapture motion;
     private static Button hovered;
     private static int sent, saveFadeTicks;
     private static long deadline;
     private static Path capture;
     private static String observation;
+    private static String stageDetail;
+    private static boolean opened;
 
     private UiHarness() { }
 
@@ -77,11 +92,13 @@ public final class UiHarness {
         oldOffline = ClientSettings.get().localOnly;
         oldGalleryId = ClientSettings.get().equippedGalleryId;
         oldCape = OwnerCape.get();
+        oldCloth = ClientSettings.get().cloth;
         oldBack = CapeBook.previewBack;
         oldScale = client.options.guiScale().get();
         oldCamera = client.options.getCameraType();
         oldHideGui = McBridge.hudHidden(client);
         ClientSettings.get().localOnly = true;
+        ClientSettings.get().cloth = WaveCloth.Settings.defaults();
         CapeBook.previewBack = true;
     }
 
@@ -89,6 +106,14 @@ public final class UiHarness {
         if (finished) return;
         if (stages == null) stages = plan();
         if (index == stages.size()) {
+            //? if >=1.21.11 {
+            if (motion == null) motion = new CapeMotionCapture(DIRECTORY);
+            if (!motion.finished()) {
+                var result = motion.tick(client);
+                if (result != null) recordCheck(result.name(), result.detail(), result.failure());
+                return;
+            }
+            //?}
             finish(client);
             return;
         }
@@ -103,9 +128,23 @@ public final class UiHarness {
                     client.resizeDisplay();
                 }
             }
-            if (++age == 7) {
+            if (++age >= 7 && !opened) {
+                if (stage.scene() == Scene.KEYBIND && client.player != null && client.screen == null
+                        && CapeBook.draws(client.player.getUUID()) == 0 && System.nanoTime() < deadline) return;
                 open(client, stage.scene());
+                opened = true;
+                age = 7;
                 saveFadeTicks = SAVE_INDICATOR_FADE_TICKS;
+            }
+            if (age > 7 && stage.scene() == Scene.BAD_SERVICE) {
+                if (!serviceProbe.tick(client)) {
+                    if (System.nanoTime() > deadline) record(client, stage, "Timed out testing the Advanced URL and the 404 response");
+                    return;
+                }
+                expectedScreen = serviceProbe.screen();
+            }
+            if (age > 7 && stage.scene() == Scene.KEYBIND && expectedScreen == null && client.screen instanceof CapeScreen) {
+                expectedScreen = client.screen;
             }
             boolean waitingForSave = stage.capture() && capture == null && saveIndicatorSettling(client);
             if (age < 22) return;
@@ -128,7 +167,7 @@ public final class UiHarness {
                 capture = DIRECTORY.resolve(stage.name() + ".png");
                 Files.deleteIfExists(capture);
                 McBridge.shot(client, capture);
-                if (stage.scene().world()) deadline = System.nanoTime() + STAGE_TIMEOUT;
+                deadline = System.nanoTime() + STAGE_TIMEOUT;
             }
             if (completePng(capture)) {
                 record(client, stage, observation);
@@ -153,14 +192,15 @@ public final class UiHarness {
         int height = Integer.getInteger("quarkos_capes.height", 1080);
         List<Stage> plan = new ArrayList<>();
         for (int scale : List.of(2, 4)) {
-            for (Scene scene : Scene.values()) {
-                if (!scene.world()) plan.add(new Stage(scene, width, height, scale, scene != Scene.LINK));
+            for (Scene scene : List.of(Scene.SELECT, Scene.HOVER, Scene.STYLES, Scene.GALLERY, Scene.OFFLINE, Scene.SETTINGS, Scene.LINK)) {
+                plan.add(new Stage(scene, width, height, scale, scene != Scene.LINK));
             }
         }
         if (width != 1280 || height != 720) addLayoutSweep(plan, 1280, 720);
         if (width != 1920 || height != 1080) addLayoutSweep(plan, 1920, 1080);
-        plan.add(new Stage(Scene.WORLD_BACK, width, height, 2, true));
-        plan.add(new Stage(Scene.WORLD_SIDE, width, height, 2, true));
+        for (Scene scene : List.of(Scene.WORLD_BACK, Scene.WORLD_SIDE, Scene.PAUSE, Scene.INGAME, Scene.KEYBIND, Scene.BAD_SERVICE)) {
+            plan.add(new Stage(scene, width, height, 2, scene != Scene.KEYBIND));
+        }
         return plan;
     }
 
@@ -172,15 +212,16 @@ public final class UiHarness {
         }
     }
 
-    private static void open(Minecraft client, Scene scene) {
+    private static void open(Minecraft client, Scene scene) throws IOException {
         McBridge.hideHud(client, scene.world());
         sent = CapeHttp.sent;
         hovered = null;
         switch (scene) {
             case SELECT, HOVER, STYLES, SETTINGS -> {
                 CapeBoard.equipSample("bands");
-                CapeScreen wardrobe = (CapeScreen) CapeScreens.open(null);
-                client.setScreen(wardrobe);
+                var title = new TitleScreen();
+                client.setScreen(title);
+                CapeScreen wardrobe = openWardrobe(client, title);
                 String sample = scene == Scene.STYLES ? "slide" : "cloak";
                 press(wardrobe.sampleCard(sample), "sample " + sample);
                 if (!CapeBoard.sampleOn(sample)) throw new AssertionError("Sample was not equipped: " + sample);
@@ -219,6 +260,38 @@ public final class UiHarness {
                 McBridge.thirdPerson(client.options);
                 ShotView.frame(scene == Scene.WORLD_BACK ? 0f : 50f, 8f, 3.5f);
             }
+            case PAUSE -> {
+                client.setScreen(null);
+                client.pauseGame(false);
+                if (!(client.screen instanceof PauseScreen)) throw new AssertionError("Pause menu did not open in the world");
+                pauseMenu = client.screen;
+            }
+            case INGAME -> {
+                if (client.screen != pauseMenu || client.player == null) throw new AssertionError("The in-game pause screen is missing");
+                CapeBoard.equipSample("bands");
+                CapeScreen wardrobe = openWardrobe(client, pauseMenu);
+                press(wardrobe.sampleCard("cloak"), "Cloak in-game");
+                press(wardrobe.styleChip(CapeStyles.Chip.WAVY), "Wavy in-game");
+                if (!CapeBoard.sampleOn("cloak") || !CapeBoard.styleOn("wave")) throw new AssertionError("World wardrobe did not apply the cape");
+            }
+            case KEYBIND -> {
+                if (client.screen != null || client.player == null || !CapeBoard.sampleOn("cloak")
+                        || !CapeBoard.styleOn("wave") || CapeBook.draws(client.player.getUUID()) == 0) {
+                    throw new AssertionError("Cape edits did not render after returning to the world");
+                }
+                if (QuarkosCapes.OPEN == null) throw new AssertionError("Wardrobe key mapping was not registered");
+                //? if >=26.3 {
+                /*client.keyboardHandler.keyPress(client.getWindow().handle(), InputConstants.PRESS,
+                        new net.minecraft.client.input.KeyEvent(InputConstants.KEY_O, 'o', 0));
+                if (!(client.screen instanceof CapeScreen)) throw new AssertionError("O was consumed before opening the wardrobe");
+                *///?} else {
+                KeyMapping.click(QuarkosCapes.OPEN.getDefaultKey());
+                //?}
+            }
+            case BAD_SERVICE -> {
+                serviceProbe = new UiServiceProbe();
+                serviceProbe.openAdvanced(client);
+            }
         }
         expectedScreen = client.screen;
         CapeBook.resetDraws();
@@ -238,7 +311,14 @@ public final class UiHarness {
         }
         if (window.getWidth() / stage.scale() >= 320 && window.getHeight() / stage.scale() >= 240
                 && window.getGuiScale() != stage.scale()) throw new AssertionError("Requested GUI scale was not applied");
-        if (!stage.scene().world()) HarnessLayout.check(expectedScreen);
+        if (!stage.scene().world()) {
+            if (expectedScreen == null) throw new AssertionError("Wardrobe did not open");
+            HarnessLayout.check(expectedScreen);
+        }
+        if (stage.scene() == Scene.BAD_SERVICE) {
+            stageDetail = serviceProbe.check();
+            return;
+        }
         if (CapeHttp.sent != sent) throw new AssertionError("UI capture sent a cape service request");
         if (stage.scene().world()) {
             if (client.screen != null || client.options.getCameraType() != CameraType.THIRD_PERSON_BACK
@@ -256,6 +336,12 @@ public final class UiHarness {
         if (stage.scene() == Scene.OFFLINE && button(expectedScreen, "text.quarkos_capes.site.go_online") == null) {
             throw new AssertionError("Offline gallery has no Go online action");
         }
+        if (stage.scene() == Scene.PAUSE && button(expectedScreen, OPEN_LABEL) == null) {
+            throw new AssertionError("Pause menu did not show the wardrobe button");
+        }
+        if (stage.scene() == Scene.KEYBIND && (!(expectedScreen instanceof CapeScreen) || !CapeBoard.styleOn("wave"))) {
+            throw new AssertionError("Keybind did not reopen the edited wardrobe");
+        }
         if (stage.scene() == Scene.SETTINGS) {
             //? if fabric || <1.21.2 {
             if (!CapeScreens.isClothSettings(expectedScreen)) throw new AssertionError("Settings did not open the Cloth screen");
@@ -265,14 +351,20 @@ public final class UiHarness {
             *///?}
         }
         boolean hasCape = switch (stage.scene()) {
-            case SELECT, HOVER, STYLES, GALLERY -> true;
+            case SELECT, HOVER, STYLES, GALLERY, INGAME, KEYBIND -> true;
             default -> false;
         };
         if (hasCape && expectedScreen instanceof CapeUiScreen screen && screen.previewBounds() != null
                 && CapeBook.previewDraws(client.player.getUUID()) == 0) throw new AssertionError("Player preview did not draw a cape");
     }
 
-    private static Button button(Screen screen, String key) {
+    private static CapeScreen openWardrobe(Minecraft client, Screen parent) {
+        press(button(parent, OPEN_LABEL), "Wardrobe");
+        if (!(client.screen instanceof CapeScreen wardrobe)) throw new AssertionError("Wardrobe did not open");
+        return wardrobe;
+    }
+
+    static Button button(Screen screen, String key) {
         for (var child : screen.children()) {
             if (child instanceof Button candidate && candidate.getMessage().getContents() instanceof TranslatableContents label
                     && label.getKey().equals(key)) return candidate;
@@ -280,7 +372,7 @@ public final class UiHarness {
         return null;
     }
 
-    private static void press(Button button, String label) {
+    static void press(Button button, String label) {
         if (button == null || !button.active) throw new AssertionError("Missing active control: " + label);
         McBridge.press(button);
     }
@@ -329,7 +421,7 @@ public final class UiHarness {
                 .map(child -> ((Button) child).getMessage().getString()).toList();
     }
 
-    private static boolean completePng(Path path) throws IOException {
+    static boolean completePng(Path path) throws IOException {
         if (!Files.isRegularFile(path)) return false;
         try (RandomAccessFile file = new RandomAccessFile(path.toFile(), "r")) {
             long size = file.length();
@@ -340,17 +432,56 @@ public final class UiHarness {
     }
 
     private static void record(Minecraft client, Stage stage, String error) {
+        if (stage.scene() == Scene.BAD_SERVICE) {
+            closeServiceProbe();
+        } else if (error == null) {
+            try {
+                checkReturn(client, stage.scene());
+            } catch (RuntimeException | AssertionError failure) {
+                error = failure.toString();
+            }
+        }
         var window = client.getWindow();
         String mode = stage.capture() ? "capture" : "layout";
-        RESULTS.add((error == null ? "PASS " : "FAIL ") + stage.name() + " " + mode + " "
-                + window.getWidth() + "x" + window.getHeight() + " GUI " + window.getGuiScale()
+        String detail = mode + " " + window.getWidth() + "x" + window.getHeight() + " GUI " + window.getGuiScale();
+        if (stageDetail != null) detail += " " + stageDetail;
+        recordCheck(stage.name(), detail, error);
+        index++;
+        age = 0;
+        opened = false;
+        capture = null;
+        observation = null;
+        stageDetail = null;
+    }
+
+    private static void checkReturn(Minecraft client, Scene scene) {
+        if (scene == Scene.INGAME) {
+            press(button(client.screen, "text.quarkos_capes.button.done"), "Done");
+            if (client.screen != pauseMenu) throw new AssertionError("Done did not return to the pause menu");
+            CapeBook.resetDraws();
+            client.setScreen(null);
+        } else if (scene == Scene.KEYBIND) {
+            //? if >=1.21.9 {
+            client.screen.keyPressed(new net.minecraft.client.input.KeyEvent(InputConstants.KEY_ESCAPE, 0, 0));
+            //?} else {
+            /*client.screen.keyPressed(InputConstants.KEY_ESCAPE, 0, 0);
+            *///?}
+            if (client.screen != null) throw new AssertionError("Esc did not return to the game");
+        }
+    }
+
+    private static void recordCheck(String name, String detail, String error) {
+        RESULTS.add((error == null ? "PASS " : "FAIL ") + name + (detail.isBlank() ? "" : " " + detail)
                 + (error == null ? "" : " " + error.replace('\n', ' ')));
         if (error == null) pass++;
         else fail++;
-        index++;
-        age = 0;
-        capture = null;
-        observation = null;
+    }
+
+    private static void closeServiceProbe() {
+        if (serviceProbe != null) {
+            serviceProbe.close();
+            serviceProbe = null;
+        }
     }
 
     static void abort(Minecraft client, String message) {
@@ -362,10 +493,13 @@ public final class UiHarness {
 
     private static void finish(Minecraft client) {
         finished = true;
+        closeServiceProbe();
+        if (motion != null) motion.stop(client);
         if (oldCape != null) {
             OwnerCape.set(oldCape);
             ClientSettings.get().equippedGalleryId = oldGalleryId;
             ClientSettings.get().localOnly = oldOffline;
+            ClientSettings.get().cloth = oldCloth;
             client.options.guiScale().set(oldScale);
             client.options.setCameraType(oldCamera);
             McBridge.hideHud(client, oldHideGui);

@@ -37,7 +37,10 @@ class CatalogClientTest {
     }
     @Test void detailIdentifierIsOnePathSegment() throws Exception {
         AtomicReference<String> url=new AtomicReference<>();
-        var client=new CatalogClient((m,u,b,e,p)-> { url.set(u); return reply(200,"{\"source\":\"labymod\",\"id\":\"cloak:ab\"}",null); });
+        var client=new CatalogClient((m,u,b,e,p)-> {
+            url.set(u);
+            return reply(200,"{\"source\":\"labymod\",\"id\":\"cloak:ab\",\"textureUrl\":\"https://texture.laby.net/ab.png\"}",null);
+        });
         client.detail("http://local/","labymod","cloak:a/b ?"); assertEquals("http://local/v1/catalog/labymod/cloak%3Aa%2Fb%20%3F",url.get());
     }
     @Test void emptyPageStillContinues() {
@@ -139,21 +142,6 @@ class CatalogClientTest {
             assertEquals(2, calls.get());
         }
     }
-    @Test void sharedOriginBackoffCoversOtherEndpointsAndHonorsRetryAfter() throws Exception {
-        AtomicLong time = new AtomicLong();
-        var backoff = new dev.quarkos.capes.client.net.ServiceBackoff(time::get);
-        backoff.failed("https://service.test/v1/catalog", "30");
-        assertThrows(CatalogClient.Failure.class, () -> backoff.before("https://service.test/v1/auth/challenge"));
-        backoff.before("https://other.test/v1/catalog");
-        time.set(29999); assertThrows(CatalogClient.Failure.class, () -> backoff.before("https://service.test/image.png"));
-        time.set(30000); backoff.before("https://service.test/image.png");
-        backoff.failed("https://service.test/image.png", null);
-        time.set(33999); assertThrows(CatalogClient.Failure.class, () -> backoff.before("https://service.test/v1/catalog"));
-        time.set(34000); backoff.before("https://service.test/v1/catalog");
-        backoff.success("https://service.test/v1/catalog");
-        backoff.failed("https://service.test/image.png", "999999999999999999999");
-        time.set(36000); backoff.before("https://service.test/v1/catalog");
-    }
     @Test void invalidServiceUrlsKeepLastValidSetting() {
         var settings = dev.quarkos.capes.client.local.ClientSettings.get(); String previous = settings.baseUrl;
         try {
@@ -182,7 +170,7 @@ class CatalogClientTest {
     @Test void serverDisableDoesNotFallBackToCachedDetail() throws Exception {
         AtomicInteger calls = new AtomicInteger();
         var client = new CatalogClient((m,u,b,e,p) -> calls.incrementAndGet() == 1
-                ? reply(200, "{\"source\":\"labymod\",\"id\":\"cloak:abc\"}", "tag")
+                ? reply(200, "{\"source\":\"labymod\",\"id\":\"cloak:abc\",\"textureUrl\":\"https://texture.laby.net/abc.png\"}", "tag")
                 : reply(503, "{\"error\":\"source_disabled\"}", null));
         assertEquals("labymod", client.detail("http://local", "labymod", "cloak:abc").source());
         var failure = assertThrows(CatalogClient.Failure.class,

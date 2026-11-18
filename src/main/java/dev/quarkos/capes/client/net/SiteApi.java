@@ -26,6 +26,10 @@ public final class SiteApi {
     private static volatile String lastError = "No HTTP error recorded; waiting for UI/render observation";
     public static String lastError() { return lastError; }
     private static String failure(Exception error) {
+        if (error instanceof CatalogClient.Failure f && "offline".equals(f.key) && CapeHttp.serviceIssue() != null) {
+            lastError = message("unreachable");
+            return lastError;
+        }
         String message = error instanceof CatalogClient.Failure f
                 ? message(f.key) + (f.status > 0 ? " (HTTP " + f.status + ")" : "")
                 : message("error") + " (" + error.getClass().getSimpleName() + ")";
@@ -108,7 +112,7 @@ public final class SiteApi {
         String base = ClientSettings.get().baseUrl;
         if (!CapeHttp.download(() -> {
             try {
-                byte[] bytes = CapeHttp.siteImage(item.textureUrl());
+                byte[] bytes = CapeHttp.siteImage(base, item.textureUrl());
                 if (!item.sha256().isBlank()) {
                     String hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
                     if (!hash.equalsIgnoreCase(item.sha256())) throw new java.io.IOException("hash");

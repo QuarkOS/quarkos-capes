@@ -80,13 +80,13 @@ public final class CatalogClient {
                 retryAt.put(key, clock.getAsLong() + delay);
             }
             if (reply.status / 100 != 2) throw new Failure(reply.status, errorKey(reply.status));
-            if (reply.status != 204) ServiceBackoff.validateContract(url, reply.bytes);
+            if (reply.status != 204) ServiceResponse.validateContract(url, reply.bytes);
             failures.remove(key); retryAt.remove(key);
             if (get && reply.etag != null && !reply.etag.isBlank()) cache.put(key, new Cached(reply.etag, reply));
             future.complete(reply);
             return reply;
         } catch (Exception e) {
-            if (!(e instanceof Failure f && f.status > 0)) {
+            if (!(e instanceof Failure f && (f.status > 0 || f.key.equals("offline")))) {
                 int n = failures.merge(key, 1, Integer::sum);
                 retryAt.put(key, clock.getAsLong() + Math.min(60_000L, 1000L << Math.min(6, n)));
             }
