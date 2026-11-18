@@ -26,22 +26,24 @@ import static dev.quarkos.capes.client.screen.ui.CapeTheme.text;
 
 /** Grid, search, and details shared by the website catalog and the community gallery. */
 abstract class CapeBrowserScreen<T> extends CapeUiScreen {
-    protected record Results<T>(List<T> items, String next, String status) { }
+    protected record Results<T>(List<T> items, String next, String status, Integer total) { }
     protected record Filter(Component label, Runnable cycle) { }
     protected record Action(Component label, Face face, boolean enabled, Runnable press) { }
+    private record PageStart(String cursor, int offset) { }
 
     private final Screen parent;
     private final CapeSelection selection = new CapeSelection();
-    private final ArrayDeque<String> history = new ArrayDeque<>();
+    private final ArrayDeque<PageStart> history = new ArrayDeque<>();
     private final Map<String, Art> art = new HashMap<>();
     private final Set<String> requested = new HashSet<>();
     private record Art(OwnerCape cape, CapeTextures.Image image) { }
 
     private CapeGridLayout grid;
-    private Rect body, details;
+    private Rect body, details, statusLine;
     private EditBox search;
-    private int titleWidth, statusY, emptyY, page, generation;
-    private boolean initialized, returnToLastPage;
+    private int titleWidth, emptyY, page, offset, generation;
+    private boolean compact, initialized, returnToLastPage;
+    private Integer total;
     private String input = "", query = "", cursor = "", next;
     private String status = "";
     private List<T> items = List.of();
@@ -80,6 +82,17 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
     public final boolean previewReady() { return draft != null; }
     protected final OwnerCape draft() { return draft; }
 
+    public final Component pageLabel() {
+        if (items.isEmpty() || grid.capacity() == 0) return null;
+        int first = offset + page * grid.capacity() + 1;
+        int last = offset + Math.min(items.size(), (page + 1) * grid.capacity());
+        if (total == null && next != null) {
+            return Component.translatable("text.quarkos_capes.ui.range_open", first, last);
+        }
+        int count = total == null ? offset + items.size() : total;
+        return Component.translatable("text.quarkos_capes.ui.range", first, last, count);
+    }
+
     @Override
     protected final void init() {
         if (initialized) {
@@ -105,6 +118,7 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         history.clear();
         cursor = "";
         page = 0;
+        offset = 0;
         returnToLastPage = false;
         loadPage();
     }
@@ -117,21 +131,31 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         boolean focused = search != null && search.isFocused();
         resetWidgets();
 
+        int sideWidth = offline() ? 0 : CapeGridLayout.previewWidth(frame);
+        int footerY = frame.bottom() - CapeTheme.CONTROL;
+        List<Filter> filters = filters();
+        boolean regularSingleRow = frame.width() >= 512 || filters.isEmpty();
+        int regularTop = frame.y() + (regularSingleRow ? 54 : 78);
+        Rect regularBody = CapeGridLayout.gridPanel(frame, regularTop, footerY - 15, sideWidth);
+        compact = sideWidth > 0 && CapeGridLayout.compactBrowser(frame, regularBody.inset(6));
         Action headerAction = headerAction();
         int backWidth = Math.min(52, frame.width() / 4);
         int headerActionWidth = headerAction == null ? 0 : Math.min(105, frame.width() / 3);
+        int headerLeft = frame.right() - backWidth - (headerAction == null ? 0 : headerActionWidth + 5);
         button(text("site.back"), new Rect(frame.right() - backWidth, frame.y(), backWidth, CapeTheme.CONTROL), Face.BUTTON, this::onClose);
         if (headerAction != null) {
-            addAction(headerAction, new Rect(frame.right() - backWidth - headerActionWidth - 5, frame.y(), headerActionWidth, CapeTheme.CONTROL));
+            addAction(headerAction, new Rect(headerLeft, frame.y(), headerActionWidth, CapeTheme.CONTROL));
         }
-        titleWidth = frame.width() - backWidth - headerActionWidth - 12;
+        // Move paging into the header when two card rows need the full body height.
+        Rect headerPager = compact ? new Rect(headerLeft - 180, frame.y(), 174, CapeTheme.CONTROL) : null;
+        titleWidth = (compact ? headerPager.x() : headerLeft) - frame.x() - 7;
 
-        int controlsY = frame.y() + 27;
-        List<Filter> filters = filters();
-        boolean singleRow = frame.width() >= 512 || filters.isEmpty();
-        int filterWidth = singleRow ? Math.min(frame.width() * 3 / 5, filters.size() * 112) : frame.width();
+        int controlsY = frame.y() + (compact ? 24 : 27);
+        boolean singleRow = compact || regularSingleRow;
+        int filterLimit = compact ? frame.width() - 120 : frame.width() * 3 / 5;
+        int filterWidth = singleRow ? Math.min(filterLimit, filters.size() * 112) : frame.width();
         int searchWidth = frame.width() - (singleRow && filterWidth > 0 ? filterWidth + 8 : 0);
-        int submitWidth = Math.min(66, searchWidth / 3);
+        int submitWidth = Math.min(66, Math.max(compact ? 48 : 0, searchWidth / 3));
         search = addRenderableWidget(CapeTheme.field(font, text("site.search"),
                 new Rect(frame.x(), controlsY, searchWidth - submitWidth - 4, CapeTheme.CONTROL)));
         search.setMaxLength(120);
@@ -151,14 +175,10 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
             }).active = !offline();
         }
 
-        int top = controlsY + (singleRow ? 27 : 51);
-        int footerY = frame.bottom() - CapeTheme.CONTROL;
-        statusY = footerY - 12;
-        int sideWidth = offline() ? 0 : CapeGridLayout.previewWidth(frame);
-        int bodyWidth = frame.width() - (sideWidth == 0 ? 0 : sideWidth + 10);
-        body = new Rect(frame.x(), top, bodyWidth, Math.max(0, statusY - top - 3));
-        details = new Rect(frame.right() - sideWidth, top, sideWidth, frame.bottom() - top);
-        grid = CapeGridLayout.fit(body.inset(6));
+        body = compact ? CapeGridLayout.gridPanel(frame, controlsY + 24, frame.bottom(), sideWidth) : regularBody;
+        details = new Rect(frame.right() - sideWidth, body.y(), sideWidth, frame.bottom() - body.y());
+        statusLine = new Rect(body.x(), footerY - 12, body.width(), font.lineHeight);
+        grid = CapeGridLayout.fit(body.inset(compact ? 4 : 6));
         if (returnToLastPage && !loading) {
             page = grid.pages(items.size()) - 1;
             returnToLastPage = false;
@@ -178,7 +198,8 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
 
         List<Action> actions = offline() ? List.of() : actions();
         int compactActionWidth = sideWidth == 0 && !actions.isEmpty() ? frame.width() * 52 / 100 : 0;
-        Rect pager = new Rect(body.x(), footerY, Math.min(204, body.width() - (compactActionWidth > 0 ? compactActionWidth + 6 : 0)), CapeTheme.CONTROL);
+        int pagerWidth = Math.min(204, body.width() - (compactActionWidth > 0 ? compactActionWidth + 6 : 0));
+        Rect pager = compact ? headerPager : new Rect(body.x(), footerY, pagerWidth, CapeTheme.CONTROL);
         button(text("site.previous"), pager.cell(0, 3, 4), Face.BUTTON, () -> turn(-1)).active = !loading && (page > 0 || !history.isEmpty());
         button(text("site.next"), pager.cell(1, 3, 4), Face.BUTTON, () -> turn(1)).active = !loading && (page + 1 < grid.pages(items.size()) || next != null);
         button(text("site.retry_button"), pager.cell(2, 3, 4), Face.BUTTON, this::loadPage).active = !loading && !offline();
@@ -186,10 +207,12 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         if (sideWidth > 0) {
             int inset = 7;
             int previewWidth = details.width() - 2 * inset;
-            int chrome = 18 + 39 + (actions.isEmpty() ? 0 : 25);
+            int chrome = 18 + 39 + (actions.isEmpty() ? 0 : 25) + (compact ? 10 : 0);
             int previewHeight = CapeGridLayout.previewHeight(previewWidth, details.height() - chrome);
             details = new Rect(details.x(), details.y(), details.width(), chrome + previewHeight);
-            preview(new Rect(details.x() + inset, details.y() + 18, previewWidth, previewHeight), () -> draft, () -> loadingCape);
+            Rect viewport = new Rect(details.x() + inset, details.y() + 18, previewWidth, previewHeight);
+            preview(viewport, () -> draft, () -> loadingCape);
+            if (compact) statusLine = new Rect(viewport.x(), viewport.bottom() + 36, previewWidth, font.lineHeight);
             addActions(actions, new Rect(details.x() + inset, details.bottom() - CapeTheme.CONTROL - 6, previewWidth, CapeTheme.CONTROL));
         } else if (compactActionWidth > 0) {
             addActions(actions, new Rect(frame.right() - compactActionWidth, footerY, compactActionWidth, CapeTheme.CONTROL));
@@ -232,6 +255,7 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         loadingCape = false;
         items = List.of();
         next = null;
+        total = null;
         status = "";
         loading = !offline();
         rebuild();
@@ -240,6 +264,7 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
             if (!current(ticket)) return;
             items = result.items();
             next = result.next() == null || result.next().isBlank() || result.next().equals(cursor) ? null : result.next();
+            total = result.total();
             status = result.status();
             loading = false;
             rebuild();
@@ -258,12 +283,15 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
             page = wanted;
             rebuild();
         } else if (direction > 0 && next != null) {
-            history.addLast(cursor);
+            history.addLast(new PageStart(cursor, offset));
+            offset += items.size();
             cursor = next;
             page = 0;
             loadPage();
         } else if (direction < 0 && !history.isEmpty()) {
-            cursor = history.removeLast();
+            PageStart previous = history.removeLast();
+            cursor = previous.cursor();
+            offset = previous.offset();
             returnToLastPage = true;
             loadPage();
         }
@@ -358,28 +386,36 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         CapeTheme.title(graphics, font, getTitle(), frame.x(), frame.y() + 6, titleWidth);
         CapeTheme.panel(graphics, body);
         if (items.isEmpty()) drawEmpty(graphics);
+        Component range = pageLabel();
         if (details.width() > 0) {
             CapeTheme.panel(graphics, details);
             Component heading = selected == null ? text("ui.preview") : title(selected);
-            CapeTheme.label(graphics, font, heading, details.x() + 7, details.y() + 6, details.width() - 14, CapeTheme.TEXT);
-            if (!offline()) {
-                int y = details.bottom() - 49;
-                if (previewBounds() != null && draft != null && minecraft.player != null) {
-                    CapeTheme.label(graphics, font, text("ui.rotate"), details.x() + 7, y - 12, details.width() - 14, CapeTheme.MUTED);
-                }
-                if (selected != null) CapeTheme.label(graphics, font, creator(selected), details.x() + 7, y, details.width() - 14, CapeTheme.MUTED);
-                CapeTheme.label(graphics, font, wearing(), details.x() + 7, y + 11, details.width() - 14, CapeTheme.TEXT);
+            int x = details.x() + 7;
+            int w = details.width() - 14;
+            int headingWidth = w;
+            if (compact && range != null) {
+                int rangeWidth = Math.min(font.width(range), w / 2);
+                CapeTheme.label(graphics, font, range, x + w - rangeWidth, details.y() + 6, rangeWidth, CapeTheme.MUTED);
+                headingWidth -= rangeWidth + 6;
             }
+            CapeTheme.label(graphics, font, heading, x, details.y() + 6, headingWidth, CapeTheme.TEXT);
+            int y = details.bottom() - 49 - (compact ? 10 : 0);
+            if (previewBounds() != null && draft != null && minecraft.player != null) {
+                CapeTheme.label(graphics, font, text("ui.rotate"), x, y - 12, w, CapeTheme.MUTED);
+            }
+            if (selected != null) CapeTheme.label(graphics, font, creator(selected), x, y, w, CapeTheme.MUTED);
+            CapeTheme.label(graphics, font, wearing(), x, y + 11, w, CapeTheme.TEXT);
         }
 
-        if (!status.isBlank()) CapeTheme.line(graphics, font, status, body.x(), statusY, body.width(), CapeTheme.MUTED);
-        else if (selected != null && creditNotice(selected) != null) CapeTheme.label(graphics, font, creditNotice(selected), body.x(), statusY, body.width(), CapeTheme.MUTED);
-        else if (details.width() == 0 && !offline()) CapeTheme.label(graphics, font, wearing(), body.x(), statusY, body.width(), CapeTheme.MUTED);
-        else if (grid.pages(items.size()) > 1 || next != null || !history.isEmpty()) {
-            int first = items.isEmpty() ? 0 : page * grid.capacity() + 1;
-            int last = Math.min(items.size(), (page + 1) * grid.capacity());
-            CapeTheme.label(graphics, font, Component.translatable("text.quarkos_capes.ui.range", first, last, items.size()),
-                    body.x(), statusY, body.width(), CapeTheme.MUTED);
+        int statusX = statusLine.x();
+        if (!compact && range != null) {
+            CapeTheme.label(graphics, font, range, statusX, statusLine.y(), statusLine.width(), CapeTheme.MUTED);
+            statusX += font.width(range) + 8;
+        }
+        Component notice = status.isBlank() ? (selected == null ? null : creditNotice(selected)) : Component.literal(status);
+        if (notice == null && details.width() == 0 && !offline()) notice = wearing();
+        if (notice != null) {
+            CapeTheme.label(graphics, font, notice, statusX, statusLine.y(), statusLine.right() - statusX, CapeTheme.MUTED);
         }
     }
 

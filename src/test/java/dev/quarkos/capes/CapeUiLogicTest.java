@@ -15,7 +15,8 @@ class CapeUiLogicTest {
         assertGrid(1280, 720, 2, 4, 2, true);
         assertGrid(1280, 720, 3, 2, 1, true);
         assertGrid(1920, 1080, 2, 6, 4, true);
-        assertGrid(1920, 1080, 4, 3, 1, true);
+        assertGrid(1920, 1080, 4, 3, 2, true);
+        assertGrid(1920, 1320, 4, 3, 2, true);
         assertGrid(960, 720, 3, 3, 1, false);
     }
 
@@ -23,10 +24,11 @@ class CapeUiLogicTest {
         Rect frame = CapeGridLayout.frame(Math.ceilDiv(pixelsWide, scale), Math.ceilDiv(pixelsHigh, scale));
         int side = CapeGridLayout.previewWidth(frame);
         assertEquals(preview, side > 0);
-        int width = frame.width() - (side == 0 ? 0 : side + 10);
         int top = frame.y() + (frame.width() >= 512 ? 54 : 78);
-        int bodyHeight = frame.bottom() - 35 - top;
-        Rect area = new Rect(frame.x(), top, width, bodyHeight).inset(6);
+        Rect regularGrid = CapeGridLayout.gridPanel(frame, top, frame.bottom() - 35, side).inset(6);
+        Rect area = preview && CapeGridLayout.compactBrowser(frame, regularGrid)
+                ? CapeGridLayout.gridPanel(frame, frame.y() + 48, frame.bottom(), side).inset(4)
+                : regularGrid;
         var grid = CapeGridLayout.fit(area);
         assertEquals(columns, grid.columns());
         assertEquals(rows, grid.rows());
@@ -58,18 +60,34 @@ class CapeUiLogicTest {
         assertEquals(1, CapeGridLayout.fit(new Rect(0, 0, CapeGridLayout.CARD_WIDTH, CapeGridLayout.CARD_HEIGHT)).capacity());
     }
 
-    @Test void wardrobeHeightFitsOccupiedRows() {
-        var grid = CapeGridLayout.fit(new Rect(0, 0, 260, 400));
-        int cardHeight = CapeGridLayout.CARD_HEIGHT;
-        assertEquals(0, grid.visibleHeight(0));
-        assertEquals(cardHeight, grid.visibleHeight(3));
-        assertEquals(2 * cardHeight + CapeGridLayout.GAP, grid.visibleHeight(4));
-        assertEquals(3 * cardHeight + 2 * CapeGridLayout.GAP, grid.visibleHeight(100));
+    @Test void wardrobeGridAndPreviewUseTheSharedFrame() {
+        Rect frame = CapeGridLayout.frame(960, 540);
+        int previewWidth = CapeGridLayout.previewWidth(frame);
+        assertEquals(0.35, (double) previewWidth / frame.width(), 0.01);
+        int shelfTop = frame.y() + 64;
+        int shelfBottom = frame.bottom() - 34;
+        Rect shelf = CapeGridLayout.gridPanel(frame, shelfTop, shelfBottom, previewWidth);
+        assertEquals(frame.x(), shelf.x());
+        assertEquals(shelfBottom, shelf.bottom());
+        assertEquals(10, frame.right() - previewWidth - shelf.right());
+        var grid = CapeGridLayout.fit(new Rect(shelf.x() + 6, shelf.y() + 19, shelf.width() - 12, shelf.height() - 25));
+        assertEquals(6, grid.columns());
+        assertEquals(3, grid.rows());
     }
 
     @Test void aTallPreviewLeavesRoomForTheModelToTurn() {
-        assertEquals(170, CapeGridLayout.previewHeight(100, 400));
+        assertEquals(172, CapeGridLayout.previewHeight(100, 400));
         assertEquals(100, CapeGridLayout.previewHeight(100, 100));
+    }
+
+    @Test void previewScaleUsesViewportHeightAndCapsTheTurningWidth() {
+        float modelHeight = 30f / 16f;
+        assertEquals(160f, CapeGridLayout.previewScale(160, 200) * modelHeight, 0.01f);
+        assertEquals(80f, CapeGridLayout.previewScale(80, 100) * modelHeight, 0.01f);
+        float narrowScale = CapeGridLayout.previewScale(54, 200);
+        assertEquals(54f, narrowScale * 1.35f, 0.01f);
+        assertTrue(narrowScale * modelHeight < 160f);
+        assertEquals(0f, CapeGridLayout.previewScale(0, 200));
     }
 
     @Test void truncationAccountsForGlyphWidthAndKeepsUnicodeIntact() {

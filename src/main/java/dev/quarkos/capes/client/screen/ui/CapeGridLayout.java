@@ -5,6 +5,11 @@ public record CapeGridLayout(Rect area, int columns, int rows) {
     public static final int CARD_WIDTH = 80;
     public static final int CARD_HEIGHT = 96;
     public static final int GAP = 6;
+    public static final int PANEL_GAP = 10;
+    private static final float PLAYER_HEIGHT_FILL = 0.8f;
+    // The player model is 32 model pixels tall and the renderer scales it by 15/16.
+    private static final float PLAYER_HEIGHT = (32f / 16f) * (15f / 16f);
+    private static final float PLAYER_TURN_WIDTH = 1.35f;
 
     public record Rect(int x, int y, int width, int height) {
         public int right() { return x + width; }
@@ -37,12 +42,29 @@ public record CapeGridLayout(Rect area, int columns, int rows) {
 
     public static int previewWidth(Rect frame) {
         if (frame.width() < 382 || frame.height() < 190) return 0;
-        return Math.max(132, Math.min(252, frame.width() / 3));
+        return Math.round(frame.width() * 0.35f);
+    }
+
+    public static Rect gridPanel(Rect frame, int top, int bottom, int previewWidth) {
+        int width = frame.width() - (previewWidth == 0 ? 0 : previewWidth + PANEL_GAP);
+        return new Rect(frame.x(), top, width, Math.max(0, bottom - top));
+    }
+
+    public static boolean compactBrowser(Rect frame, Rect regularGrid) {
+        return frame.width() >= 440 && regularGrid.height() < 2 * CARD_HEIGHT + GAP;
     }
 
     public static int previewHeight(int width, int available) {
-        // Keep tall viewports within the aspect ratio that accommodates a full turn.
-        return Math.max(0, Math.min(available, width * 17 / 10));
+        if (width <= 2 || available <= 2) return 0;
+        // CapePreview insets the render area by one GUI pixel on each edge.
+        int modelHeight = (int) ((width - 2) * PLAYER_HEIGHT / (PLAYER_HEIGHT_FILL * PLAYER_TURN_WIDTH));
+        return Math.min(available, modelHeight + 2);
+    }
+
+    /** GUI pixels per rendered model unit, with room for the player to turn. */
+    public static float previewScale(int width, int height) {
+        if (width <= 0 || height <= 0) return 0f;
+        return Math.min(height * PLAYER_HEIGHT_FILL / PLAYER_HEIGHT, width / PLAYER_TURN_WIDTH);
     }
 
     public static CapeGridLayout fit(Rect area) {
@@ -58,13 +80,6 @@ public record CapeGridLayout(Rect area, int columns, int rows) {
 
     public int clampPage(int page, int items) {
         return Math.max(0, Math.min(page, pages(items) - 1));
-    }
-
-    public int visibleHeight(int items) {
-        int visible = Math.min(items, capacity());
-        if (visible <= 0) return 0;
-        int usedRows = (visible - 1) / columns + 1;
-        return usedRows * (CARD_HEIGHT + GAP) - GAP;
     }
 
     public Rect card(int index) {

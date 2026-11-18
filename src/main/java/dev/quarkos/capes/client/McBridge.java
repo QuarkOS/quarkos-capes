@@ -1,6 +1,7 @@
 package dev.quarkos.capes.client;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import dev.quarkos.capes.client.screen.ui.CapeGridLayout;
 import dev.quarkos.capes.sim.CapeGeometry;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
@@ -223,7 +224,8 @@ public final class McBridge {
     }
 
     public static void preview(GuiGraphics graphics, int x1, int y1, int x2, int y2, LivingEntity player, float turn) {
-        if (x2 <= x1 || y2 <= y1) return;
+        float scale = CapeGridLayout.previewScale(x2 - x1, y2 - y1);
+        if (scale <= 0f) return;
         float yaw = player.getYRot(), pitch = player.getXRot();
         float body = player.yBodyRot, head = player.yHeadRot;
         float oldBody = player.yBodyRotO, oldHead = player.yHeadRotO;
@@ -247,8 +249,6 @@ public final class McBridge {
             //?}
             pose.rotateY((float) Math.toRadians(angle + turn));
             Quaternionf camera = new Quaternionf();
-            // The standing model spans about 30/16 units. Keep it inside the viewport at any yaw.
-            float scale = Math.max(1f, Math.min((y2 - y1) * 0.8f / 1.875f, (x2 - x1) / 1.35f));
             //? if <1.21 {
             /*int feet = (y1 + y2) / 2 + Math.round(scale * 0.9f);
             InventoryScreen.renderEntityInInventory(graphics, (x1 + x2) / 2, feet, (int) scale, pose, camera, player);

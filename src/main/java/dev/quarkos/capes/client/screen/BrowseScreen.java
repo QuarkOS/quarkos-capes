@@ -163,7 +163,7 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
             if (available.containsValue("unavailable")) note = SiteApi.message("source_unavailable");
             else if (available.containsValue("disabled")) note = SiteApi.message("source_disabled");
             else if (result.items().isEmpty() && result.nextCursor() != null) note = SiteApi.message("empty_page");
-            ready.accept(new Results<>(result.items(), result.nextCursor(), note));
+            ready.accept(new Results<>(result.items(), result.nextCursor(), note, result.total()));
         }, error);
     }
 

@@ -25,6 +25,7 @@ import net.minecraft.client.gui.components.events.GuiEventListener;
 import net.minecraft.client.gui.narration.NarratableEntry;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.Style;
 
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +35,7 @@ import java.util.function.IntConsumer;
 import static dev.quarkos.capes.client.screen.ui.CapeTheme.text;
 
 final class ClothCapeScreen {
+    private static final int TOOLTIP_WIDTH = 192;
     private static Screen current;
     private static SettingsEdits currentEdits;
 
@@ -96,7 +98,7 @@ final class ClothCapeScreen {
         edits.track(back::getValue, value -> CapeBook.previewBack = value);
         var url = fields.startStrField(text("field.base_url"), settings.baseUrl)
                 .setDefaultValue(CapeCalls.DEFAULT_SERVICE_URL)
-                .setErrorSupplier(value -> ServiceUrl.valid(value) ? Optional.empty() : help(text("ui.invalid_url")))
+                .setErrorSupplier(value -> ServiceUrl.valid(value) ? Optional.empty() : Optional.of(text("ui.invalid_url")))
                 .build();
         advanced.addEntry(url);
         edits.track(url::getValue, CapeBoard::baseUrl);
@@ -150,15 +152,12 @@ final class ClothCapeScreen {
         edits.track(entry::getValue, write::accept);
     }
 
-    private static Optional<Component> help(Component value) {
-        var client = Minecraft.getInstance();
-        if (client.screen == null) return Optional.of(value);
-        int width = Math.min(146, client.screen.width - 24);
-        return Optional.of(Component.literal(CapeTheme.ellipsis(client.font, value.getString(), width)));
-    }
-
     private static Optional<Component[]> tooltip(Component value) {
-        return help(value).map(line -> new Component[]{line});
+        var client = Minecraft.getInstance();
+        int width = client.screen == null ? TOOLTIP_WIDTH : Math.clamp(client.screen.width - 24, 1, TOOLTIP_WIDTH);
+        return Optional.of(client.font.getSplitter().splitLines(value.getString(), width, Style.EMPTY).stream()
+                .map(line -> Component.literal(line.getString()))
+                .toArray(Component[]::new));
     }
 
     private static final class ActionRow extends TooltipListEntry<Object> {

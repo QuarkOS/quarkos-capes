@@ -27,10 +27,8 @@ public final class CapeScreen extends CapeUiScreen {
     private static final String CURRENT = "current";
     private static final String CURRENT_TEXTURE = "wardrobe/current";
     private static final CapeStyles.Chip[] SHAPES = {CapeStyles.Chip.FLAT, CapeStyles.Chip.WAVY, CapeStyles.Chip.MODEL};
-    private static final int PANEL_GAP = 10;
-    private static final int SHELF_INSET = 7;
+    private static final int SHELF_INSET = 6;
     private static final int SHELF_HEADER = 19;
-    private static final int MAX_PREVIEW_WIDTH = 196;
     private static final int PREVIEW_CHROME = 42;
     private static final int FOOTER_GAP = 6;
     private static final int FOOTER_HEIGHT = 28;
@@ -41,7 +39,7 @@ public final class CapeScreen extends CapeUiScreen {
     private final Map<CapeStyles.Chip, CapeTheme.FlatButton> chips = new LinkedHashMap<>();
     private CapeGridLayout grid;
     private Rect shelf, sidebar, shapeBar, footer, statusPill, actions;
-    private int titleWidth, page;
+    private int titleWidth, page, footerNoteY;
     private OwnerCape observedCape;
     private String equipped;
     private String note = "";
@@ -70,7 +68,9 @@ public final class CapeScreen extends CapeUiScreen {
         selection.equip(equipped);
         List<String> ids = new ArrayList<>(CapeThumbs.SAMPLES);
         if (CURRENT.equals(equipped)) ids.addFirst(CURRENT);
-        layout(ids.size());
+        Component animationOff = text("ui.animation_off");
+        int switchWidth = 33 + Math.max(font.width(animationOff), font.width(text("ui.animation_on")));
+        layout(switchWidth);
 
         int navWidth = Math.min(260, frame.width() * 3 / 5);
         Rect nav = new Rect(frame.right() - navWidth, frame.y(), navWidth, CapeTheme.CONTROL);
@@ -87,8 +87,8 @@ public final class CapeScreen extends CapeUiScreen {
                     segments.cell(i, SHAPES.length, 1), Face.SEGMENT);
         }
         int switchX = shapeBar.right() + 12;
-        addStyle(CapeStyles.Chip.ANIMATED, text("ui.animation"),
-                new Rect(switchX, shapeBar.y(), Math.min(100, frame.right() - switchX), CapeTheme.CONTROL), Face.SWITCH);
+        addStyle(CapeStyles.Chip.ANIMATED, animationOff,
+                new Rect(switchX, shapeBar.y(), Math.min(switchWidth, frame.right() - switchX), CapeTheme.CONTROL), Face.SWITCH);
 
         page = grid.clampPage(page, ids.size());
         boolean hasPages = grid.pages(ids.size()) > 1;
@@ -123,35 +123,25 @@ public final class CapeScreen extends CapeUiScreen {
         updateStyles();
     }
 
-    private void layout(int count) {
+    private void layout(int switchWidth) {
         int samples = CapeThumbs.SAMPLES.size();
-        int sampleWidth = samples * (CapeGridLayout.CARD_WIDTH + CapeGridLayout.GAP) - CapeGridLayout.GAP + 2 * SHELF_INSET;
-        int sideWidth = Math.min(MAX_PREVIEW_WIDTH, CapeGridLayout.previewWidth(frame));
-        // Keep a row of bundled capes accessible when the preview is visible.
-        sideWidth = Math.min(sideWidth, Math.max(0, frame.width() - sampleWidth - PANEL_GAP));
-        int sideSpan = sideWidth == 0 ? 0 : sideWidth + PANEL_GAP;
-        int span = Math.min(frame.width(), sampleWidth + CapeGridLayout.CARD_WIDTH + CapeGridLayout.GAP + sideSpan);
-        int shelfWidth = span - sideSpan;
-
-        int bodyOffset = frame.height() < 245 ? 56 : 64;
-        int chrome = SHELF_HEADER + SHELF_INSET;
-        int panelLimit = Math.max(0, frame.height() - bodyOffset - FOOTER_GAP - FOOTER_HEIGHT - font.lineHeight - 3);
-        Rect available = new Rect(0, 0, Math.max(0, shelfWidth - 2 * SHELF_INSET), Math.max(0, panelLimit - chrome));
-        int cardsHeight = CapeGridLayout.fit(available).visibleHeight(count);
-        int panelHeight = Math.min(panelLimit, Math.max(chrome + cardsHeight, sideWidth == 0 ? 0 : 152));
-
-        int contentHeight = bodyOffset + panelHeight + FOOTER_GAP + FOOTER_HEIGHT;
-        frame = new Rect((width - span) / 2, (height - contentHeight - font.lineHeight - 3) / 2, span, contentHeight);
-        int top = frame.y() + bodyOffset;
-        shelf = new Rect(frame.x(), top, shelfWidth, panelHeight);
-        int sideHeight = PREVIEW_CHROME + CapeGridLayout.previewHeight(sideWidth - 14, panelHeight - PREVIEW_CHROME);
+        int sampleWidth = samples * CapeGridLayout.CARD_WIDTH + (samples - 1) * CapeGridLayout.GAP + 2 * SHELF_INSET;
+        // Keep the bundled samples visible together when the frame is narrow.
+        int sideLimit = Math.max(0, frame.width() - sampleWidth - CapeGridLayout.PANEL_GAP);
+        int sideWidth = Math.min(sideLimit, CapeGridLayout.previewWidth(frame));
+        int top = frame.y() + (frame.height() < 300 ? 60 : 64);
+        footer = new Rect(frame.x(), frame.bottom() - FOOTER_HEIGHT, frame.width(), FOOTER_HEIGHT);
+        boolean noteAboveFooter = height - footer.bottom() < font.lineHeight + 3;
+        int gap = noteAboveFooter ? font.lineHeight + 4 : FOOTER_GAP;
+        footerNoteY = noteAboveFooter ? footer.y() - font.lineHeight - 2 : footer.bottom() + 3;
+        shelf = CapeGridLayout.gridPanel(frame, top, footer.y() - gap, sideWidth);
+        int sideHeight = PREVIEW_CHROME + CapeGridLayout.previewHeight(sideWidth - 14, shelf.height() - PREVIEW_CHROME);
         sidebar = new Rect(frame.right() - sideWidth, top, sideWidth, sideHeight);
-        int cardTop = top + SHELF_HEADER + Math.max(0, panelHeight - chrome - cardsHeight) / 2;
-        grid = CapeGridLayout.fit(new Rect(shelf.x() + SHELF_INSET, cardTop, available.width(),
-                Math.max(0, shelf.bottom() - SHELF_INSET - cardTop)));
-        shapeBar = new Rect(frame.x(), top - CapeTheme.CONTROL - 6, Math.min(174, frame.width() * 3 / 5), CapeTheme.CONTROL);
+        grid = CapeGridLayout.fit(new Rect(shelf.x() + SHELF_INSET, shelf.y() + SHELF_HEADER,
+                Math.max(0, shelf.width() - 2 * SHELF_INSET), Math.max(0, shelf.height() - SHELF_HEADER - SHELF_INSET)));
+        int shapeWidth = Math.min(174, frame.width() - Math.min(switchWidth, frame.width() * 2 / 5) - 12);
+        shapeBar = new Rect(frame.x(), top - CapeTheme.CONTROL - 6, shapeWidth, CapeTheme.CONTROL);
 
-        footer = new Rect(frame.x(), shelf.bottom() + FOOTER_GAP, frame.width(), FOOTER_HEIGHT);
         int statusWidth = Math.min(72, 18 + Math.max(font.width(text("ui.online")), font.width(text("ui.offline"))));
         statusPill = new Rect(footer.x() + 4, footer.centerY() - 7, statusWidth, 14);
         int actionWidth = Math.min(footer.width() - statusWidth - 12, Math.min(348, Math.max(232, footer.width() * 3 / 5)));
@@ -194,8 +184,10 @@ public final class CapeScreen extends CapeUiScreen {
     private void updateStyles() {
         CapeStyles state = CapeBoard.styleChips();
         chips.forEach((chip, button) -> {
-            button.selected(equipped != null && state.on(chip));
+            boolean selected = equipped != null && state.on(chip);
+            button.selected(selected);
             button.active = equipped != null;
+            if (chip == CapeStyles.Chip.ANIMATED) button.setMessage(text(selected ? "ui.animation_on" : "ui.animation_off"));
         });
     }
 
@@ -233,7 +225,7 @@ public final class CapeScreen extends CapeUiScreen {
             if (font.width(note) <= noteWidth) {
                 CapeTheme.line(graphics, font, note, noteX, footer.centerY() - font.lineHeight / 2, noteWidth, CapeTheme.MUTED);
             } else {
-                CapeTheme.line(graphics, font, note, footer.x() + 4, footer.bottom() + 3, footer.width() - 8, CapeTheme.MUTED);
+                CapeTheme.line(graphics, font, note, footer.x() + 4, footerNoteY, footer.width() - 8, CapeTheme.MUTED);
             }
         }
     }

@@ -131,7 +131,7 @@ public final class CapeGalleryScreen extends CapeBrowserScreen<CapeGalleryScreen
         if (byName) {
             rows = rows.stream().sorted(Comparator.comparing(row -> title(row).getString(), String.CASE_INSENSITIVE_ORDER)).toList();
         }
-        return new Results<>(rows, next, status);
+        return new Results<>(rows, next, status, null);
     }
 
     private List<Row> merge(String query, Map<String, Row> samples, List<GalleryPages.Entry> entries) {

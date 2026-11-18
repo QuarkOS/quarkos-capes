@@ -26,7 +26,12 @@ public final class CatalogClient {
     public record Item(String source, String id, String kind, String title, String author, String style,
                        boolean animateFrames, int frameCount, int frameWidth, int frameHeight, int[] delays,
                        String textureUrl, String sha256, String modelJson) { }
-    public record Page(List<Item> items, String nextCursor, Map<String, String> sources) { }
+    /** The live catalog supplies cursors. Catalogs with a known result count can also supply a total. */
+    public record Page(List<Item> items, String nextCursor, Map<String, String> sources, Integer total) {
+        public Page(List<Item> items, String nextCursor, Map<String, String> sources) {
+            this(items, nextCursor, sources, null);
+        }
+    }
     public static final class Failure extends IOException {
         public final String key;
         public final int status;

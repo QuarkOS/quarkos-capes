@@ -17,6 +17,7 @@ import dev.quarkos.capes.client.screen.ui.CapeUiScreen;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.contents.TranslatableContents;
 
 import java.io.IOException;
@@ -45,6 +46,8 @@ public final class UiHarness {
     }
 
     private static final Path DIRECTORY = Path.of(System.getProperty("quarkos_capes.captures", "build/captures"));
+    // Vanilla fades to 80% of the previous alpha each tick, then interpolates both samples.
+    private static final int SAVE_INDICATOR_FADE_TICKS = 28;
     private static final List<String> RESULTS = new ArrayList<>();
     private static List<Stage> stages;
     private static int index, age, pass, fail;
@@ -54,7 +57,7 @@ public final class UiHarness {
     private static String oldGalleryId;
     private static Screen expectedScreen;
     private static Button hovered;
-    private static int sent;
+    private static int sent, saveFadeTicks;
     private static long deadline;
     private static Path capture;
     private static String observation;
@@ -92,9 +95,17 @@ public final class UiHarness {
                     client.resizeDisplay();
                 }
             }
-            if (++age == 7) open(client, stage.scene());
+            if (++age == 7) {
+                open(client, stage.scene());
+                saveFadeTicks = SAVE_INDICATOR_FADE_TICKS;
+            }
+            boolean waitingForSave = stage.capture() && capture == null && saveIndicatorSettling(client);
             if (age < 22) return;
             if (capture == null) {
+                if (waitingForSave) {
+                    if (System.nanoTime() > deadline) record(client, stage, "World save indicator did not clear");
+                    return;
+                }
                 try {
                     check(client, stage);
                 } catch (AssertionError failure) {
@@ -116,6 +127,14 @@ public final class UiHarness {
         } catch (IOException | RuntimeException | AssertionError failure) {
             record(client, stage, failure.toString());
         }
+    }
+
+    private static boolean saveIndicatorSettling(Minecraft client) {
+        if (!client.options.showAutosaveIndicator().get()) return false;
+        var server = client.getSingleplayerServer();
+        if (server != null && server.isCurrentlySaving()) saveFadeTicks = SAVE_INDICATOR_FADE_TICKS;
+        else if (saveFadeTicks > 0) saveFadeTicks--;
+        return saveFadeTicks > 0;
     }
 
     private static List<Stage> plan() {
@@ -152,7 +171,14 @@ public final class UiHarness {
                 if (!CapeBoard.sampleOn(sample)) throw new AssertionError("Sample was not equipped: " + sample);
                 if (scene == Scene.HOVER) hovered = wardrobe.sampleCard("bands");
                 if (scene == Scene.STYLES) {
-                    press(wardrobe.styleChip(CapeStyles.Chip.ANIMATED), "Animation");
+                    Button animation = wardrobe.styleChip(CapeStyles.Chip.ANIMATED);
+                    if (animation == null || animation != button(wardrobe, "text.quarkos_capes.ui.animation_on")) {
+                        throw new AssertionError("Animation did not show On");
+                    }
+                    press(animation, "Animation");
+                    if (animation != button(wardrobe, "text.quarkos_capes.ui.animation_off")) {
+                        throw new AssertionError("Animation did not show Off");
+                    }
                     press(wardrobe.styleChip(CapeStyles.Chip.WAVY), "Wavy");
                     if (OwnerCape.get().animateFrames || !"wave".equals(OwnerCape.get().style)) {
                         throw new AssertionError("Shape and Animation controls did not update the render state");
@@ -161,9 +187,10 @@ public final class UiHarness {
                 if (scene == Scene.SETTINGS) press(button(wardrobe, "text.quarkos_capes.ui.settings"), "Settings");
             }
             case GALLERY -> {
-                BrowseScreen gallery = new BrowseScreen(null, new BundledCatalog());
+                var catalog = new BundledCatalog();
+                BrowseScreen gallery = new BrowseScreen(null, catalog);
                 client.setScreen(gallery);
-                checkGalleryPaging(gallery);
+                checkGalleryPaging(gallery, catalog);
                 gallery.selectFirst();
             }
             case OFFLINE -> client.setScreen(new BrowseScreen(null));
@@ -226,19 +253,48 @@ public final class UiHarness {
         McBridge.press(button);
     }
 
-    private static void checkGalleryPaging(BrowseScreen gallery) {
+    private static void checkGalleryPaging(BrowseScreen gallery, BundledCatalog catalog) {
+        var titles = catalog.entries.stream().map(entry -> entry.item().title()).toList();
+        if (titles.size() != 14 || catalog.entries.stream().map(entry -> entry.item().id()).distinct().count() != titles.size()) {
+            throw new AssertionError("Expected 14 distinct gallery fixtures");
+        }
         if (gallery.items().size() != BundledCatalog.PAGE_SIZE) throw new AssertionError("Missing gallery fixtures");
-        String title = gallery.items().getFirst().title();
-        press(button(gallery, "text.quarkos_capes.site.next"), "Next gallery page");
-        if (hasCard(gallery, title)) throw new AssertionError("Next page still shows the first cape");
-        press(button(gallery, "text.quarkos_capes.site.previous"), "Previous gallery page");
-        if (!hasCard(gallery, title)) throw new AssertionError("Previous page did not restore the first cape");
+        List<String> firstPage = visibleCapes(gallery);
+        if (gallery.width == 480 && gallery.height == 270 && firstPage.size() != 6) {
+            throw new AssertionError("Browse did not fit two rows of three capes at GUI 4");
+        }
+
+        int turns = 0;
+        int start = 0;
+        while (start < titles.size()) {
+            List<String> visible = visibleCapes(gallery);
+            int end = start + visible.size();
+            if (visible.isEmpty() || end > titles.size() || !visible.equals(titles.subList(start, end))) {
+                throw new AssertionError("Gallery cards are missing or repeated");
+            }
+            Component expected = Component.translatable("text.quarkos_capes.ui.range", start + 1, end, titles.size());
+            if (!expected.equals(gallery.pageLabel())) throw new AssertionError("Incorrect gallery range: " + gallery.pageLabel());
+            Button next = button(gallery, "text.quarkos_capes.site.next");
+            if (next == null || next.active != (end < titles.size())) {
+                throw new AssertionError("Next has the wrong state at cape " + end);
+            }
+            start = end;
+            if (next.active) {
+                press(next, "Next gallery page");
+                turns++;
+            }
+        }
+        for (int i = 0; i < turns; i++) press(button(gallery, "text.quarkos_capes.site.previous"), "Previous gallery page");
+        Button previous = button(gallery, "text.quarkos_capes.site.previous");
+        if (!visibleCapes(gallery).equals(firstPage) || previous == null || previous.active) {
+            throw new AssertionError("Previous did not restore the first gallery page");
+        }
     }
 
-    private static boolean hasCard(BrowseScreen gallery, String title) {
-        return gallery.children().stream().anyMatch(child -> child instanceof Button button
-                && !(button.getMessage().getContents() instanceof TranslatableContents)
-                && button.getMessage().getString().equals(title));
+    private static List<String> visibleCapes(BrowseScreen gallery) {
+        return gallery.children().stream().filter(child -> child instanceof Button button && button.visible
+                && !(button.getMessage().getContents() instanceof TranslatableContents))
+                .map(child -> ((Button) child).getMessage().getString()).toList();
     }
 
     private static boolean completePng(Path path) throws IOException {
@@ -340,7 +396,7 @@ public final class UiHarness {
             int start = query.cursor().isEmpty() ? 0 : Integer.parseInt(query.cursor());
             int end = Math.min(items.size(), start + Math.min(PAGE_SIZE, query.limit()));
             String next = end < items.size() ? Integer.toString(end) : null;
-            ready.accept(new CatalogClient.Page(items.subList(start, end), next, Map.of("ours", "available")));
+            ready.accept(new CatalogClient.Page(items.subList(start, end), next, Map.of("ours", "available"), items.size()));
         }
 
         @Override public void detail(CatalogClient.Item item, Consumer<CatalogClient.Item> ready, Consumer<String> error) { ready.accept(item); }
