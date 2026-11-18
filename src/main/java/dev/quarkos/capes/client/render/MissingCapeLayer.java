@@ -145,7 +145,11 @@ public class MissingCapeLayer extends RenderLayer {
         java.util.UUID drawn = id;
         pose.pushPose();
         pose.translate(0.0F, avatar.isCrouching ? 0.2F : 0.0F, avatar.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
+        //? if >=26.1 {
+        /*pose.rotateDegrees(com.mojang.math.Axis.XP, avatar.isCrouching ? 31.0F : 6.0F);
+        *///?} else {
         pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(avatar.isCrouching ? 31.0F : 6.0F));
+        //?}
         collector.submitCustomGeometry(pose, McBridge.cutout(choice.texture(), choice.kind()), (entry, consumer) ->
                 CapeDraw.emit(entry, consumer, bright, drawn, choice, preview));
         pose.popPose();

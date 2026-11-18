@@ -10,7 +10,7 @@ pluginManagement {
 
 plugins {
     id("dev.kikugie.stonecutter") version "0.9.8"
-    // Picks the Loom variant this Minecraft line needs.
+    // Selects fabric-loom for 26.x and fabric-loom-remap for older Fabric nodes.
     id("dev.kikugie.loom-back-compat") version "0.4.2"
     id("org.gradle.toolchains.foojay-resolver-convention") version "1.0.0"
 }
@@ -18,7 +18,7 @@ plugins {
 stonecutter {
     create(rootProject) {
         // Fabric project paths stay :1.21.11. Forge is a sibling branch.
-        versions("1.20.1", "1.21.1", "1.21.4", "1.21.8", "1.21.11")
+        versions("1.20.1", "1.21.1", "1.21.4", "1.21.8", "1.21.11", "26.3")
         vcsVersion = "1.21.11"
         branch("forge") {
             versions("1.20.1", "1.21.1", "1.21.4", "1.21.8", "1.21.11")
@@ -37,8 +37,8 @@ gradle.projectsEvaluated {
         description = "Build every Fabric, Forge, and NeoForge jar into dist/ with SHA-256 checksums."
         notCompatibleWithConfigurationCache("Copies version jars into dist/.")
     }
-    // Fabric ships remapJar (intermediary names, nested Cloth and OkHttp).
-    // Forge and NeoForge ship their own jar tasks. Loom's RemapJarTask is not a Jar subclass.
+    // Fabric ships jar on 26.x and remapJar on the older, intermediary nodes.
+    // Forge and NeoForge ship their own jar tasks.
     val jars = rootProject.subprojects.mapNotNull { project ->
         if (!project.path.matches(Regex(":(?:forge:|neoforge:)?\\d+\\.\\d+(?:\\.\\d+)?"))) return@mapNotNull null
         project.tasks.findByName("remapJar") ?: project.tasks.findByName("jar")

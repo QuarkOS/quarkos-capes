@@ -274,7 +274,7 @@ public final class ShareHarness {
     }
 
     private static void galleryShot(Minecraft client, String name, State next) {
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         if (McBridge.currentScreen(client) != gallery) {
             if (ticks > 20) {
                 fail(name + " screen did not open");
@@ -333,7 +333,7 @@ public final class ShareHarness {
         }
         if (ticks == 1) {
             shotTick = -1;
-            client.options.hideGui = false;
+            McBridge.hideHud(client, false);
             McBridge.setScreen(client, null);
             command(client, "tp @s " + trim(x) + " " + trim(y) + " " + trim(z) + " 180 " + (int) pitch);
             client.options.setCameraType(third ? CameraType.THIRD_PERSON_BACK : CameraType.FIRST_PERSON);

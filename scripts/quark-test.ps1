@@ -8,7 +8,7 @@ param(
     [string]$Version = "1.21.11",
     [string]$Compile = "1.21.11,1.20.1,1.21.1,1.21.4,1.21.8,forge:1.20.1,forge:1.21.1,forge:1.21.4,forge:1.21.8,forge:1.21.11,neoforge:1.21.1,neoforge:1.21.4,neoforge:1.21.8,neoforge:1.21.11",
     [string]$Jdk = "D:\dev\jdks\jdk-25.0.5+8",
-    [string]$GradleHome = "D:\dev\gradle-home",
+    [string]$GradleHome = "D:\dev\capes-gradle-home",
     [string]$OutDir = "D:\dev\capes-test-out",
     [int]$UiMinutes = 25,
     [string]$UiExtra = "",
@@ -96,11 +96,13 @@ try {
     if (-not $SkipTests) { Step "junit" @(":${Version}:test") }
     if (-not $SkipCompile) { Step "compile" (@($Compile.Split(",") | % { ":$($_.Trim()):compileJava" }) + @("--continue")) 90 }
     if (-not $SkipJar) {
-        Step "jar" @(":${Version}:remapJar")
+        $jarTask = if ($Version -like "26.*") { "jar" } else { "remapJar" }
+        Step "jar" @(":${Version}:$jarTask")
         $jar = Get-ChildItem "$Repo\versions\$Version\build\libs\*.jar" -ErrorAction SilentlyContinue | Where-Object { $_.Name -notmatch '(sources|dev)' } | Sort-Object LastWriteTime -Descending | Select-Object -First 1
         if ($jar) {
-            Copy-Item $jar.FullName "$OutDir\capes-fabric-ui.jar" -Force
-            if (-not $NoDownloadsCopy) { Copy-Item $jar.FullName "$env:USERPROFILE\Downloads\capes-fabric-ui.jar" -Force }
+            $jarName = if ($Version -eq "1.21.11") { "capes-fabric-ui.jar" } else { "capes-fabric-ui-$Version.jar" }
+            Copy-Item $jar.FullName "$OutDir\$jarName" -Force
+            if (-not $NoDownloadsCopy) { Copy-Item $jar.FullName "$env:USERPROFILE\Downloads\$jarName" -Force }
             $results["jarFile"] = $jar.Name
         }
     }

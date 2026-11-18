@@ -9,14 +9,23 @@ import org.spongepowered.asm.mixin.injection.Inject;
 
 @Mixin(InventoryScreen.class)
 *///?} else {
-import net.minecraft.client.gui.render.pip.GuiEntityRenderer;
-import net.minecraft.client.gui.render.state.pip.GuiEntityRenderState;
 //? if >=1.21.11 {
 import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
 import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 //?}
+//? if >=26.1 {
+/*import net.minecraft.client.gui.render.pip.PictureInPictureRenderer;
+import net.minecraft.client.renderer.feature.FeatureRenderDispatcher;
+import net.minecraft.client.renderer.state.gui.GuiRenderState;
+import net.minecraft.client.renderer.state.gui.pip.GuiEntityRenderState;
+import net.minecraft.client.renderer.state.gui.pip.PictureInPictureRenderState;
 
+@Mixin(PictureInPictureRenderer.class)
+*///?} else {
+import net.minecraft.client.gui.render.pip.GuiEntityRenderer;
+import net.minecraft.client.gui.render.state.pip.GuiEntityRenderState;
 @Mixin(GuiEntityRenderer.class)
+//?}
 //?}
 public class CapeGuiMixin {
     //? if <1.21.2 {
@@ -46,6 +55,19 @@ public class CapeGuiMixin {
     @Inject(method = "renderToTexture(Lnet/minecraft/client/gui/render/state/pip/GuiEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;)V", at = @org.spongepowered.asm.mixin.injection.At("RETURN"))
     private void quarkosGuiEnd(GuiEntityRenderState state, PoseStack pose, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
         CapeRenderPass.guiDepth--;
+    }
+    *///?} else if >=26.1 {
+    /*// The feature buffers are built after GuiEntityRenderer.renderToTexture returns.
+    @WrapMethod(method = "prepare(Lnet/minecraft/client/renderer/state/gui/pip/PictureInPictureRenderState;Lnet/minecraft/client/renderer/state/gui/GuiRenderState;Lnet/minecraft/client/renderer/feature/FeatureRenderDispatcher;I)V")
+    private void quarkosGui(PictureInPictureRenderState state, GuiRenderState gui,
+                            FeatureRenderDispatcher features, int scale, Operation<Void> original) {
+        if (!(state instanceof GuiEntityRenderState)) {
+            original.call(state, gui, features, scale);
+            return;
+        }
+        CapeRenderPass.guiDepth++;
+        try { original.call(state, gui, features, scale); }
+        finally { CapeRenderPass.guiDepth--; }
     }
     *///?} else {
     @WrapMethod(method = "renderToTexture(Lnet/minecraft/client/gui/render/state/pip/GuiEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;)V")

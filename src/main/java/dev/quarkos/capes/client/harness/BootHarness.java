@@ -38,9 +38,15 @@ public final class BootHarness {
             Class<?>[] targets = {
                     net.minecraft.client.renderer.entity.layers.CapeLayer.class,
                     net.minecraft.client.Camera.class, net.minecraft.client.player.AbstractClientPlayer.class,
+                    //? if >=26.2 {
+                    /*net.minecraft.client.gui.Hud.class,
+                    *///?} else {
                     net.minecraft.client.gui.Gui.class,
+                    //?}
                     net.minecraft.client.renderer.entity.LivingEntityRenderer.class,
-                    //? if >=1.21.6 {
+                    //? if >=26.1 {
+                    /*net.minecraft.client.gui.render.pip.PictureInPictureRenderer.class,
+                    *///?} else if >=1.21.6 {
                     net.minecraft.client.gui.render.pip.GuiEntityRenderer.class,
                     //?} else {
                     /*net.minecraft.client.gui.screens.inventory.InventoryScreen.class,

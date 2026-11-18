@@ -151,7 +151,11 @@ public class CapeLayerMixin {
         throw new AssertionError();
     }
 
+    //? if >=26.1 {
+    /*@Inject(method = "submit(Lcom/mojang/blaze3d/vertex/PoseStack;Lnet/minecraft/client/renderer/SubmitNodeCollector;ILnet/minecraft/client/renderer/entity/state/AvatarRenderState;FF)V", at = @At("HEAD"), cancellable = true)
+    *///?} else {
     @Inject(method = "submit", at = @At("HEAD"), cancellable = true)
+    //?}
     private void quarkosCapes(PoseStack pose, SubmitNodeCollector collector, int light, AvatarRenderState state, float yRot, float xRot, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
         boolean local = client.player != null && client.player.getId() == state.id;
@@ -198,7 +202,11 @@ public class CapeLayerMixin {
             pose.translate(0.0F, -0.053125F, 0.06875F);
         }
         ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
+        //? if >=26.1 {
+        /*pose.rotateDegrees(com.mojang.math.Axis.XP, 6.0F);
+        *///?} else {
         pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(6.0F));
+        //?}
         collector.submitCustomGeometry(pose, McBridge.cutout(choice.texture(), choice.kind()), (entry, consumer) ->
                 CapeDraw.emit(entry, consumer, bright, drawn, choice, preview));
         pose.popPose();

@@ -16,7 +16,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(AvatarRenderer.class)
 public class ElytraTextureMixin {
+    //? if >=26.1 {
+    /*@Inject(method = "extractRenderState(Lnet/minecraft/world/entity/Avatar;Lnet/minecraft/client/renderer/entity/state/AvatarRenderState;F)V", at = @At("RETURN"))
+    *///?} else {
     @Inject(method = "extractRenderState", at = @At("RETURN"))
+    //?}
     private void quarkosCapes(Avatar avatar, AvatarRenderState state, float partial, CallbackInfo ci) {
         boolean local = Minecraft.getInstance().player == avatar;
         Identifier id = CapeBook.elytraFor(avatar.getUUID(), local);

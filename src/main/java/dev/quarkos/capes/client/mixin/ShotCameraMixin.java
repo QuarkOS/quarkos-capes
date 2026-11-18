@@ -10,7 +10,7 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 //? if <1.21.11 {
 /*import net.minecraft.world.level.BlockGetter;
-*///?} else {
+*///?} else if <26.1 {
 import net.minecraft.world.level.Level;
 //?}
 
@@ -31,7 +31,16 @@ public abstract class ShotCameraMixin {
     protected abstract void move(float x, float y, float z);
     //?}
 
-    //? if <1.21.11 {
+    //? if >=26.1 {
+    /*@Shadow
+    public abstract Entity entity();
+
+    // update aligns the camera before it derives the culling frustum and projection.
+    @Inject(method = "alignWithEntity(F)V", at = @At("RETURN"))
+    private void quarkosShotCamera(float partial, CallbackInfo ci) {
+        orbit(entity(), partial);
+    }
+    *///?} else if <1.21.11 {
     /*@Inject(method = "setup", at = @At("RETURN"))
     private void quarkosShotCamera(BlockGetter level, Entity entity, boolean detached, boolean reverse, float partial, CallbackInfo ci) {
         orbit(entity, partial);

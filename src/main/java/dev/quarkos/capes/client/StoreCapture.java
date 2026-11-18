@@ -130,7 +130,7 @@ public final class StoreCapture {
     private static void wardrobe(Minecraft client) {
         stepTicks++;
         if (stepTicks == 1) {
-            client.options.hideGui = false;
+            McBridge.hideHud(client, false);
             McBridge.showCape(client.options);
             OwnerCape.set(OwnerCape.sampleCloak());
             CapeBook.previewBack = true;
@@ -158,7 +158,7 @@ public final class StoreCapture {
         stepTicks++;
         ClientSettings.get().localOnly = false;
         ClientSettings.get().showOthers = true;
-        client.options.hideGui = false;
+        McBridge.hideHud(client, false);
         if (stepTicks == 1) {
             readyTicks = 0;
             McBridge.setScreen(client, new BrowseScreen(null));
@@ -211,7 +211,7 @@ public final class StoreCapture {
             CapeBook.preview = false;
             CapeBook.draft = null;
             McBridge.setScreen(client, null);
-            client.options.hideGui = true;
+            McBridge.hideHud(client, true);
             McBridge.thirdPerson(client.options);
             client.options.fov().set(30);
             CapeBook.resetDraws();
@@ -219,7 +219,7 @@ public final class StoreCapture {
             client.player.connection.sendCommand("tp @s 0.5 " + trim(ground) + " 0.5 0 8");
             client.player.connection.sendCommand("weather clear");
         }
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         McBridge.thirdPerson(client.options);
         McBridge.clearChat(client);
         McBridge.clearToasts(client);
@@ -256,7 +256,7 @@ public final class StoreCapture {
             // Bands is a single 2:1 frame, so the elytra skin uses that texture.
             OwnerCape.set(OwnerCape.sampleBands());
             readyTicks = 0;
-            client.options.hideGui = true;
+            McBridge.hideHud(client, true);
             McBridge.thirdPerson(client.options);
             McBridge.setScreen(client, null);
             client.player.getAbilities().flying = false;
@@ -264,7 +264,7 @@ public final class StoreCapture {
             client.player.connection.sendCommand("kill @e[type=!player]");
             client.player.connection.sendCommand("item replace entity @s armor.chest with minecraft:elytra");
         }
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         client.options.fov().set(28);
         McBridge.thirdPerson(client.options);
         McBridge.clearChat(client);
@@ -428,7 +428,7 @@ public final class StoreCapture {
 
     private static void watch(Minecraft client, UUID other, String shot, String marker, String who) {
         stepTicks++;
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         client.options.setCameraType(net.minecraft.client.CameraType.FIRST_PERSON);
         client.options.fov().set(55);
         McBridge.clearChat(client);

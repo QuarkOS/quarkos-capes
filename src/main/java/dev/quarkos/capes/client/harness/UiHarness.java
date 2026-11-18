@@ -14,6 +14,7 @@ import dev.quarkos.capes.client.screen.LinkScreen;
 import dev.quarkos.capes.client.screen.ui.CapeStyles;
 import dev.quarkos.capes.client.screen.ui.CapeTheme;
 import dev.quarkos.capes.client.screen.ui.CapeUiScreen;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.screens.Screen;
@@ -31,28 +32,33 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
 
-/** Captures the selection and gallery without contacting a cape service. */
+/** Captures the cape screens and the equipped cape in a local world. */
 public final class UiHarness {
     private enum Scene {
         SELECT("select"), HOVER("select-hover"), STYLES("styles"), GALLERY("gallery"),
-        OFFLINE("gallery-empty"), SETTINGS("settings"), LINK("link");
+        OFFLINE("gallery-empty"), SETTINGS("settings"), LINK("link"),
+        WORLD_BACK("world-back"), WORLD_SIDE("world-side");
 
         final String file;
         Scene(String file) { this.file = file; }
+
+        boolean world() { return this == WORLD_BACK || this == WORLD_SIDE; }
     }
 
     private record Stage(Scene scene, int width, int height, int scale, boolean capture) {
-        String name() { return "ui-" + scene.file + "-s" + scale; }
+        String name() { return "ui-" + scene.file + (scene.world() ? "" : "-s" + scale); }
     }
 
     private static final Path DIRECTORY = Path.of(System.getProperty("quarkos_capes.captures", "build/captures"));
+    private static final long STAGE_TIMEOUT = 20_000_000_000L;
     // Vanilla fades to 80% of the previous alpha each tick, then interpolates both samples.
     private static final int SAVE_INDICATOR_FADE_TICKS = 28;
     private static final List<String> RESULTS = new ArrayList<>();
     private static List<Stage> stages;
     private static int index, age, pass, fail;
     private static int oldScale;
-    private static boolean oldOffline, oldBack, finished;
+    private static boolean oldOffline, oldBack, oldHideGui, finished;
+    private static CameraType oldCamera;
     private static OwnerCape oldCape;
     private static String oldGalleryId;
     private static Screen expectedScreen;
@@ -73,6 +79,8 @@ public final class UiHarness {
         oldCape = OwnerCape.get();
         oldBack = CapeBook.previewBack;
         oldScale = client.options.guiScale().get();
+        oldCamera = client.options.getCameraType();
+        oldHideGui = McBridge.hudHidden(client);
         ClientSettings.get().localOnly = true;
         CapeBook.previewBack = true;
     }
@@ -87,7 +95,7 @@ public final class UiHarness {
         Stage stage = stages.get(index);
         try {
             if (age == 0) {
-                deadline = System.nanoTime() + 20_000_000_000L;
+                deadline = System.nanoTime() + STAGE_TIMEOUT;
                 Stage previous = index == 0 ? null : stages.get(index - 1);
                 if (previous == null || previous.scale() != stage.scale() || previous.width() != stage.width() || previous.height() != stage.height()) {
                     client.options.guiScale().set(stage.scale());
@@ -106,6 +114,8 @@ public final class UiHarness {
                     if (System.nanoTime() > deadline) record(client, stage, "World save indicator did not clear");
                     return;
                 }
+                if (stage.scene().world() && client.player != null && CapeBook.draws(client.player.getUUID()) == 0
+                        && System.nanoTime() < deadline) return;
                 try {
                     check(client, stage);
                 } catch (AssertionError failure) {
@@ -118,11 +128,12 @@ public final class UiHarness {
                 capture = DIRECTORY.resolve(stage.name() + ".png");
                 Files.deleteIfExists(capture);
                 McBridge.shot(client, capture);
+                if (stage.scene().world()) deadline = System.nanoTime() + STAGE_TIMEOUT;
             }
             if (completePng(capture)) {
                 record(client, stage, observation);
             } else if (System.nanoTime() > deadline) {
-                record(client, stage, "Screenshot was not written");
+                record(client, stage, observation == null ? "Screenshot was not written" : observation + ". Screenshot was not written");
             }
         } catch (IOException | RuntimeException | AssertionError failure) {
             record(client, stage, failure.toString());
@@ -142,10 +153,14 @@ public final class UiHarness {
         int height = Integer.getInteger("quarkos_capes.height", 1080);
         List<Stage> plan = new ArrayList<>();
         for (int scale : List.of(2, 4)) {
-            for (Scene scene : Scene.values()) plan.add(new Stage(scene, width, height, scale, scene != Scene.LINK));
+            for (Scene scene : Scene.values()) {
+                if (!scene.world()) plan.add(new Stage(scene, width, height, scale, scene != Scene.LINK));
+            }
         }
         if (width != 1280 || height != 720) addLayoutSweep(plan, 1280, 720);
         if (width != 1920 || height != 1080) addLayoutSweep(plan, 1920, 1080);
+        plan.add(new Stage(Scene.WORLD_BACK, width, height, 2, true));
+        plan.add(new Stage(Scene.WORLD_SIDE, width, height, 2, true));
         return plan;
     }
 
@@ -158,7 +173,7 @@ public final class UiHarness {
     }
 
     private static void open(Minecraft client, Scene scene) {
-        client.options.hideGui = false;
+        McBridge.hideHud(client, scene.world());
         sent = CapeHttp.sent;
         hovered = null;
         switch (scene) {
@@ -195,6 +210,15 @@ public final class UiHarness {
             }
             case OFFLINE -> client.setScreen(new BrowseScreen(null));
             case LINK -> client.setScreen(new LinkScreen(null));
+            case WORLD_BACK, WORLD_SIDE -> {
+                client.setScreen(null);
+                CapeBoard.equipSample("cloak");
+                CapeBook.preview = false;
+                CapeBook.draft = null;
+                McBridge.showCape(client.options);
+                McBridge.thirdPerson(client.options);
+                ShotView.frame(scene == Scene.WORLD_BACK ? 0f : 50f, 8f, 3.5f);
+            }
         }
         expectedScreen = client.screen;
         CapeBook.resetDraws();
@@ -214,8 +238,16 @@ public final class UiHarness {
         }
         if (window.getWidth() / stage.scale() >= 320 && window.getHeight() / stage.scale() >= 240
                 && window.getGuiScale() != stage.scale()) throw new AssertionError("Requested GUI scale was not applied");
-        HarnessLayout.check(expectedScreen);
+        if (!stage.scene().world()) HarnessLayout.check(expectedScreen);
         if (CapeHttp.sent != sent) throw new AssertionError("UI capture sent a cape service request");
+        if (stage.scene().world()) {
+            if (client.screen != null || client.options.getCameraType() != CameraType.THIRD_PERSON_BACK
+                    || !CapeBoard.sampleOn("cloak")) throw new AssertionError("Cloak was not equipped in third-person view");
+            if (client.player == null || CapeBook.draws(client.player.getUUID()) == 0) {
+                throw new AssertionError("Cloak did not draw in the world");
+            }
+            return;
+        }
         if (stage.scene() == Scene.HOVER && !hovered.isHovered()) throw new AssertionError("Pointer did not hover the cape card");
         if (stage.scene() == Scene.GALLERY && expectedScreen instanceof BrowseScreen gallery
                 && (gallery.items().size() != BundledCatalog.PAGE_SIZE || !gallery.previewReady())) {
@@ -335,8 +367,11 @@ public final class UiHarness {
             ClientSettings.get().equippedGalleryId = oldGalleryId;
             ClientSettings.get().localOnly = oldOffline;
             client.options.guiScale().set(oldScale);
+            client.options.setCameraType(oldCamera);
+            McBridge.hideHud(client, oldHideGui);
             CapeBook.previewBack = oldBack;
         }
+        ShotView.clear();
         client.setScreen(null);
         String summary = "UI_HARNESS pass=" + pass + " fail=" + fail;
         try {

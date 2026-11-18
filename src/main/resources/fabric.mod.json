@@ -8,7 +8,7 @@
   "license": "MIT",
   "icon": "assets/quarkos_capes/icon.png",
   "environment": "client",
-  "accessWidener": "quarkos_capes.accesswidener",
+  "accessWidener": "${accessWidener}",
   "entrypoints": {
     "client": ["dev.quarkos.capes.QuarkosCapes"],
     "modmenu": ["dev.quarkos.capes.client.ModMenuHook"]

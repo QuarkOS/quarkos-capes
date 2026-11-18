@@ -12,7 +12,9 @@ fun stripArchive(taskName: String) {
                 return@doLast
             }
             val classes = project.layout.buildDirectory.dir("classes/java/main").get().asFile
-            val java = File(System.getProperty("java.home"), "bin/java")
+            val java = project.extensions.getByType<JavaToolchainService>()
+                .launcherFor(project.extensions.getByType<JavaPluginExtension>().toolchain)
+                .get().executablePath.asFile
             val code = ProcessBuilder(
                 java.absolutePath,
                 "-cp",

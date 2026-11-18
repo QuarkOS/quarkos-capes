@@ -409,7 +409,7 @@ public final class ClientHarness {
             fail("player missing for back views");
             return;
         }
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         client.options.tutorialStep = net.minecraft.client.tutorial.TutorialSteps.NONE;
         client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
         McBridge.thirdPerson(client.options);
@@ -495,7 +495,7 @@ public final class ClientHarness {
                     + " camera=" + client.options.getCameraType()
                     + " y=" + client.player.getY()
                     + " z=" + client.player.getZ()
-                    + " hud=" + client.options.hideGui);
+                    + " hud=" + McBridge.hudHidden(client));
             queueShot(client, style + "-back");
             phase = 3;
             return;
@@ -516,7 +516,7 @@ public final class ClientHarness {
             fail("player missing for cloak shots");
             return;
         }
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         client.options.tutorialStep = net.minecraft.client.tutorial.TutorialSteps.NONE;
         client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
         client.options.fov().set(30);
@@ -955,7 +955,7 @@ public final class ClientHarness {
 
 *///?}
     private static void hideChrome(Minecraft client) {
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         client.options.tutorialStep = net.minecraft.client.tutorial.TutorialSteps.NONE;
         client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
         McBridge.clearChat(client);

@@ -1,5 +1,6 @@
 package dev.quarkos.capes.client;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import com.mojang.blaze3d.platform.NativeImage;
 import dev.quarkos.capes.client.screen.ui.CapeGridLayout;
 import dev.quarkos.capes.sim.CapeGeometry;
@@ -96,7 +97,11 @@ public final class McBridge {
         *///?} else {
         if (kind == dev.quarkos.capes.client.render.CapeBook.Kind.CLOTH
                 || kind == dev.quarkos.capes.client.render.CapeBook.Kind.MODEL) {
+            //? if >=26.1 {
+            /*return RenderTypes.entityCutout(texture);
+            *///?} else {
             return RenderTypes.entityCutoutNoCull(texture);
+            //?}
         }
         return RenderTypes.armorCutoutNoCull(texture);
         //?}
@@ -155,7 +160,7 @@ public final class McBridge {
     public static KeyMapping registerKey() {
         KeyMapping mapping = new KeyMapping(
                 "key.quarkos_capes.open",
-                79,
+                InputConstants.KEY_O,
                 //? if <1.21.9 {
                 /*"key.categories.quarkos_capes"
                 *///?} else {
@@ -181,6 +186,22 @@ public final class McBridge {
         options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_BACK);
     }
 
+    public static boolean hudHidden(Minecraft client) {
+        //? if >=26.2 {
+        /*return client.gui.hud.isHidden();
+        *///?} else {
+        return client.options.hideGui;
+        //?}
+    }
+
+    public static void hideHud(Minecraft client, boolean hidden) {
+        //? if >=26.2 {
+        /*if (hudHidden(client) != hidden) client.gui.hud.toggle();
+        *///?} else {
+        client.options.hideGui = hidden;
+        //?}
+    }
+
     public static void slide(net.minecraft.client.gui.components.AbstractSliderButton slider, double fraction) {
         double clamped = Math.max(0.0, Math.min(1.0, fraction));
         double x = slider.getX() + 4.0 + clamped * Math.max(1, slider.getWidth() - 8);
@@ -188,7 +209,8 @@ public final class McBridge {
         //? if <1.21.9 {
         /*slider.onClick(x, y);
         *///?} else {
-        slider.onClick(new net.minecraft.client.input.MouseButtonEvent(x, y, new net.minecraft.client.input.MouseButtonInfo(0, 0)), false);
+        slider.onClick(new net.minecraft.client.input.MouseButtonEvent(x, y,
+                new net.minecraft.client.input.MouseButtonInfo(InputConstants.MOUSE_BUTTON_LEFT, 0)), false);
         //?}
     }
 
@@ -271,7 +293,11 @@ public final class McBridge {
                 }
             }
             float half = Math.max(0.9f, state.boundingBoxHeight / 2f);
+            //? if >=26.1 {
+            /*graphics.entity(state, scale, new Vector3f(0f, half, 0f), pose, camera, x1, y1, x2, y2);
+            *///?} else {
             graphics.submitEntityRenderState(state, scale, new Vector3f(0f, half, 0f), pose, camera, x1, y1, x2, y2);
+            //?}
             //?}
         } finally {
             player.setYRot(yaw); player.setXRot(pitch);
@@ -391,7 +417,12 @@ public final class McBridge {
             throw new java.io.UncheckedIOException(e);
         }
         *///?} else {
-        Screenshot.takeScreenshot(client.getMainRenderTarget(), image -> {
+        //? if >=26.1 {
+        /*var target = client.gameRenderer.mainRenderTarget();
+        *///?} else {
+        var target = client.getMainRenderTarget();
+        //?}
+        Screenshot.takeScreenshot(target, image -> {
             try {
                 image.writeToFile(file);
             } catch (java.io.IOException e) {

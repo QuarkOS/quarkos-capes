@@ -1,7 +1,7 @@
 package dev.quarkos.capes.client.harness;
 
 import com.mojang.authlib.GameProfile;
-import com.mojang.blaze3d.platform.InputConstants;
+import dev.quarkos.capes.QuarkosCapes;
 import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.local.*;
 import dev.quarkos.capes.client.net.*;
@@ -58,7 +58,7 @@ public final class FlowHarness {
             catch(java.io.IOException e) { throw new java.io.UncheckedIOException(e); } s.baseUrl=System.getProperty("quarkos_capes.serverUrl",dev.quarkos.capes.client.net.CapeCalls.DEFAULT_SERVICE_URL);
             s.localOnly=false;s.showOthers=true;s.enableOptifine=false;s.enableLabyMod=false;s.enableMinecraftCapesMod=false;s.enableCosmetica=false;s.enableCloaksPlus=false;
             client.options.tutorialStep=net.minecraft.client.tutorial.TutorialSteps.NONE;client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
-            client.options.framerateLimit().set(60);client.options.hideGui=false;McBridge.showCape(client.options);McBridge.prepareWorld(client);
+            client.options.framerateLimit().set(60);McBridge.hideHud(client, false);McBridge.showCape(client.options);McBridge.prepareWorld(client);
             ownId=HarnessAuth.offlineUuid(client.getUser().getName()).toString();McBridge.clearChat(client);McBridge.clearToasts(client);
         }
         McBridge.clearChat(client);McBridge.clearToasts(client);
@@ -118,10 +118,10 @@ public final class FlowHarness {
         return note->{if(ticket==generation)asyncError=note;};
     }
     private static void world() {
-        mc.setScreen(null);CapeBook.preview=false;CapeBook.draft=null;mc.options.hideGui=true;McBridge.thirdPerson(mc.options);
+        mc.setScreen(null);CapeBook.preview=false;CapeBook.draft=null;McBridge.hideHud(mc, true);McBridge.thirdPerson(mc.options);
         ShotView.frame(25,8,4f);CapeBook.resetDraws();CapeLayerWatch.reset();
     }
-    private static void open(int tab) { mc.options.hideGui=false;mc.setScreen(CapeScreens.openTab(null,tab));CapeBook.resetDraws(); }
+    private static void open(int tab) { McBridge.hideHud(mc, false);mc.setScreen(CapeScreens.openTab(null,tab));CapeBook.resetDraws(); }
     private static void equipSample(String sample) {
         require(mc.screen instanceof CapeScreen, "Wardrobe is closed");
         Button card = ((CapeScreen) mc.screen).sampleCard(sample);
@@ -141,7 +141,7 @@ public final class FlowHarness {
     private static void localDraw() { require(CapeBook.draws(mc.player.getUUID())>0,"Local cape did not draw"); }
     private static void build(int number) {
         switch(number) {
-            case 1 -> scene("main",()->{mc.setScreen(null);KeyMapping.click(InputConstants.Type.KEYSYM.getOrCreate(79));},
+            case 1 -> scene("main",()->{mc.setScreen(null);KeyMapping.click(QuarkosCapes.OPEN.getDefaultKey());},
                     ()->require(CapeScreens.isSettings(mc.screen),"O mapping did not open settings"));
             case 2,3,4,5,6,7 -> scene("main",()->open(number-2),()->layout(mc.screen));
             case 8 -> {
@@ -215,7 +215,7 @@ public final class FlowHarness {
                 waitFor("main", () -> {
                     gallery = new CapeGalleryScreen(null);
                     gallery.search(publishedTitle);
-                    mc.options.hideGui = false;
+                    McBridge.hideHud(mc, false);
                     mc.setScreen(gallery);
                 }, () -> !gallery.isLoading(), () -> require(gallery.sharedEntries().stream().anyMatch(e -> e.id().equals(ownId)),
                         "Gallery search did not find published cape: " + gallery.status()));
@@ -227,7 +227,7 @@ public final class FlowHarness {
                     if (page.items().isEmpty()) HarnessAuth.putCatalogUpload(ClientSettings.get().baseUrl, CapeHttp.siteBearer(), ownId, Samples.bands());
                     return true;
                 },done::accept,failure()),value -> {});
-                waitFor("main",()->{browse=new BrowseScreen(CapeScreens.open(null),"ours");mc.options.hideGui=false;mc.setScreen(browse);},
+                waitFor("main",()->{browse=new BrowseScreen(CapeScreens.open(null),"ours");McBridge.hideHud(mc, false);mc.setScreen(browse);},
                     ()->!browse.items().isEmpty(),()->{chosen=browse.items().getFirst();require(chosen.source().equals("ours"),"Wrong source");layout(browse);});
             }
             case 16 -> {
@@ -242,7 +242,7 @@ public final class FlowHarness {
                 waitFor(null, () -> {
                     require(chosen != null, "Browse selection missing");
                     browse = new BrowseScreen(CapeScreens.open(null), "ours");
-                    mc.options.hideGui = false;
+                    McBridge.hideHud(mc, false);
                     mc.setScreen(browse);
                 }, () -> browse.isWearing(chosen), () -> { });
                 waitFor(null, () -> click("text.quarkos_capes.site.unwear"), () -> !browse.isWriting(),
@@ -280,10 +280,10 @@ public final class FlowHarness {
             }
             case 19 -> {
                 String code=System.getProperty("quarkos_capes.linkCode","");
-                if(code.isBlank())scene("main",()->{skip=true;mc.options.hideGui=false;mc.setScreen(new LinkScreen(CapeScreens.open(null)));},()->{});
+                if(code.isBlank())scene("main",()->{skip=true;McBridge.hideHud(mc, false);mc.setScreen(new LinkScreen(CapeScreens.open(null)));},()->{});
                 else waitFor("main", () -> {
                     link = new LinkScreen(CapeScreens.open(null));
-                    mc.options.hideGui = false;
+                    McBridge.hideHud(mc, false);
                     mc.setScreen(link);
                     var field = widgets(link).stream().filter(w -> w instanceof EditBox && hasKey(w, "text.quarkos_capes.site.code")).findFirst();
                     require(field.isPresent(), "Website code field is missing");
@@ -305,15 +305,15 @@ public final class FlowHarness {
             }
             case 22 -> {
                 scene(null,()->{mc.setScreen(null);CapeBoard.equipSample("cloak");mc.player.connection.sendCommand("gamemode survival");},()->require(mc.gameMode.getPlayerMode()==net.minecraft.world.level.GameType.SURVIVAL,"Survival command did not apply"));
-                scene("main",()->{mc.options.hideGui=false;mc.setScreen(new InventoryScreen(mc.player));CapeBook.resetDraws();},()->{
+                scene("main",()->{McBridge.hideHud(mc, false);mc.setScreen(new InventoryScreen(mc.player));CapeBook.resetDraws();},()->{
                     require(mc.screen instanceof InventoryScreen,"Inventory redirected to creative screen");localPreviewDraw();
                 });
             }
             case 23 -> {
                 waitFor(null,()->{
-                mc.setScreen(null);ShotView.clear();mc.options.hideGui=true;
+                mc.setScreen(null);ShotView.clear();McBridge.hideHud(mc, true);
                 mc.options.setCameraType(net.minecraft.client.CameraType.THIRD_PERSON_FRONT);
-                KeyMapping.click(InputConstants.Type.KEYSYM.getOrCreate(294));
+                KeyMapping.click(mc.options.keyTogglePerspective.getDefaultKey());
                 }, () -> mc.options.getCameraType() == net.minecraft.client.CameraType.FIRST_PERSON,
                         () -> { });
                 scene("main", () -> { CapeBook.resetDraws(); CapeLayerWatch.reset(); }, () -> {
@@ -327,7 +327,7 @@ public final class FlowHarness {
             case 25 -> {
                 scene("offline",()-> {
                     mc.setScreen(null);CapeBoard.localOnly(true);requests=CapeHttp.sent;
-                    browse=new BrowseScreen(CapeScreens.open(null),"ours");mc.options.hideGui=false;mc.setScreen(browse);
+                    browse=new BrowseScreen(CapeScreens.open(null),"ours");McBridge.hideHud(mc, false);mc.setScreen(browse);
                 },()-> {
                     require(ClientSettings.get().localOnly,"Offline mode was not enabled");
                     require(CapeHttp.sent==requests,"Offline Browse sent requests");

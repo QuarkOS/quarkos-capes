@@ -1,6 +1,6 @@
+import java.nio.file.Files
 import java.util.UUID
 import net.fabricmc.loom.task.prod.ClientProductionRunTask
-import net.fabricmc.loom.task.RemapJarTask
 
 plugins {
     id("dev.kikugie.loom-back-compat")
@@ -13,7 +13,9 @@ base.archivesName = "quarkos_capes-fabric"
 val releaseBuild = providers.gradleProperty("release").orNull == "true" ||
     gradle.startParameter.taskNames.any { it.substringAfterLast(':') == "releaseAll" }
 
-val requiredJava: JavaVersion = JavaVersion.VERSION_21
+val unobfuscated = loomx.isUnobfuscated
+val requiredJava = if (sc.current.parsed >= "26.1") JavaVersion.VERSION_25 else JavaVersion.VERSION_21
+val accessWidener = if (unobfuscated) "accesswidener/26.3/quarkos_capes.accesswidener" else "quarkos_capes.accesswidener"
 
 fun quarkosUrl(name: String): String {
     val value = providers.gradleProperty("quarkos.$name").orNull?.trim().orEmpty()
@@ -27,6 +29,11 @@ repositories {
     mavenCentral()
     maven("https://maven.shedaniel.me/")
     maven("https://maven.terraformersmc.com/releases/")
+    if (unobfuscated) {
+        maven("https://api.modrinth.com/maven") {
+            content { includeModule("maven.modrinth", "modmenu") }
+        }
+    }
 }
 
 // Client gametests ship in Fabric API from 1.21.5. 1.21.1 uses the tick harness.
@@ -53,7 +60,8 @@ dependencies {
     val cloth = sc.properties.get<String>("deps.cloth")
     modImplementation("me.shedaniel.cloth:cloth-config-fabric:$cloth")
     include("me.shedaniel.cloth:cloth-config-fabric:$cloth")
-    modCompileOnly("com.terraformersmc:modmenu:${sc.properties.get<String>("deps.modmenu")}")
+    val modMenu = if (unobfuscated) "maven.modrinth:modmenu" else "com.terraformersmc:modmenu"
+    modCompileOnly("$modMenu:${sc.properties.get<String>("deps.modmenu")}")
 
     implementation("com.squareup.okhttp3:okhttp:3.14.9")
     include("com.squareup.okhttp3:okhttp:3.14.9")
@@ -78,18 +86,30 @@ dependencies {
 
 tasks.register<ClientProductionRunTask>("prodClient") {
     group = "verification"
-    description = "Boot the remapped release jar with Fabric API and no Mod Menu."
+    description = "Boot the installable jar with Fabric API and no Mod Menu."
     dependsOn("verifyReleaseJar")
-    mods.setFrom(tasks.named<RemapJarTask>("remapJar").flatMap { it.archiveFile }, productionFabricApi)
+    mods.setFrom(loomx.modJar.flatMap { it.archiveFile }, productionFabricApi)
     runDir.set(layout.buildDirectory.dir("prod-run"))
     useXVFB.set(providers.gradleProperty("xvfb").map { it.toBoolean() }.orElse(false))
     val mode = providers.gradleProperty("only").orElse("boot")
-    jvmArgs.addAll("-Dquarkos_capes.harness=true", "-Dquarkos_capes.only=${mode.get()}", "-Dquarkos_capes.loader=fabric")
+    val releaseSmoke = unobfuscated && releaseBuild
+    val smokeShot = runDir.file("prod-smoke.png")
+    jvmArgs.add("-Dquarkos_capes.loader=fabric")
+    if (releaseSmoke) {
+        jvmArgs.add("-Dquarkos_capes.prodSmoke=true")
+        jvmArgs.add(smokeShot.map { "-Dquarkos_capes.prodSmokeShot=${it.asFile.absolutePath}" })
+    } else {
+        jvmArgs.addAll("-Dquarkos_capes.harness=true", "-Dquarkos_capes.only=${mode.get()}")
+    }
     programArgs.addAll("--version", sc.current.version, "--accessToken", "0", "--username", "CapeBoot", "--uuid", UUID.nameUUIDFromBytes("OfflinePlayer:CapeBoot".toByteArray()).toString(),
         "--width", "1280", "--height", "720")
     doFirst {
         check(mode.get() == "boot") { "prodClient supports -Ponly=boot" }
         check(mods.files.none { it.name.contains("modmenu", ignoreCase = true) }) { "Mod Menu must be absent from the production boot test" }
+        if (releaseSmoke) {
+            val shot = smokeShot.get().asFile
+            Files.deleteIfExists(shot.toPath())
+        }
     }
 }
 
@@ -101,7 +121,7 @@ configurations.configureEach {
 
 loom {
     fabricModJsonPath = rootProject.file("src/main/resources/fabric.mod.json")
-    accessWidenerPath = rootProject.file("src/main/resources/quarkos_capes.accesswidener")
+    accessWidenerPath = rootProject.file("src/main/resources/$accessWidener")
 
     runConfigs.all {
         preferGradleTask = true
@@ -136,7 +156,8 @@ tasks {
             register("name", sc.properties["mod.name"])
             register("version", "${sc.properties.get<String>("mod.version")}+$minecraftVersion")
             register("minecraft", sc.properties["mod.mc_compat"])
-            register("java", ">=21")
+            register("java", ">=${requiredJava.majorVersion}")
+            register("accessWidener", accessWidener)
             register("fabric_api", sc.properties["deps.fabric_api"])
             register("cloth", sc.properties["deps.cloth"])
             register("modmenu", sc.properties["deps.modmenu"])
@@ -148,13 +169,21 @@ tasks {
         exclude("META-INF/mods.toml")
         exclude("META-INF/neoforge.mods.toml")
         exclude("META-INF/accesstransformer.cfg")
+        eachFile {
+            val path = relativePath.pathString
+            if (path.endsWith("/quarkos_capes.accesswidener") || path == "quarkos_capes.accesswidener") {
+                if (path != accessWidener) exclude()
+            }
+        }
         filesMatching("fabric.mod.json") {
             expand(props)
         }
         val legacyCapeMixin = sc.current.parsed < "1.21.11"
         filesMatching("quarkos_capes.mixins.json") {
             filter { line ->
-                var next = if (legacyCapeMixin) line.replace("ElytraTextureMixin", "ElytraTextureMixin121") else line
+                var next = line
+                if (legacyCapeMixin) next = next.replace("ElytraTextureMixin", "ElytraTextureMixin121")
+                if (unobfuscated) next = next.replace("JAVA_21", "JAVA_${requiredJava.majorVersion}")
                 if (releaseBuild) {
                     next = next.replace(", \"ShotCameraMixin\", \"ShotSkinMixin\"", "")
                 }
@@ -220,8 +249,10 @@ tasks {
         for (key in listOf("CAPES_DEV_AUTH", "CAPES_DEV_AUTH_SECRET")) {
             System.getenv(key)?.let { environment(key, it) }
         }
-        environment("LIBGL_ALWAYS_SOFTWARE", "1")
-        environment("MESA_GL_VERSION_OVERRIDE", "3.3")
+        if (!unobfuscated) {
+            environment("LIBGL_ALWAYS_SOFTWARE", "1")
+            environment("MESA_GL_VERSION_OVERRIDE", "3.3")
+        }
         val display = providers.gradleProperty("display").orNull
         val xauth = providers.gradleProperty("xauth").orNull
         if (!display.isNullOrBlank()) {

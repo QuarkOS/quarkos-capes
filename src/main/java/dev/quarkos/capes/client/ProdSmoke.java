@@ -168,7 +168,7 @@ public final class ProdSmoke {
         }
         // Count only ticks where the player exists. World creation can burn the earlier counter.
         played++;
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         client.options.fov().set(30);
         McBridge.showCape(client.options);
         McBridge.thirdPerson(client.options);

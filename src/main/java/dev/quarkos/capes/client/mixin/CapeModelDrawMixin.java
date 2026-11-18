@@ -15,12 +15,14 @@ import net.minecraft.client.renderer.entity.layers.CapeLayer;
 
 @Mixin(CapeLayer.class)
 *///?} else {
+//? if <26.1 {
 import com.mojang.blaze3d.vertex.VertexConsumer;
-import net.minecraft.client.model.player.PlayerCapeModel;
 import net.minecraft.client.renderer.SubmitNodeStorage;
 import net.minecraft.client.renderer.OutlineBufferSource;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.rendertype.RenderType;
+//?}
+import net.minecraft.client.model.player.PlayerCapeModel;
 import net.minecraft.client.renderer.feature.ModelFeatureRenderer;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 
@@ -41,9 +43,14 @@ public class CapeModelDrawMixin {
         CapeBook.drawn(player.getUUID(), texture != null ? texture : vanilla, false);
     }
     *///?} else {
+    //? if >=26.1 {
+    /*@Inject(method = "prepareModel(Lnet/minecraft/client/renderer/feature/ModelFeatureRenderer$Submit;)V", at = @At("RETURN"))
+    private void quarkosDrawn(ModelFeatureRenderer.Submit<?> submit, CallbackInfo ci) {
+    *///?} else {
     @Inject(method = "renderModel", require = 0, at = @At(value = "INVOKE", target = "Lnet/minecraft/client/model/Model;renderToBuffer(Lcom/mojang/blaze3d/vertex/PoseStack;Lcom/mojang/blaze3d/vertex/VertexConsumer;III)V", ordinal = 0, shift = At.Shift.AFTER))
     private void quarkosDrawn(SubmitNodeStorage.ModelSubmit<?> submit, RenderType type, VertexConsumer consumer,
                               OutlineBufferSource outlines, MultiBufferSource.BufferSource crumbling, CallbackInfo ci) {
+        //?}
         if (!(submit.model() instanceof PlayerCapeModel) || !(submit.state() instanceof AvatarRenderState state)) return;
         var client = Minecraft.getInstance();
         var fact = PlayerFacts.byEntity(state.id);

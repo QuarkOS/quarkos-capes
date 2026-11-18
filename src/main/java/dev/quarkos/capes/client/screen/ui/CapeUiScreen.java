@@ -1,5 +1,6 @@
 package dev.quarkos.capes.client.screen.ui;
 
+import com.mojang.blaze3d.platform.InputConstants;
 import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.client.screen.ui.CapeGridLayout.Rect;
 import net.minecraft.client.gui.GuiGraphics;
@@ -64,7 +65,7 @@ public abstract class CapeUiScreen extends Screen {
     //? if >=1.21.9 {
     @Override
     public boolean mouseReleased(net.minecraft.client.input.MouseButtonEvent event) {
-        if (event.button() == 0) rotation.release();
+        if (event.button() == InputConstants.MOUSE_BUTTON_LEFT) rotation.release();
         return super.mouseReleased(event);
     }
     //?} else {

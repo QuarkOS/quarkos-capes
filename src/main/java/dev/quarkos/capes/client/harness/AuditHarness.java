@@ -59,7 +59,7 @@ public final class AuditHarness {
             ClientSettings.get().enableLabyMod = false;
             client.options.framerateLimit().set("bench".equals(MODE) ? 260 : 60);
             client.options.enableVsync().set(false);
-            client.options.hideGui = false;
+            McBridge.hideHud(client, false);
             McBridge.showCape(client.options);
             client.player.connection.sendCommand("tp @s 0.5 -60 0.5 0 0");
             McBridge.prepareWorld(client);
@@ -116,7 +116,7 @@ public final class AuditHarness {
                 CapeBook.preview = false;
                 CapeBook.draft = null;
                 client.setScreen(null);
-                client.options.hideGui = true;
+                McBridge.hideHud(client, true);
                 McBridge.thirdPerson(client.options);
                 client.options.keyUp.setDown((scene & 2) != 0);
                 ShotView.frame((scene & 1) == 0 ? 0 : 40, 8, 3.5f);
@@ -215,7 +215,7 @@ public final class AuditHarness {
         OwnerCape bare = new OwnerCape();
         OwnerCape.set(bare);
         McBridge.thirdPerson(client.options);
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         client.options.fov().set(70);
         ShotView.frame(0, 12, 10);
         for (int i = 0; i < count; i++) {

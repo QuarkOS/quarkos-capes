@@ -61,7 +61,7 @@ public final class LabyCompare {
         swingShot = -1;
         error = null;
         frames = null;
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         client.options.tutorialStep = TutorialSteps.NONE;
         client.getTutorial().setStep(TutorialSteps.NONE);
         client.options.fov().set(FOV);
@@ -245,7 +245,7 @@ public final class LabyCompare {
     }
 
     private static void wear(Minecraft client, Frame frame) {
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         ClientSettings.get().enableLabyMod = true;
         ClientSettings.get().localOnly = false;
         LabyWear.wear(frame.png);
@@ -254,7 +254,7 @@ public final class LabyCompare {
     }
 
     private static void hold(Minecraft client) {
-        client.options.hideGui = true;
+        McBridge.hideHud(client, true);
         McBridge.thirdPerson(client.options);
         client.options.fov().set(FOV);
         stopWalk(client);
