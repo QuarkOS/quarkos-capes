@@ -4,13 +4,12 @@ import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.net.CapeHttp;
 import dev.quarkos.capes.client.render.CapeBook;
 import dev.quarkos.capes.client.screen.CapeActions;
-import dev.quarkos.capes.client.screen.CapeScreen;
+import dev.quarkos.capes.client.screen.CapeScreens;
 import dev.quarkos.capes.client.screen.GalleryScreen;
 import net.fabricmc.fabric.api.client.gametest.v1.FabricClientGameTest;
 import net.fabricmc.fabric.api.client.gametest.v1.context.ClientGameTestContext;
 import net.fabricmc.fabric.api.client.gametest.v1.context.TestSingleplayerContext;
 import net.minecraft.client.gui.screens.worldselection.WorldCreationUiState;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
 
 import java.nio.file.Path;
@@ -49,7 +48,7 @@ public class CapePickerClientGameTest implements FabricClientGameTest {
             context.runOnClient(McBridge::clearChat);
             context.waitTicks(20);
             int before = context.computeOnClient(client -> CapeBook.draws);
-            context.runOnClient(client -> McBridge.setScreen(client, CapeScreen.create(null)));
+            context.runOnClient(client -> McBridge.setScreen(client, CapeScreens.open(null)));
             context.waitTicks(10);
             int opened = context.computeOnClient(client -> CapeBook.draws);
             if (opened <= before) {
@@ -59,13 +58,13 @@ public class CapePickerClientGameTest implements FabricClientGameTest {
             select(context, "text.quarkos_capes.style.flat");
             context.runOnClient(client -> {
                 CapeBook.previewBack = false;
-                McBridge.setScreen(client, CapeScreen.create(null, Component.translatable("text.quarkos_capes.tab.style")));
+                McBridge.setScreen(client, CapeScreens.open(null));
             });
             context.waitTicks(8);
             shot(context, "cape-front");
             context.runOnClient(client -> {
                 CapeBook.previewBack = true;
-                McBridge.setScreen(client, CapeScreen.create(null, Component.translatable("text.quarkos_capes.tab.style")));
+                McBridge.setScreen(client, CapeScreens.open(null));
             });
             context.waitTicks(8);
             shot(context, "cape-back");
@@ -141,7 +140,7 @@ public class CapePickerClientGameTest implements FabricClientGameTest {
         int before = context.computeOnClient(client -> CapeBook.draws);
         context.runOnClient(client -> {
             CapeActions.applyKey(key);
-            McBridge.setScreen(client, CapeScreen.create(null, Component.translatable(CapeActions.tabFor(key))));
+            McBridge.setScreen(client, CapeScreens.open(null));
         });
         context.waitTicks(4);
         int after = context.computeOnClient(client -> CapeBook.draws);

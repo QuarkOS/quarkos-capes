@@ -7,6 +7,7 @@ import dev.quarkos.capes.client.local.*;
 import dev.quarkos.capes.client.net.*;
 import dev.quarkos.capes.client.render.*;
 import dev.quarkos.capes.client.screen.*;
+import dev.quarkos.capes.client.screen.ui.CapeStyles;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.gui.components.*;
@@ -14,6 +15,7 @@ import net.minecraft.client.gui.components.events.*;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 import net.minecraft.client.player.RemotePlayer;
+import net.minecraft.network.chat.contents.TranslatableContents;
 import net.minecraft.world.entity.player.PlayerModelPart;
 import java.nio.file.*;
 import java.util.*;
@@ -36,6 +38,8 @@ public final class FlowHarness {
     private static Object result;
     private static long generation;
     private static BrowseScreen browse;
+    private static CapeGalleryScreen gallery;
+    private static LinkScreen link;
     private static CatalogClient.Item chosen;
     private static RemotePlayer remote;
     private static final UUID REMOTE_ID=HarnessAuth.offlineUuid("CapeFlowRemote");
@@ -119,44 +123,17 @@ public final class FlowHarness {
     }
     private static void open(int tab) { mc.options.hideGui=false;mc.setScreen(CapeScreens.openTab(null,tab));CapeBook.resetDraws(); }
     private static void equipSample(String sample) {
-        //? if (forge || neoforge) && >=1.21.11 {
-        /*if (mc.screen instanceof ForgeCapeScreen nativeScreen) {
-            Button button = nativeScreen.sampleButton(sample);
-            require(button != null, "Missing sample action: " + sample);
-            if (button.active) McBridge.press(button);
-            require(CapeBoard.sampleOn(sample), "Sample action did not equip: " + sample);
-            return;
-        }
-        *///?}
-        Object row = entry("text.quarkos_capes.sample." + sample);
-        require(row instanceof ContainerEventHandler, "Missing Cloth sample row: " + sample);
-        var button = ((ContainerEventHandler) row).children().stream().filter(child -> child instanceof Button).findFirst();
-        require(button.isPresent(), "Missing Cloth Equip button: " + sample);
-        Button equip = (Button) button.get();
-        if (!CapeBoard.sampleOn(sample)) McBridge.press(equip);
-        require(CapeBoard.sampleOn(sample), "Cloth Equip did not equip: " + sample);
+        require(mc.screen instanceof CapeScreen, "Wardrobe is closed");
+        Button card = ((CapeScreen) mc.screen).sampleCard(sample);
+        require(card != null, "Missing sample card: " + sample);
+        McBridge.press(card);
+        require(CapeBoard.sampleOn(sample), "Card did not equip: " + sample);
     }
     private static String actionNote() {
-        //? if fabric {
-        return dev.quarkos.capes.client.screen.CapeScreen.note();
-        //?} else {
-        /*String type = mc.screen.getClass().getName().contains("ClothConfig")
-                ? "dev.quarkos.capes.client.screen.ClothCapeScreen" : mc.screen.getClass().getName();
-        try {
-            var field = Class.forName(type).getDeclaredField("note"); field.setAccessible(true);
-            return String.valueOf(field.get(mc.screen.getClass().getName().contains("ClothConfig") ? null : mc.screen));
-        } catch (ReflectiveOperationException failure) { throw new IllegalStateException(failure); }
-        *///?}
+        return ((CapeScreen) mc.screen).status();
     }
     private static void action(String shot, String key, String progress, String expected) {
-        waitFor(shot, () -> {
-            Object row = entry(key);
-            if (row instanceof ContainerEventHandler container) {
-                var button = container.children().stream().filter(child -> child instanceof Button b && b.active).findFirst();
-                require(button.isPresent(), "Missing Cloth action button: " + key);
-                McBridge.press((Button) button.get());
-            } else click(net.minecraft.network.chat.Component.translatable(key).getString());
-        },
+        waitFor(shot, () -> click(key),
                 () -> !actionNote().equals(status(progress)),
                 () -> require(actionNote().equals(status(expected)), "Action status: " + actionNote()));
     }
@@ -175,8 +152,21 @@ public final class FlowHarness {
             }
             case 9 -> {
                 for(String style:List.of("flat","frames","wave","model")) scene(style,()->{
-                    CapeBoard.equipSample(style.equals("frames")?"slide":style.equals("model")?"cloak":"bands");
-                    CapeActions.style(style,style.equals("frames"));world();
+                    open(0);
+                    equipSample(style.equals("frames") ? "slide" : "bands");
+                    CapeScreen wardrobe = (CapeScreen) mc.screen;
+                    switch (style) {
+                        case "frames" -> {
+                            McBridge.press(wardrobe.styleChip(CapeStyles.Chip.ANIMATED));
+                            require(!OwnerCape.get().animateFrames, "Animation did not turn off");
+                            McBridge.press(wardrobe.styleChip(CapeStyles.Chip.ANIMATED));
+                        }
+                        case "wave" -> McBridge.press(wardrobe.styleChip(CapeStyles.Chip.WAVY));
+                        case "model" -> McBridge.press(wardrobe.styleChip(CapeStyles.Chip.MODEL));
+                        default -> McBridge.press(wardrobe.styleChip(CapeStyles.Chip.FLAT));
+                    }
+                    require(style.equals(OwnerCape.get().style), "Style chip did not select " + style);
+                    world();
                 },FlowHarness::localDraw);
             }
             case 10 -> {
@@ -190,7 +180,7 @@ public final class FlowHarness {
                     Object gravity = entry("text.quarkos_capes.physics.gravity");
                     if (gravity != null) setEntry(gravity, 5);
                     else {
-                        var slider=widgets(mc.screen).stream().filter(w->w instanceof AbstractSliderButton && w.getMessage().getString().contains("Gravity")).findFirst();
+                        var slider=widgets(mc.screen).stream().filter(w->w instanceof AbstractSliderButton && hasKey(w, "text.quarkos_capes.physics.gravity")).findFirst();
                         require(slider.isPresent(),"No Gravity entry or slider on Physics page");McBridge.slide((AbstractSliderButton)slider.get(),0);
                     }
                 },()->require(ClientSettings.get().cloth.gravity()==5,"Gravity entry change did not apply"));
@@ -222,8 +212,13 @@ public final class FlowHarness {
                     var page=(GalleryPages.Page)value;var item=page.entries().stream().filter(e->e.id().equals(ownId)).findFirst();
                     require(item.isPresent(),"Published cape missing from gallery");publishedTitle=item.get().title();
                 });
-                async("main",done->{open(4);CapeHttp.gallery(publishedTitle,"",50,"",done::accept,failure());},value->
-                        require(((GalleryPages.Page)value).entries().stream().anyMatch(e->e.id().equals(ownId)),"Search did not find published cape"));
+                waitFor("main", () -> {
+                    gallery = new CapeGalleryScreen(null);
+                    gallery.search(publishedTitle);
+                    mc.options.hideGui = false;
+                    mc.setScreen(gallery);
+                }, () -> !gallery.isLoading(), () -> require(gallery.sharedEntries().stream().anyMatch(e -> e.id().equals(ownId)),
+                        "Gallery search did not find published cape: " + gallery.status()));
             }
             case 15 -> {
                 async(null,done -> SiteApi.work(() -> {
@@ -237,14 +232,21 @@ public final class FlowHarness {
             }
             case 16 -> {
                 waitFor(null,()->{require(browse!=null,"Browse unavailable");browse.selectFirst();},()->browse.previewReady(),()->{});
-                waitFor(null,()->browse.wearSelected(),()->!browse.isWriting(),()->require(browse.isWearing(chosen),"Wear action failed: "+browse.status()));
+                waitFor(null, () -> click("text.quarkos_capes.site.wear"), () -> !browse.isWriting(),()->require(browse.isWearing(chosen),"Wear action failed: "+browse.status()));
                 async(null,done->SiteApi.wearing(done::accept,failure()),value->{
                     var item=(CatalogClient.Item)value;require(item!=null && item.id().equals(chosen.id()) && item.source().equals(chosen.source()),"GET wearing mismatch");
                 });
                 scene("main",FlowHarness::world,FlowHarness::localDraw);
             }
             case 17 -> {
-                async(null,done->SiteApi.unwear(done::accept,failure()),value->{});
+                waitFor(null, () -> {
+                    require(chosen != null, "Browse selection missing");
+                    browse = new BrowseScreen(CapeScreens.open(null), "ours");
+                    mc.options.hideGui = false;
+                    mc.setScreen(browse);
+                }, () -> browse.isWearing(chosen), () -> { });
+                waitFor(null, () -> click("text.quarkos_capes.site.unwear"), () -> !browse.isWriting(),
+                        () -> require(!browse.isWearing(chosen), "Unwear action failed: " + browse.status()));
                 async("main",done->SiteApi.wearing(done::accept,failure()),value->require(value==null,"Wearing was not removed"));
             }
             case 18 -> {
@@ -279,7 +281,15 @@ public final class FlowHarness {
             case 19 -> {
                 String code=System.getProperty("quarkos_capes.linkCode","");
                 if(code.isBlank())scene("main",()->{skip=true;mc.options.hideGui=false;mc.setScreen(new LinkScreen(CapeScreens.open(null)));},()->{});
-                else async("main",done->{mc.setScreen(new LinkScreen(CapeScreens.open(null)));SiteApi.claim(code,done::accept,failure());},value->require(String.valueOf(value).contains("Linked"),String.valueOf(value)));
+                else waitFor("main", () -> {
+                    link = new LinkScreen(CapeScreens.open(null));
+                    mc.options.hideGui = false;
+                    mc.setScreen(link);
+                    var field = widgets(link).stream().filter(w -> w instanceof EditBox && hasKey(w, "text.quarkos_capes.site.code")).findFirst();
+                    require(field.isPresent(), "Website code field is missing");
+                    ((EditBox) field.get()).setValue(code);
+                    click("text.quarkos_capes.site.claim");
+                }, () -> !link.isBusy(), () -> require(link.status().contains("Linked"), link.status()));
             }
             case 20 -> scene("main",()->{CapeBoard.showOthers(false);world();},()->{
                 require(remote!=null,"Remote fixture missing");require(CapeBook.draws(REMOTE_ID)==0,"Show others off still drew remote cape");CapeBoard.showOthers(true);
@@ -321,9 +331,9 @@ public final class FlowHarness {
                 },()-> {
                     require(ClientSettings.get().localOnly,"Offline mode was not enabled");
                     require(CapeHttp.sent==requests,"Offline Browse sent requests");
-                    require(widgets(browse).stream().anyMatch(w->w instanceof Button && w.getMessage().getString().equals(BrowseScreen.text("go_online").getString())),"Browse has no Go online button");
+                    require(widgets(browse).stream().anyMatch(w->w instanceof Button && hasKey(w, "text.quarkos_capes.site.go_online")),"Browse has no Go online button");
                 });
-                waitFor("main",()->click(BrowseScreen.text("go_online").getString()),()->!ClientSettings.get().localOnly && !browse.isLoading(),()-> {
+                waitFor("main",()->click("text.quarkos_capes.site.go_online"),()->!ClientSettings.get().localOnly && !browse.isLoading(),()-> {
                     require(!ClientSettings.get().localOnly,"Go online did not disable Offline");
                     require(!browse.items().isEmpty(),"Go online did not load catalog: "+browse.status());
                     require(CapeHttp.sent>requests,"Go online did not send a request");layout(browse);
@@ -362,9 +372,13 @@ public final class FlowHarness {
             throw new IllegalStateException("Entry has no compatible setValue: "+entry.getClass().getSimpleName());
         }catch(ReflectiveOperationException e){throw new IllegalStateException(e);}
     }
-    private static void click(String label) {
-        var button=widgets(mc.screen).stream().filter(w->w instanceof Button && w.active && w.getMessage().getString().startsWith(label)).findFirst();
-        require(button.isPresent(),"Missing active button: "+label);McBridge.press((Button)button.get());
+    private static boolean hasKey(AbstractWidget widget, String key) {
+        return widget.getMessage().getContents() instanceof TranslatableContents label && key.equals(label.getKey());
+    }
+    private static void click(String key) {
+        var button = widgets(mc.screen).stream().filter(w -> w instanceof Button && w.active && hasKey(w, key)).findFirst();
+        require(button.isPresent(), "Missing active button: " + key);
+        McBridge.press((Button) button.get());
     }
     private static void setToggle(String key,boolean value) {
         Object row=entry(key);
@@ -376,7 +390,7 @@ public final class FlowHarness {
                     McBridge.press((Button)children.getFirst());
                 }
             } catch(ReflectiveOperationException e) { throw new IllegalStateException(e); }
-        } else click(net.minecraft.network.chat.Component.translatable(key).getString());
+        } else click(key);
     }
     private static String diagnostics() {
         String note = mc.screen instanceof BrowseScreen screen ? screen.status() : asyncError;
@@ -399,22 +413,6 @@ public final class FlowHarness {
         if(item instanceof ContainerEventHandler container)for(var child:container.children())collect(child,seen,out);
     }
     private static void layout(Screen screen) {
-        require(screen!=null,"Settings screen absent");
-        int[] preview=CapeScreens.previewBounds(screen);
-        // Top-level controls and list viewports must fit. Scrolled entries are clipped by their list.
-        for(var child:screen.children())if(child instanceof AbstractWidget w && w.visible){
-            require(w.getX()>=0 && w.getY()>=0 && right(w)<=screen.width && bottom(w)<=screen.height,"Widget outside screen: "+w.getMessage().getString());
-            if(preview!=null && !w.getMessage().getString().isEmpty())require(!intersects(w,preview),"Widget overlaps preview: "+w.getMessage().getString());
-        }
-        for(AbstractWidget w:widgets(screen))if(w.visible && w.getY()>=80 && bottom(w)<screen.height-60 && preview!=null && !w.getMessage().getString().isEmpty())
-            require(!intersects(w,preview),"Row overlaps preview: "+w.getMessage().getString());
+        HarnessLayout.check(screen);
     }
-    //? if <1.21 {
-    /*private static int right(AbstractWidget w) { return w.getX() + w.getWidth(); }
-    private static int bottom(AbstractWidget w) { return w.getY() + w.getHeight(); }
-    *///?} else {
-    private static int right(AbstractWidget w) { return w.getRight(); }
-    private static int bottom(AbstractWidget w) { return w.getBottom(); }
-    //?}
-    private static boolean intersects(AbstractWidget w,int[] b){return w.getX()<b[2] && right(w)>b[0] && w.getY()<b[3] && bottom(w)>b[1];}
 }

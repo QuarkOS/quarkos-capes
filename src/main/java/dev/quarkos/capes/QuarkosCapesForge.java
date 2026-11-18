@@ -43,7 +43,9 @@ public final class QuarkosCapesForge {
 
     //? if <1.21.6 {
     /^private void beforeScreen(net.minecraftforge.client.event.ScreenEvent.Render.Pre event) {
-        if (CapeScreens.isSettings(event.getScreen())) event.getGuiGraphics().fill(0, 0, event.getScreen().width, event.getScreen().height, 0xFF10141C);
+        if (CapeScreens.isClothSettings(event.getScreen())) {
+            dev.quarkos.capes.client.screen.ui.CapeTheme.background(event.getGuiGraphics(), event.getScreen().width, event.getScreen().height);
+        }
     }
 
     private void onClientTick(TickEvent.ClientTickEvent event) {

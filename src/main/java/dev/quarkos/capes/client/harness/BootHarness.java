@@ -40,11 +40,14 @@ public final class BootHarness {
                     net.minecraft.client.Camera.class, net.minecraft.client.player.AbstractClientPlayer.class,
                     net.minecraft.client.gui.Gui.class,
                     net.minecraft.client.renderer.entity.LivingEntityRenderer.class,
-                    //? if <1.21.11 {
-                    /*net.minecraft.client.gui.screens.inventory.InventoryScreen.class,
-                    net.minecraft.client.renderer.entity.player.PlayerRenderer.class
-                    *///?} else {
+                    //? if >=1.21.6 {
                     net.minecraft.client.gui.render.pip.GuiEntityRenderer.class,
+                    //?} else {
+                    /*net.minecraft.client.gui.screens.inventory.InventoryScreen.class,
+                    *///?}
+                    //? if <1.21.11 {
+                    /*net.minecraft.client.renderer.entity.player.PlayerRenderer.class
+                    *///?} else {
                     net.minecraft.client.renderer.feature.ModelFeatureRenderer.class,
                     net.minecraft.client.renderer.entity.player.AvatarRenderer.class
                     //?}

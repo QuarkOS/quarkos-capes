@@ -154,6 +154,16 @@ class BughuntTest {
         } finally { OwnerCape.set(previous); }
     }
 
+    @Test void anUnequippedCapeStaysUnequippedWhenReloaded() throws Exception {
+        var folder = Files.createTempDirectory("capes-unequipped");
+        var png = folder.resolve("local.png");
+        var metadata = folder.resolve("local.json");
+        new OwnerCape().save(png, metadata);
+        assertEquals(0, OwnerCape.load(png, metadata).png.length);
+        Files.writeString(metadata, "{}");
+        assertArrayEquals(OwnerCape.sampleBands().png, OwnerCape.load(png, metadata).png);
+    }
+
     @Test void galleryMetadataCannotAllocateUnboundedFrameArrays() {
         var detail = dev.quarkos.capes.client.net.GalleryPages.detail("{\"api\":1,\"id\":\"test\",\"frameCount\":2147483647}");
         assertEquals(256, detail.frameCount());

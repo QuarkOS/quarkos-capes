@@ -20,6 +20,13 @@ public final class QuarkosCapesNeoForge {
         container.registerExtensionPoint(IConfigScreenFactory.class, (mod, parent) -> CapeScreens.open(parent));
         modBus.addListener(this::registerKeys);
         NeoForge.EVENT_BUS.addListener((ClientTickEvent.Post event) -> QuarkosCapes.tick(Minecraft.getInstance()));
+        //? if <1.21.2 {
+        /^NeoForge.EVENT_BUS.addListener((net.neoforged.neoforge.client.event.ScreenEvent.Render.Pre event) -> {
+            if (CapeScreens.isClothSettings(event.getScreen())) {
+                dev.quarkos.capes.client.screen.ui.CapeTheme.background(event.getGuiGraphics(), event.getScreen().width, event.getScreen().height);
+            }
+        });
+        ^///?}
     }
 
     private void registerKeys(RegisterKeyMappingsEvent event) {

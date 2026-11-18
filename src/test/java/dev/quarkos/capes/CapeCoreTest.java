@@ -280,6 +280,7 @@ class CapeCoreTest {
         assertEquals("Bands", matches.get(0).name());
         assertEquals("CapeA", matches.get(0).author());
         assertEquals("shared", matches.get(0).tag());
+        assertEquals("bands", matches.get(0).id());
         var slide = GalleryRows.visible("slide", locals, shared);
         assertEquals(1, slide.size());
         assertEquals("local", slide.get(0).tag());

@@ -2,168 +2,200 @@ package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.local.ClientSettings;
+import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.client.net.CapeHttp;
 import dev.quarkos.capes.client.net.GalleryPages;
-import net.minecraft.client.gui.GuiGraphics;
-import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.EditBox;
-import net.minecraft.client.gui.components.Tooltip;
+import dev.quarkos.capes.client.screen.ui.CapeTheme.Face;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
 import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.UUID;
+import java.util.function.Consumer;
 
-/** Forge gallery: the same local samples and shared service used by the Fabric list. */
-public final class CapeGalleryScreen extends Screen {
-    private final Screen parent;
-    private EditBox search;
-    private String query = "";
-    private String note = "";
-    private List<GalleryPages.Entry> entries = List.of();
-    private String next;
-    private String cursor = "";
-    private final List<String> cursors = new ArrayList<>();
-    private int page;
-    private int generation;
-    private String selected;
-    private boolean busy;
-    private record Row(String name, String author, String id, String sample) { }
-    private List<Row> rows = List.of();
+import static dev.quarkos.capes.client.screen.ui.CapeTheme.text;
+
+/** Bundled and shared capes. Wearing a shared cape makes a local copy. */
+public final class CapeGalleryScreen extends CapeBrowserScreen<CapeGalleryScreen.Row> {
+    record Row(String sample, GalleryPages.Entry entry) { }
+
+    private static final String[] STYLES = {"", "flat", "frames", "wave", "model"};
+    private int style, source;
+    private boolean saving, byName;
+    private String copiedTitle;
 
     public CapeGalleryScreen(Screen parent) {
-        super(Component.translatable("text.quarkos_capes.gallery.title"));
-        this.parent = parent;
+        super(parent, text("gallery.title"));
     }
 
-    private static Component text(String key) { return Component.translatable("text.quarkos_capes." + key); }
+    public void search(String query) { searchFor(query); }
 
-    @Override protected void init() {
-        clearWidgets();
-        int tabWidth = Math.max(1, (width - 16) / CapeBoard.TABS.length);
-        for (int i = 0; i < CapeBoard.TABS.length; i++) {
-            int tab = i;
-            Button button = addRenderableWidget(Button.builder(Component.translatable(CapeBoard.TABS[i]), b -> {
-                if (tab != 4) minecraft.setScreen(CapeScreens.openTab(parent, tab));
-            }).bounds(8 + i * tabWidth, 26, tabWidth - 2, 20).build());
-            button.active = i != 4;
-        }
-        search = addRenderableWidget(new EditBox(font, 8, 52, Math.max(80, width - 104), 20, text("field.search")));
-        search.setMaxLength(120);
-        search.setValue(query);
-        search.setSuggestion(query.isEmpty() ? text("search.placeholder").getString() : null);
-        search.setResponder(value -> { query = value; search.setSuggestion(value.isEmpty() ? text("search.placeholder").getString() : null); });
-        addRenderableWidget(Button.builder(text("gallery.search"), b -> { page = 0; cursor = ""; cursors.clear(); load(); })
-                .bounds(width - 90, 52, 82, 20).build()).active = !busy;
-        List<Row> visible = new ArrayList<>();
-        String needle = query.trim().toLowerCase(Locale.ROOT);
-        if (cursor.isEmpty()) for (String id : List.of("bands", "slide", "cloak")) {
-            String name = text("sample." + id).getString();
-            if (name.toLowerCase(Locale.ROOT).contains(needle)) visible.add(new Row(name, "", null, id));
-        }
-        for (GalleryPages.Entry entry : entries) visible.add(new Row(entry.title(), entry.author(), entry.id(), null));
-        rows = ClientSettings.get().localOnly ? List.of() : List.copyOf(visible);
-        int capacity = capacity();
-        page = Math.clamp(page, 0, Math.max(0, (rows.size() - 1) / capacity));
-        int end = Math.min(rows.size(), (page + 1) * capacity);
-        for (int i = page * capacity; i < end; i++) {
-            Row row = rows.get(i);
-            int y = 82 + (i % capacity) * 32;
-            boolean equipped = row.sample != null ? CapeBoard.sampleOn(row.sample)
-                    : row.id != null && row.id.equals(ClientSettings.get().equippedGalleryId);
-            Button equip = addRenderableWidget(Button.builder(text(equipped ? "gallery.equipped" : "gallery.equip"), b -> equip(row))
-                    .bounds(width - 72, y, 64, 20).build());
-            equip.setTooltip(Tooltip.create(text("tooltip.equip")));
-            equip.active = !busy && !equipped;
-        }
-        if (ClientSettings.get().localOnly) addRenderableWidget(Button.builder(BrowseScreen.text("go_online"), b -> {
-            CapeBoard.localOnly(false); CapeBoard.save(value -> note = value); load();
-        }).bounds(Math.max(8, width/2-60), emptyY()+28, 120, 20).build());
-        int y = height - 54;
-        addRenderableWidget(Button.builder(text("gallery.prev"), b -> {
-            if (page > 0) { page--; init(); }
-            else if (!cursors.isEmpty()) { cursor = cursors.removeLast(); page = 0; load(); }
-        }).bounds(8, y, 76, 20).build()).active = !busy && (page > 0 || !cursors.isEmpty());
-        addRenderableWidget(Button.builder(text("gallery.next"), b -> {
-            if ((page + 1) * capacity < rows.size()) { page++; init(); }
-            else if (next != null) { cursors.add(cursor); cursor = next; page = 0; load(); }
-        }).bounds(88, y, 76, 20).build()).active = !busy && ((page + 1) * capacity < rows.size() || next != null);
-        addRenderableWidget(Button.builder(text("gallery.report"), b -> CapeBoard.report(selected, value -> { note = value; }))
-                .bounds(168, y, Math.min(76, width - 176), 20).build()).active = !busy && selected != null;
-        int buttonWidth = Math.max(40, (width - 24) / 3);
-        addRenderableWidget(Button.builder(text("button.publish"), b -> CapeBoard.publish(value -> note = value)).bounds(8, height - 28, buttonWidth, 20).build());
-        addRenderableWidget(Button.builder(text("button.unpublish"), b -> CapeBoard.unpublish(value -> note = value)).bounds(12 + buttonWidth, height - 28, buttonWidth, 20).build());
-        addRenderableWidget(Button.builder(text("button.done"), b -> onClose()).bounds(16 + buttonWidth * 2, height - 28, buttonWidth, 20).build());
+    public List<GalleryPages.Entry> sharedEntries() {
+        return items().stream().map(Row::entry).filter(java.util.Objects::nonNull).toList();
     }
 
-    private int emptyY() { return Math.max(82, (82 + height - 80) / 2 - 20); }
+    @Override protected String key(Row row) { return row.sample() == null ? "shared/" + row.entry().id() : "sample/" + row.sample(); }
 
-    private int capacity() { return Math.max(1, (height - 156) / 32); }
+    @Override
+    protected Component title(Row row) {
+        if (row.sample() != null) return text("sample." + row.sample());
+        return Component.literal(row.entry().title() == null || row.entry().title().isBlank() ? row.entry().id() : row.entry().title());
+    }
 
-    private void load() {
-        int request = ++generation;
-        if (ClientSettings.get().localOnly) { busy = false; entries = List.of(); next = null; init(); return; }
-        busy = true;
-        note = text(ClientSettings.get().localOnly ? "gallery.quiet" : "status.loading").getString();
-        init();
-        String submitted = query;
-        CapeHttp.gallery(submitted, "", 24, cursor, result -> {
-            if (minecraft.screen != this || request != generation) return;
-            busy = false; entries = result.entries(); next = result.nextCursor();
-            note = text(entries.isEmpty() ? "status.empty" : "status.loaded").getString();
-            init();
-        }, error -> {
-            if (minecraft.screen != this || request != generation) return;
-            busy = false; entries = List.of(); next = null; note = error; init();
+    @Override
+    protected Component creator(Row row) {
+        if (row.sample() != null) return text("ui.bundled");
+        String author = row.entry().author();
+        if (author == null || author.isBlank()) return text("ui.community_creator");
+        try {
+            String name = McBridge.playerName(UUID.fromString(author.trim()));
+            return name.isBlank() ? Component.literal(author) : Component.literal(name);
+        } catch (IllegalArgumentException ignored) {
+            return Component.literal(author);
+        }
+    }
+
+    @Override
+    protected boolean equipped(Row row) {
+        return row.sample() != null ? CapeBoard.sampleOn(row.sample()) : row.entry().id().equals(ClientSettings.get().equippedGalleryId);
+    }
+
+    @Override
+    protected Component wearing() {
+        Component capeName = OwnerCape.get().png.length == 0 ? text("site.nothing")
+                : ClientSettings.get().equippedGalleryId == null ? text("ui.local_cape") : text("gallery.copy");
+        if (copiedTitle != null && ClientSettings.get().equippedGalleryId != null) capeName = Component.literal(copiedTitle);
+        for (Row row : items()) {
+            if (equipped(row)) {
+                capeName = title(row);
+                break;
+            }
+        }
+        return Component.translatable("text.quarkos_capes.site.wearing", capeName);
+    }
+
+    @Override
+    protected List<Filter> filters() {
+        String sourceKey = switch (source) {
+            case 1 -> "ui.source_bundled";
+            case 2 -> "ui.source_shared";
+            default -> "site.all_sources";
+        };
+        Component kind = style == 0 ? text("site.all_kinds") : Component.translatable("text.quarkos_capes.ui.kind_style", text("style." + STYLES[style]));
+        return List.of(new Filter(text(sourceKey), () -> source = (source + 1) % 3),
+                new Filter(kind, () -> style = (style + 1) % STYLES.length),
+                new Filter(text(byName ? "ui.sort_page_name" : "ui.sort_page_default"), () -> byName = !byName));
+    }
+
+    @Override
+    protected List<Action> actions() {
+        Row row = selected();
+        boolean shared = row != null && row.entry() != null;
+        return List.of(new Action(text("site.wear"), Face.PRIMARY, !saving && previewReady() && row != null && !equipped(row), this::wear),
+                new Action(text("site.unwear"), Face.BUTTON, !saving && OwnerCape.get().png.length != 0, this::unwear),
+                new Action(text("gallery.report"), Face.BUTTON, !saving && shared, this::report));
+    }
+
+    @Override
+    protected void request(String query, String cursor, Consumer<Results<Row>> ready, Consumer<String> error) {
+        Map<String, Row> samples = new LinkedHashMap<>();
+        if (cursor.isEmpty() && source != 2) {
+            String needle = query.toLowerCase(Locale.ROOT);
+            for (String id : CapeThumbs.SAMPLES) {
+                var row = new Row(id, null);
+                String name = title(row).getString();
+                if ((style == 0 || STYLES[style].equals(CapeThumbs.sample(id).style))
+                        && (id.contains(needle) || name.toLowerCase(Locale.ROOT).contains(needle))) samples.put(name.trim(), row);
+            }
+        }
+        if (source == 1) {
+            ready.accept(results(List.copyOf(samples.values()), null, ""));
+            return;
+        }
+        CapeHttp.gallery(query, STYLES[style], 20, cursor, result -> {
+            List<Row> rows = merge(query, samples, result.entries());
+            String status = query.isBlank() ? "" : Component.translatable("text.quarkos_capes.gallery.search_result", query, result.entries().size()).getString();
+            ready.accept(results(rows, result.nextCursor(), status));
+        }, note -> {
+            if (samples.isEmpty()) error.accept(note);
+            else ready.accept(results(List.copyOf(samples.values()), null, note));
         });
     }
 
-    private void equip(Row row) {
-        if (row.sample != null) {
-            CapeBoard.equipSample(row.sample);
-            selected = null;
-            CapeBoard.save(value -> note = value);
-            init();
-            return;
+    private Results<Row> results(List<Row> rows, String next, String status) {
+        if (byName) {
+            rows = rows.stream().sorted(Comparator.comparing(row -> title(row).getString(), String.CASE_INSENSITIVE_ORDER)).toList();
         }
-        busy = true; note = text("status.loading").getString(); init();
-        CapeHttp.open(row.id, opened -> {
-            if (minecraft.screen != this) return;
-            CapeHttp.equip(opened.detail(), opened.png());
-            selected = row.id; busy = false;
-            CapeBoard.save(value -> note = value); init();
-        }, error -> { if (minecraft.screen == this) { busy = false; note = error; init(); } });
+        return new Results<>(rows, next, status);
     }
 
-    @Override public void render(GuiGraphics graphics, int mouseX, int mouseY, float partial) {
-        graphics.fill(0, 0, width, height, 0xFF10141C);
-        super.render(graphics, mouseX, mouseY, partial);
-        if (ClientSettings.get().localOnly) {
-            graphics.drawCenteredString(font, BrowseScreen.text("offline_title"), width/2, emptyY(), 0xFFFFFFFF);
-            graphics.drawCenteredString(font, Component.literal(font.plainSubstrByWidth(text("gallery.quiet").getString(), width-16)), width/2, emptyY()+14, 0xFFB6C8DD);
+    private List<Row> merge(String query, Map<String, Row> samples, List<GalleryPages.Entry> entries) {
+        List<GalleryRows.Local> local = samples.keySet().stream().map(name -> new GalleryRows.Local(name, "")).toList();
+        Map<String, Row> sharedById = new LinkedHashMap<>();
+        List<GalleryRows.Shared> shared = new ArrayList<>();
+        for (GalleryPages.Entry entry : entries) {
+            Row row = new Row(null, entry);
+            String name = title(row).getString().trim();
+            shared.add(new GalleryRows.Shared(entry.id(), name, entry.author()));
+            sharedById.putIfAbsent(entry.id(), row);
         }
-        graphics.drawCenteredString(font, getTitle(), width / 2, 8, 0xFFFFFFFF);
-        int capacity = capacity();
-        for (int i = page * capacity; i < Math.min(rows.size(), (page + 1) * capacity); i++) {
-            Row row = rows.get(i);
-            int y = 82 + (i % capacity) * 32;
-            int x = row.sample != null ? 32 : 8;
-            if (row.sample != null) {
-                var texture = switch (row.sample) {
-                    case "slide" -> dev.quarkos.capes.client.render.CapeTextures.slideTexture();
-                    case "cloak" -> dev.quarkos.capes.client.render.CapeTextures.cloakTexture();
-                    default -> dev.quarkos.capes.client.render.CapeTextures.bandsTexture();
-                };
-                McBridge.capeThumb(graphics, texture, 8, y, 16, 26, "slide".equals(row.sample) ? 256 : 64, 32, 64, 32);
-            }
-            graphics.drawString(font, font.plainSubstrByWidth(row.name == null ? row.id : row.name, width - x - 80), x, y + 2, 0xFFFFFFFF);
-            String author = row.sample != null ? text("gallery.local").getString() : row.author;
-            graphics.drawString(font, font.plainSubstrByWidth(author == null ? "" : author, width - x - 80), x, y + 13, 0xFFAAAAAA);
+        List<Row> rows = new ArrayList<>();
+        for (GalleryRows.Row row : GalleryRows.visible(query, local, shared)) {
+            Row item = row.id() == null ? samples.get(row.name()) : sharedById.get(row.id());
+            if (item != null) rows.add(item);
         }
-        String status = note;
-        graphics.drawString(font, font.plainSubstrByWidth(status, width - 16), 8, height - 68, 0xFFE8B84A);
+        return rows;
     }
 
-    @Override public void onClose() { generation++; minecraft.setScreen(CapeScreens.refreshed(parent)); }
+    @Override
+    protected void requestPreview(Row row, Consumer<OwnerCape> ready, Consumer<String> error) {
+        if (row.sample() != null) ready.accept(CapeThumbs.sample(row.sample()));
+        else CapeHttp.open(row.entry().id(), opened -> ready.accept(CapeHttp.owner(opened.detail(), opened.png())), error);
+    }
+
+    @Override
+    protected void requestThumbnail(Row row, Consumer<OwnerCape> ready, Consumer<String> error) {
+        if (row.sample() != null) ready.accept(CapeThumbs.sample(row.sample()));
+        else CapeHttp.openThumbnail(row.entry().id(), opened -> ready.accept(CapeHttp.owner(opened.detail(), opened.png())), error);
+    }
+
+    private void wear() {
+        Row row = selected();
+        if (row == null || saving || !previewReady() || equipped(row) || offline()) return;
+        if (row.sample() != null) {
+            CapeBoard.equipSample(row.sample());
+            copiedTitle = null;
+        } else {
+            OwnerCape.set(draft().copy());
+            ClientSettings.get().equippedGalleryId = row.entry().id();
+            copiedTitle = title(row).getString();
+        }
+        save();
+    }
+
+    private void unwear() {
+        if (saving || offline()) return;
+        CapeBoard.unequipLocal();
+        copiedTitle = null;
+        save();
+    }
+
+    private void save() {
+        saving = true;
+        CapeBoard.save(message -> {
+            setStatus(message);
+            if (!message.equals(text("status.saving").getString())) saving = false;
+            if (minecraft.screen == this) rebuild();
+        });
+    }
+
+    private void report() {
+        Row row = selected();
+        if (row != null && row.entry() != null) CapeBoard.report(row.entry().id(), this::setStatus);
+    }
 }

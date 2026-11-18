@@ -39,7 +39,7 @@ public class CapeLayerMixin {
         Minecraft client = Minecraft.getInstance();
         CapeLayerWatch.textureOverride = null;
         boolean local = client.player == player;
-        if (!CapeRenderPass.allowed(CapeRenderPass.guiDepth > 0 || CapeBook.renderingPreview || CapeBook.preview,
+        if (!CapeRenderPass.allowed(CapeRenderPass.guiDepth > 0 || CapeBook.renderingPreview,
                 client.getCameraEntity() == player, client.options.getCameraType().isFirstPerson(), CapeRenderPass.shadow())) {
             ci.cancel(); return;
         }
@@ -63,7 +63,7 @@ public class CapeLayerMixin {
             CapeLayerWatch.textureOverride = choice.texture();
             return;
         }
-        boolean preview = CapeBook.renderingPreview || CapeBook.preview;
+        boolean preview = CapeRenderPass.guiDepth > 0 || CapeBook.renderingPreview;
         pose.pushPose();
         ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
         pose.translate(0.0F, 0.0F, player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).isEmpty() ? 0.0F : 0.0625F);
@@ -105,7 +105,7 @@ public class CapeLayerMixin {
     private void quarkosCapes(PoseStack pose, MultiBufferSource buffers, int light, PlayerRenderState state, float yRot, float xRot, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
         boolean local = client.player != null && client.player.getId() == state.id;
-        boolean preview = CapeBook.renderingPreview || CapeBook.preview;
+        boolean preview = CapeRenderPass.guiDepth > 0 || CapeBook.renderingPreview;
         if (!CapeRenderPass.allowed(CapeRenderPass.guiDepth > 0 || preview,
                 client.getCameraEntity() != null && client.getCameraEntity().getId() == state.id,
                 client.options.getCameraType().isFirstPerson(), CapeRenderPass.shadow())) {
@@ -155,7 +155,7 @@ public class CapeLayerMixin {
     private void quarkosCapes(PoseStack pose, SubmitNodeCollector collector, int light, AvatarRenderState state, float yRot, float xRot, CallbackInfo ci) {
         Minecraft client = Minecraft.getInstance();
         boolean local = client.player != null && client.player.getId() == state.id;
-        boolean preview = state == CapeBook.previewState;
+        boolean preview = CapeRenderPass.guiDepth > 0 || state == CapeBook.previewState;
         if (!CapeRenderPass.allowed(CapeRenderPass.guiDepth > 0 || preview,
                 client.getCameraEntity() != null && client.getCameraEntity().getId() == state.id,
                 client.options.getCameraType().isFirstPerson(), CapeRenderPass.shadow())) {

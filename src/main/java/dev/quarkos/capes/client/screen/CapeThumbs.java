@@ -1,38 +1,50 @@
 package dev.quarkos.capes.client.screen;
 
 import dev.quarkos.capes.client.McBridge;
-import dev.quarkos.capes.client.local.Samples;
+import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.client.render.CapeTextures;
+import dev.quarkos.capes.client.screen.ui.CapeGridLayout.Rect;
+import dev.quarkos.capes.sim.StripFrames;
 import net.minecraft.client.gui.GuiGraphics;
 
-/** Draws the three bundled sample capes. */
-public final class CapeThumbs {
-    private CapeThumbs() {
-    }
+import java.util.List;
 
-    public static void draw(GuiGraphics graphics, int x, int y) {
-        drawOne(graphics, "bands", x, y);
-        drawOne(graphics, "slide", x, y + 20);
-        drawOne(graphics, "cloak", x, y + 40);
-    }
+/** Fits the outside face of one atlas frame into a card's texture well. */
+final class CapeThumbs {
+    static final List<String> SAMPLES = List.of("bands", "slide", "cloak");
 
-    public static void drawOne(GuiGraphics graphics, String key, int x, int y) {
-        byte[] png = switch (key) {
-            case "slide" -> Samples.slide();
-            case "cloak" -> Samples.cloakPng();
-            default -> Samples.bands();
+    private CapeThumbs() { }
+
+    static OwnerCape sample(String id) {
+        return switch (id) {
+            case "slide" -> OwnerCape.sampleSlide();
+            case "cloak" -> OwnerCape.sampleCloak();
+            default -> OwnerCape.sampleBands();
         };
-        blit(graphics, key, png, x, y);
     }
 
-    private static void blit(GuiGraphics graphics, String key, byte[] png, int x, int y) {
-        CapeTextures.Image image = CapeTextures.get("sample:" + key);
-        if (image == null) {
-            image = CapeTextures.upload("sample:" + key, png, false, false);
+    static void draw(GuiGraphics graphics, Rect area, CapeTextures.Image image, OwnerCape cape) {
+        if (image == null || cape == null || area.width() <= 0 || area.height() <= 0) return;
+        int frames = Math.max(1, cape.frameCount);
+        int frameWidth = image.width(), frameHeight = image.height();
+        boolean vertical = frames > 1 && image.height() / frames == cape.frameHeight
+                && image.width() == cape.frameWidth && image.height() % frames == 0;
+        if (vertical) {
+            frameHeight /= frames;
+        } else if (frames > 1 && image.width() % frames == 0) {
+            frameWidth /= frames;
+        } else {
+            frames = 1;
         }
-        if (image == null) {
-            return;
-        }
-        McBridge.capeThumb(graphics, image.id(), x, y, 10, 16, image.width(), image.height(), 64, 32);
+
+        int frame = cape.animateFrames && frames > 1
+                ? Math.floorMod(StripFrames.index(System.currentTimeMillis() / 2, cape.frameDelayMs), frames) : 0;
+        int scale = Math.min(area.width() / 10, area.height() / 16);
+        int height = scale > 0 ? 16 * scale : Math.min(area.height(), area.width() * 16 / 10);
+        int width = Math.max(1, Math.round(height * 10f / 16f));
+        if (height == 0) return;
+        McBridge.capeThumb(graphics, image.id(), area.centerX() - width / 2, area.centerY() - height / 2,
+                width, height, image.width(), image.height(), frameWidth, frameHeight,
+                vertical ? 0 : frame * frameWidth, vertical ? frame * frameHeight : 0);
     }
 }

@@ -108,9 +108,14 @@ public final class McBridge {
     /** Scale the visible cape panel, excluding the unused atlas padding and strip neighbors. */
     public static void capeThumb(GuiGraphics graphics, Identifier texture, int x, int y, int width, int height,
                                  int textureWidth, int textureHeight, int frameWidth, int frameHeight) {
+        capeThumb(graphics, texture, x, y, width, height, textureWidth, textureHeight, frameWidth, frameHeight, 0, 0);
+    }
+
+    public static void capeThumb(GuiGraphics graphics, Identifier texture, int x, int y, int width, int height,
+                                 int textureWidth, int textureHeight, int frameWidth, int frameHeight, int frameX, int frameY) {
         int sourceWidth = Math.max(1, frameWidth * 10 / 64);
         int sourceHeight = Math.max(1, frameHeight / 2);
-        float u = frameWidth / 64f, v = frameHeight / 32f;
+        float u = frameX + frameWidth / 64f, v = frameY + frameHeight / 32f;
         //? if <1.21.2 {
         /*graphics.blit(texture, x, y, width, height, u, v, sourceWidth, sourceHeight, textureWidth, textureHeight);
         *///?} else if <1.21.6 {
@@ -214,13 +219,21 @@ public final class McBridge {
     }
 
     public static void preview(GuiGraphics graphics, int x1, int y1, int x2, int y2, LivingEntity player) {
+        preview(graphics, x1, y1, x2, y2, player, 0f);
+    }
+
+    public static void preview(GuiGraphics graphics, int x1, int y1, int x2, int y2, LivingEntity player, float turn) {
+        if (x2 <= x1 || y2 <= y1) return;
         float yaw = player.getYRot(), pitch = player.getXRot();
         float body = player.yBodyRot, head = player.yHeadRot;
         float oldBody = player.yBodyRotO, oldHead = player.yHeadRotO;
         float oldYaw = player.yRotO, oldPitch = player.xRotO;
         boolean preview = dev.quarkos.capes.client.render.CapeBook.preview;
+        boolean renderingPreview = dev.quarkos.capes.client.render.CapeBook.renderingPreview;
+        graphics.enableScissor(x1, y1, x2, y2);
         try {
             dev.quarkos.capes.client.render.CapeBook.preview = true;
+            dev.quarkos.capes.client.render.CapeBook.renderingPreview = true;
             player.setYRot(0f); player.setXRot(0f);
             player.yRotO = player.xRotO = 0f;
             player.yBodyRot = player.yBodyRotO = 0f;
@@ -228,22 +241,23 @@ public final class McBridge {
             Quaternionf pose = new Quaternionf().rotateZ((float) Math.PI);
             // Inventory's upright basis faces the camera. Turn it to expose the cape.
             //? if <1.21.11 {
-            /*pose.rotateY((float) Math.toRadians(dev.quarkos.capes.client.render.CapeBook.previewBack ? 25 : 155));
+            /*float angle = dev.quarkos.capes.client.render.CapeBook.previewBack ? 25f : 155f;
             *///?} else {
-            pose.rotateY((float) Math.toRadians(dev.quarkos.capes.client.render.CapeBook.previewBack ? 155 : 25));
+            float angle = dev.quarkos.capes.client.render.CapeBook.previewBack ? 155f : 25f;
             //?}
+            pose.rotateY((float) Math.toRadians(angle + turn));
             Quaternionf camera = new Quaternionf();
+            float scale = Math.max(1f, Math.min((y2 - y1) / 2.2f, (x2 - x1) / 1.6f));
             //? if <1.21 {
-            /*int size = Math.max(16, Math.min((y2 - y1) / 2, x2 - x1));
-            InventoryScreen.renderEntityInInventory(graphics, (x1 + x2) / 2, y2 - 6, size, pose, camera, player);
+            /*int feet = (y1 + y2) / 2 + Math.round(scale * 0.9f);
+            InventoryScreen.renderEntityInInventory(graphics, (x1 + x2) / 2, feet, (int) scale, pose, camera, player);
             *///?} else if <1.21.6 {
-            /*int size = Math.max(16, Math.min((y2 - y1) / 2, x2 - x1));
-            InventoryScreen.renderEntityInInventory(graphics, (x1 + x2) / 2, y2 - 6, size,
+            /*int feet = (y1 + y2) / 2 + Math.round(scale * 0.9f);
+            InventoryScreen.renderEntityInInventory(graphics, (x1 + x2) / 2, feet, scale,
                     new Vector3f(0f, 0f, 0f), pose, camera, player);
             *///?} else if <1.21.11 {
-            /*float scale = Math.max(16, Math.min((y2 - y1) / 2f, x2 - x1));
-            InventoryScreen.renderEntityInInventory(graphics, x1, y1, x2, y2, scale,
-                    new Vector3f(0f, 0f, 0f), pose, camera, player);
+            /*InventoryScreen.renderEntityInInventory(graphics, x1, y1, x2, y2, scale,
+                    new Vector3f(0f, player.getBbHeight() / 2f, 0f), pose, camera, player);
             *///?} else {
             var state = Minecraft.getInstance().getEntityRenderDispatcher().extractEntity(player, 1f);
             state.lightCoords = 15728880;
@@ -256,7 +270,6 @@ public final class McBridge {
                 }
             }
             float half = Math.max(0.9f, state.boundingBoxHeight / 2f);
-            float scale = Math.max(12f, Math.min((y2 - y1) / 2.2f, (x2 - x1) / 1.2f));
             graphics.submitEntityRenderState(state, scale, new Vector3f(0f, half, 0f), pose, camera, x1, y1, x2, y2);
             //?}
         } finally {
@@ -265,6 +278,8 @@ public final class McBridge {
             player.yBodyRot = body; player.yHeadRot = head;
             player.yBodyRotO = oldBody; player.yHeadRotO = oldHead;
             dev.quarkos.capes.client.render.CapeBook.preview = preview;
+            dev.quarkos.capes.client.render.CapeBook.renderingPreview = renderingPreview;
+            graphics.disableScissor();
         }
     }
 

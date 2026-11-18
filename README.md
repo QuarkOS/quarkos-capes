@@ -18,9 +18,11 @@ scripts/release.sh
 
 Dev jars are named `quarkos_capes-fabric-<version>+<minecraft>.jar`. `scripts/release.sh` writes `dist/quarkos-capes-1.0.0+fabric-<minecraft>.jar`, the Forge jars, and the NeoForge jars, plus `dist/SHA256SUMS`. A localhost service URL is rejected unless you pass `-PallowLocalService=true`. `scripts/prod-smoke.sh` launches each of those jars in a production client and writes `docs/PROD-SMOKE.md`. It does not publish.
 
-Press O in game, or use Mod Menu when it is installed, to open the settings screen. The seven tabs are My Cape, Style, Physics, Sources, Gallery, Advanced, and Browse. Fabric and Forge 1.21.1 use Cloth Config; Forge 1.21.11 uses native controls. Style and physics choices use single selectors. The live player preview hides on compact settings layouts to leave room for the list.
+Press O, use Mod Menu, or click QuarkOS Capes on the title screen to open the wardrobe. Click a cape card to equip it, use the style chips to choose its shape and toggle animation, or drag the player preview to turn it. The preview hides on compact layouts. Settings opens Physics, Sources, and Advanced through Cloth Config on Fabric and on Forge and NeoForge through 1.21.1. Newer Forge and NeoForge versions use the mod's settings screen.
 
 Offline mode is on by default. While it is on, the client makes no HTTP call, including provider reads and the gallery. Browse and Gallery offer a Go online button while offline. My Cape offers the bundled samples (bands, slide, and the cloak). Equipping a shared cape, once you are online, copies it locally and does not change who published it.
+
+For in-game UI captures, run `./gradlew :1.21.11:runClient -Ponly=ui`. The harness uses a flat creative world and bundled gallery samples. It writes the scale 2 and 4 PNGs and `ui-result.txt` to `build/captures/1.21.11` by default. Use `-Pshots=<absolute path>` to choose another capture directory.
 
 QuarkOS keeps your selected cape when Capes by CaelTheColher (`capes`), Wavey Capes (`waveycapes`), or MinecraftCapes (`minecraftcapes`) is installed. If a mod removes vanilla's cape layer, QuarkOS adds one fallback to each player renderer that lacks it; an existing cape layer prevents the fallback. The fallback uses the same selection, visibility and preview rules. There is no reliable per-player ownership check for the other mods, so their independent cape layers can still overlap ours; disable their cape drawing if that happens. 3D Skin Layers (`skinlayers3d`) does not disable cape drawing.
 
@@ -34,7 +36,7 @@ Our code stays MIT. These libraries are not relicensed.
 
 | Library | Use | License | How it ships |
 | --- | --- | --- | --- |
-| Cloth Config (shedaniel) | Settings tabs and preview host (Fabric and Forge 1.21.1) | GNU LGPLv3 | Required, jar-in-jar |
+| Cloth Config (shedaniel) | Settings tabs (Fabric and Forge and NeoForge through 1.21.1) | GNU LGPLv3 | Required, jar-in-jar |
 | Mod Menu (TerraformersMC) | Optional button that opens the same screen | MIT | Optional, not bundled |
 | OkHttp 3.14.9 and Okio 1.17.5 | Cape and gallery HTTP | Apache-2.0 | Jar-in-jar |
 | Gson | JSON, already provided by Minecraft | Apache-2.0 | Not bundled |
@@ -47,14 +49,14 @@ Forge is the `forge` Stonecutter branch. It shares `src` through `forge/src`. De
 
 NeoForge is the `neoforge` branch, a ModDevGradle project that shares the same sources. It uses `net.neoforged` events and `neoforge.mods.toml`. Versions are 21.1.265 (1.21.1), 21.4.161 (1.21.4), 21.8.57 (1.21.8), and 21.11.48 (1.21.11). There is no 1.20.1 NeoForge jar.
 
-The 1.20.1 and 1.21.1 Forge jars embed [Cloth Config](https://github.com/shedaniel/cloth-config) with Jar-in-Jar (`11.1.136` and `15.0.140`). Cloth Config is © shedaniel, LGPL-3.0-only, and is not copied into this MIT tree. Later Forge builds draw the same tabs, selectors, and live cape preview themselves. NeoForge 1.21.1 embeds Cloth Config the same way.
+The 1.20.1 and 1.21.1 Forge jars embed [Cloth Config](https://github.com/shedaniel/cloth-config) with Jar-in-Jar (`11.1.136` and `15.0.140`). Cloth Config is © shedaniel, LGPL-3.0-only, and is not copied into this MIT tree. Later Forge builds draw the settings tabs and controls themselves. NeoForge 1.21.1 embeds Cloth Config the same way.
 
 ```
 ./gradlew :forge:1.21.1:build :forge:1.21.11:build
 ./gradlew :forge:1.21.11:runClient -Pharness=true
 ```
 
-Press O in game to open the settings screen.
+Press O in game to open the wardrobe.
 
 ## Browse, wearing, and linking
 

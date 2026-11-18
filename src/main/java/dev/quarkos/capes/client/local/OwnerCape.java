@@ -76,7 +76,7 @@ public final class OwnerCape {
             OwnerCape cape = new OwnerCape();
             try (var input = Files.newInputStream(pngFile)) {
                 cape.png = input.readNBytes(dev.quarkos.capes.sim.ImageLimits.MAX_BYTES + 1);
-                if (!dev.quarkos.capes.sim.ImageLimits.png(cape.png)) return sampleBands();
+                if (cape.png.length != 0 && !dev.quarkos.capes.sim.ImageLimits.png(cape.png)) return sampleBands();
             }
             String json;
             try (var input = Files.newInputStream(jsonFile)) {
@@ -85,6 +85,9 @@ public final class OwnerCape {
                 json = new String(bytes, java.nio.charset.StandardCharsets.UTF_8);
             }
             Map<String, Object> root = JsonValues.object(JsonValues.parse(json));
+            if (cape.png.length == 0) {
+                return Long.valueOf(1L).equals(root.get("api")) && "flat".equals(root.get("style")) ? cape : sampleBands();
+            }
             cape.style = root.get("style") instanceof String s ? s : "flat";
             cape.animateFrames = root.get("animateFrames") instanceof Boolean b && b;
             cape.frameCount = root.get("frameCount") instanceof Long n ? Math.clamp(n, 1, 256) : 1;

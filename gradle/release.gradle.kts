@@ -15,10 +15,17 @@ fun validateReleaseService(value: String, allowLocal: Boolean) {
             ).use { channel ->
                 channel.lock().use {
                     if (!classFile.isFile || classFile.lastModified() < source.lastModified()) {
-                        val javac = java.io.File("/usr/lib/jvm/java-21-openjdk-amd64/bin/javac")
-                        check(javac.canExecute()) { "Java 21 javac is required to check the service URL" }
+                        // Any JDK 21+ javac works (--release 21); Linux CI path first, then configured installs.
+                        val homes = mutableListOf("/usr/lib/jvm/java-21-openjdk-amd64")
+                        (providers.gradleProperty("org.gradle.java.installations.paths").orNull ?: "")
+                            .split(',').map { it.trim() }.filter { it.isNotEmpty() }.forEach { homes.add(it) }
+                        System.getenv("JAVA_HOME")?.let { homes.add(it) }
+                        homes.add(System.getProperty("java.home"))
+                        val javac = homes.flatMap { listOf(java.io.File(it, "bin/javac"), java.io.File(it, "bin/javac.exe")) }
+                            .firstOrNull { it.isFile && it.canExecute() }
+                        check(javac != null) { "Java 21 javac is required to check the service URL" }
                         val process = ProcessBuilder(
-                            javac.absolutePath, "-encoding", "UTF-8", "-d", dir.absolutePath, source.absolutePath
+                            javac.absolutePath, "--release", "21", "-encoding", "UTF-8", "-d", dir.absolutePath, source.absolutePath
                         ).redirectErrorStream(true).start()
                         val log = process.inputStream.bufferedReader().readText()
                         check(process.waitFor() == 0) { "ReleaseServicePolicy did not compile:\n$log" }

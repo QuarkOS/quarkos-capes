@@ -5,6 +5,7 @@ import dev.quarkos.capes.client.local.LocalFiles;
 import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.client.net.CapeHttp;
 import dev.quarkos.capes.client.render.CapeBook;
+import dev.quarkos.capes.client.screen.ui.CapeStyles;
 import dev.quarkos.capes.sim.WaveCloth;
 import net.minecraft.network.chat.Component;
 
@@ -25,8 +26,6 @@ public final class CapeBoard {
             "text.quarkos_capes.site.browse"
     };
 
-    private static String sample = "bands";
-
     private CapeBoard() {
     }
 
@@ -40,12 +39,7 @@ public final class CapeBoard {
     }
 
     public static void equipSample(String id) {
-        sample = id;
-        OwnerCape.set(switch (id) {
-            case "slide" -> OwnerCape.sampleSlide();
-            case "cloak" -> OwnerCape.sampleCloak();
-            default -> OwnerCape.sampleBands();
-        });
+        OwnerCape.set(CapeThumbs.sample(id));
         ClientSettings.get().equippedGalleryId = null;
         show();
     }
@@ -60,6 +54,12 @@ public final class CapeBoard {
             default -> null;
         };
         return expected != null && java.util.Arrays.equals(cape.png, expected);
+    }
+
+    public static void unequipLocal() {
+        OwnerCape.set(new OwnerCape());
+        ClientSettings.get().equippedGalleryId = null;
+        show();
     }
 
     public static void style(String style) {
@@ -78,6 +78,22 @@ public final class CapeBoard {
 
     public static boolean styleOn(String style) {
         return style.equals(OwnerCape.get().style);
+    }
+
+    public static CapeStyles styleChips() {
+        OwnerCape cape = OwnerCape.get();
+        return new CapeStyles(cape.style, cape.animateFrames);
+    }
+
+    public static void toggleStyle(CapeStyles.Chip chip) {
+        OwnerCape cape = OwnerCape.get();
+        CapeStyles next = styleChips().toggle(chip);
+        cape.style = next.mode();
+        cape.animateFrames = next.animated();
+        if ("model".equals(cape.style) && cape.modelJson == null) {
+            cape.modelJson = OwnerCape.sampleCloak().modelJson;
+        }
+        show();
     }
 
     public static void animation(boolean on) {

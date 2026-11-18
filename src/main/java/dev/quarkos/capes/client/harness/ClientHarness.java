@@ -17,7 +17,9 @@ import dev.quarkos.capes.client.render.CapeTextures;
 *///?}
 import dev.quarkos.capes.client.screen.CapeActions;
 //? if fabric {
+import dev.quarkos.capes.client.screen.CapeGalleryScreen;
 import dev.quarkos.capes.client.screen.CapeScreen;
+import dev.quarkos.capes.client.screen.CapeScreens;
 import dev.quarkos.capes.client.screen.GalleryScreen;
 //?}
 import net.minecraft.client.Minecraft;
@@ -26,7 +28,6 @@ import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.TitleScreen;
 import net.minecraft.client.gui.screens.worldselection.CreateWorldScreen;
 import net.minecraft.client.gui.screens.worldselection.WorldCreationUiState;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.level.levelgen.presets.WorldPresets;
 
 import java.nio.file.Files;
@@ -68,22 +69,28 @@ public final class ClientHarness {
     public static void start(Minecraft client) {
         if (!Boolean.getBoolean("quarkos_capes.harness")
                 && !Boolean.getBoolean("quarkos_capes.labyShots")
-                && !Boolean.getBoolean("quarkos_capes.labyCompare")) {
+                && !Boolean.getBoolean("quarkos_capes.labyCompare") && !UiHarness.selected()) {
             return;
         }
+        boolean ui = UiHarness.selected();
+        if (ui && UiHarness.finished()) return;
         if ("boot".equals(System.getProperty("quarkos_capes.only"))) {
             BootHarness.tick(client);
             return;
         }
         //? if fabric {
         String role = System.getProperty("quarkos_capes.role", "");
-        if ("a".equals(role) || "b".equals(role)) {
+        if (!ui && ("a".equals(role) || "b".equals(role))) {
             ShareHarness.start(client, role);
             return;
         }
         //?}
         if (!armed) {
             armed = true;
+            if (ui) {
+                System.setProperty("quarkos_capes.harness", "true");
+                UiHarness.prepare(client);
+            }
             client.options.tutorialStep = net.minecraft.client.tutorial.TutorialSteps.NONE;
             client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
             client.options.pauseOnLostFocus = false;
@@ -95,7 +102,8 @@ public final class ClientHarness {
             client.options.renderDistance().set(2);
             client.options.simulationDistance().set(5);
             client.options.framerateLimit().set(20);
-            client.getWindow().setWindowed(Integer.getInteger("quarkos_capes.width", 1280), Integer.getInteger("quarkos_capes.height", 720));
+            client.getWindow().setWindowed(Integer.getInteger("quarkos_capes.width", ui ? 1920 : 1280),
+                    Integer.getInteger("quarkos_capes.height", ui ? 1080 : 720));
         }
         ticks++;
         McBridge.clearChat(client);
@@ -124,6 +132,7 @@ public final class ClientHarness {
                 case CLOAK -> cloakShots(client);
                 case AUDIT -> AuditHarness.tick(client);
                 case FLOWS -> FlowHarness.tick(client);
+                case UI -> UiHarness.tick(client);
                 case DONE -> finish();
             }
         } catch (RuntimeException e) {
@@ -179,7 +188,7 @@ public final class ClientHarness {
         WorldCreationUiState ui = create.getUiState();
         ui.setGameMode(WorldCreationUiState.SelectedGameMode.CREATIVE);
         McBridge.allowCommands(ui);
-        ui.setName("capes");
+        ui.setName(UiHarness.selected() ? "capes-ui" : "capes");
         presets.stream().filter(entry -> entry.preset().is(WorldPresets.FLAT)).findFirst().ifPresent(ui::setWorldType);
         create.onCreate();
         state = State.WAIT_PLAYER;
@@ -205,6 +214,7 @@ public final class ClientHarness {
         if (ticks == 55) {
             McBridge.clearChat(client);
             showCape(client);
+            if (UiHarness.selected()) { state = State.UI; ticks = 0; return; }
 //? if dev_catalog {
             /*if (Boolean.getBoolean("quarkos_capes.labyCompare")) {
                 if (!LabyCatalog.enabled()) {
@@ -249,7 +259,7 @@ public final class ClientHarness {
             phase = 0;
             state = State.BACK;
             *///?} else {
-            McBridge.setScreen(client, CapeScreen.create(null));
+            McBridge.setScreen(client, CapeScreens.open(null));
             state = State.CAPE;
             //?}
             ticks = 0;
@@ -258,7 +268,7 @@ public final class ClientHarness {
 
     //? if fabric {
     private static void cape(Minecraft client) {
-        if (!CapeScreen.isOpen(McBridge.currentScreen(client))) {
+        if (!(McBridge.currentScreen(client) instanceof CapeScreen)) {
             if (ticks > 10) {
                 fail("cape screen did not open");
             }
@@ -268,7 +278,7 @@ public final class ClientHarness {
             apply(client, "text.quarkos_capes.sample.bands");
             apply(client, "text.quarkos_capes.style.flat");
             CapeBook.previewBack = false;
-            McBridge.setScreen(client, CapeScreen.create(null, Component.translatable("text.quarkos_capes.tab.style")));
+            McBridge.setScreen(client, CapeScreens.open(null));
         }
         if (ticks == 12) {
             if (CapeBook.draws <= 0) {
@@ -279,7 +289,7 @@ public final class ClientHarness {
         }
         if (ticks == 16) {
             CapeBook.previewBack = true;
-            McBridge.setScreen(client, CapeScreen.create(null, Component.translatable("text.quarkos_capes.tab.style")));
+            McBridge.setScreen(client, CapeScreens.open(null));
             queueShot(client, "cape-back");
         }
         if (ticks == 20) {
@@ -370,7 +380,7 @@ public final class ClientHarness {
     }
 
     private static void gallery(Minecraft client) {
-        if (!CapeScreen.isOpen(McBridge.currentScreen(client))) {
+        if (!(McBridge.currentScreen(client) instanceof CapeGalleryScreen)) {
             if (ticks > 10) {
                 fail("gallery screen did not open");
             }
@@ -390,7 +400,7 @@ public final class ClientHarness {
 
     private static void apply(Minecraft client, String key) {
         CapeActions.applyKey(key);
-        McBridge.setScreen(client, CapeScreen.create(null, Component.translatable(CapeActions.tabFor(key))));
+        McBridge.setScreen(client, CapeScreens.open(null));
     }
     //?}
 
@@ -723,6 +733,10 @@ public final class ClientHarness {
     }
 
     static void fail(String message) {
+        if (UiHarness.selected()) {
+            UiHarness.abort(Minecraft.getInstance(), message);
+            return;
+        }
         System.err.println("quarkos_capes harness fail: " + message);
         System.exit(1);
     }
@@ -954,6 +968,6 @@ public final class ClientHarness {
 
 *///?}
     private enum State {
-        WAIT_TITLE, OPEN_WORLD, WAIT_PLAYER, CAPE, WORLD, GALLERY, BACK, LABY, COMPARE, CLOAK, AUDIT, FLOWS, DONE
+        WAIT_TITLE, OPEN_WORLD, WAIT_PLAYER, CAPE, WORLD, GALLERY, BACK, LABY, COMPARE, CLOAK, AUDIT, FLOWS, UI, DONE
     }
 }

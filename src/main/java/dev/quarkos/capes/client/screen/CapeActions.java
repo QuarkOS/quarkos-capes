@@ -63,13 +63,4 @@ public final class CapeActions {
         }
     }
 
-    public static String tabFor(String key) {
-        if (key.contains(".style.")) {
-            return "text.quarkos_capes.tab.style";
-        }
-        if (key.contains("sample.")) {
-            return "text.quarkos_capes.tab.my_cape";
-        }
-        return "text.quarkos_capes.tab.gallery";
-    }
 }

@@ -18,23 +18,32 @@ import java.util.UUID;
 
 /** One draw path for the world and the picker preview. */
 public final class CapeDraw {
-    private static byte[] localPng;
-    private static byte[] rejectedPng;
+    private static final TextureSlot LOCAL = new TextureSlot("local");
+    private static final TextureSlot PREVIEW = new TextureSlot("preview");
 
     private CapeDraw() {
     }
 
     public static void syncLocal() {
-        OwnerCape cape = CapeBook.preview && CapeBook.draft != null ? CapeBook.draft : OwnerCape.get();
-        if (cape.png == localPng && (cape.png.length == 0 || CapeTextures.get("local") != null || cape.png == rejectedPng)) {
-            return;
+        LOCAL.sync(OwnerCape.get().png);
+    }
+
+    private static final class TextureSlot {
+        private final String key;
+        private byte[] current;
+        private byte[] rejected;
+
+        private TextureSlot(String key) { this.key = key; }
+
+        private CapeTextures.Image sync(byte[] png) {
+            CapeTextures.Image image = CapeTextures.get(key);
+            if (png == current && (png.length == 0 || image != null || png == rejected)) return image;
+            current = png;
+            image = png.length == 0 ? null : CapeTextures.upload(key, png, false, false);
+            rejected = image == null ? png : null;
+            if (image == null) CapeTextures.clear(key);
+            return image;
         }
-        localPng = cape.png;
-        if (cape.png.length == 0) { CapeTextures.clear("local"); return; }
-        if (CapeTextures.upload("local", cape.png, false, false) == null) {
-            rejectedPng = cape.png;
-            CapeTextures.clear("local");
-        } else rejectedPng = null;
     }
 
     public static void emit(PoseStack.Pose pose, VertexConsumer consumer, int light, UUID id, CapeBook.Choice choice, boolean preview) {
@@ -81,9 +90,8 @@ public final class CapeDraw {
 
     public static CapeBook.Choice resolve(UUID id, boolean local, Identifier vanillaCape) {
         if (local) {
-            syncLocal();
-            OwnerCape cape = CapeBook.preview && CapeBook.draft != null ? CapeBook.draft : OwnerCape.get();
-            CapeTextures.Image image = CapeTextures.get("local");
+            boolean preview = CapeRenderPass.guiDepth > 0 || CapeBook.renderingPreview;
+            OwnerCape cape = preview && CapeBook.preview && CapeBook.draft != null ? CapeBook.draft : OwnerCape.get();
             PlayerFacts.Fact fact = PlayerFacts.byUuid(id);
             // The synced customization byte starts at 0, so isModelPartShown(CAPE) is false
             // until the server applies client settings. Options are the local player's choice.
@@ -96,7 +104,8 @@ public final class CapeDraw {
                 return LabyWear.choice();
             }
 *///?}
-            return CapeBook.local(cape, image);
+            TextureSlot slot = cape == OwnerCape.get() ? LOCAL : PREVIEW;
+            return CapeBook.local(cape, slot.sync(cape.png));
         }
         PlayerFacts.Fact fact = PlayerFacts.byUuid(id);
         if (fact != null && (fact.elytra() || !fact.capePart())) {

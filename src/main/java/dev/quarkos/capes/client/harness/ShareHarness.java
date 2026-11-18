@@ -10,7 +10,7 @@ import dev.quarkos.capes.client.render.CapeBook;
 import dev.quarkos.capes.client.render.CapeTextures;
 import dev.quarkos.capes.client.render.PlayerFacts;
 import dev.quarkos.capes.client.screen.CapeActions;
-import dev.quarkos.capes.client.screen.CapeScreen;
+import dev.quarkos.capes.client.screen.CapeGalleryScreen;
 import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.screens.Screen;
@@ -33,6 +33,7 @@ public final class ShareHarness {
     private static boolean workStarted;
     private static volatile String workNote = "";
     private static String equippedId;
+    private static CapeGalleryScreen gallery;
 
     private ShareHarness() {
     }
@@ -224,8 +225,8 @@ public final class ShareHarness {
             }
             return;
         }
-        McBridge.setScreen(client, null);
-        CapeScreen.showNote(expected);
+        gallery = new CapeGalleryScreen(null);
+        McBridge.setScreen(client, gallery);
         state = next;
         ticks = 0;
     }
@@ -235,7 +236,9 @@ public final class ShareHarness {
             command(client, "gamemode creative @s");
             command(client, "tp @s 16 200 0 180 12");
             command(client, "gamerule send_command_feedback false");
-            CapeScreen.searchFor("band");
+            gallery = new CapeGalleryScreen(null);
+            gallery.search("band");
+            McBridge.setScreen(client, gallery);
         }
         if (ticks >= 2) {
             state = State.WAIT_WORK;
@@ -244,10 +247,10 @@ public final class ShareHarness {
     }
 
     private static void waitSearch(Minecraft client) {
-        String note = CapeScreen.note();
+        String note = gallery.status();
         if (note.startsWith("Search for \"band\" returned ")) {
             boolean found = false;
-            for (GalleryPages.Entry entry : CapeScreen.results()) {
+            for (GalleryPages.Entry entry : gallery.sharedEntries()) {
                 String title = entry.title() == null ? "" : entry.title().toLowerCase();
                 if (title.contains("band")) {
                     found = true;
@@ -272,7 +275,7 @@ public final class ShareHarness {
 
     private static void galleryShot(Minecraft client, String name, State next) {
         client.options.hideGui = true;
-        if (!CapeScreen.isOpen(McBridge.currentScreen(client))) {
+        if (McBridge.currentScreen(client) != gallery) {
             if (ticks > 20) {
                 fail(name + " screen did not open");
             }
@@ -297,10 +300,10 @@ public final class ShareHarness {
             }, message -> workNote = message);
         }
         if ("equipped".equals(workNote)) {
-            CapeHttp.report(equippedId, CapeScreen::showNote);
+            workNote = "";
+            CapeHttp.report(equippedId, message -> workNote = message);
             state = State.REPORT;
             ticks = 0;
-            workNote = "";
             return;
         }
         if (ticks > 20 * 20) {
@@ -309,9 +312,8 @@ public final class ShareHarness {
     }
 
     private static void report(Minecraft client) {
-        String note = CapeScreen.note();
+        String note = workNote;
         if (note.startsWith("Reported.")) {
-            CapeScreen.showNote(note);
             state = State.REPORT_SHOT;
             ticks = 0;
             return;

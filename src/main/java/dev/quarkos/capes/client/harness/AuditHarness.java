@@ -11,7 +11,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.RemotePlayer;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.inventory.InventoryScreen;
-import net.minecraft.network.chat.Component;
 import net.minecraft.world.entity.player.PlayerModelPart;
 
 import java.lang.management.ManagementFactory;
@@ -105,30 +104,7 @@ public final class AuditHarness {
     }
 
     private static void openTab(Minecraft client, int tab) {
-        // Fabric's public category selector is already present on integ-base.
-        //? if fabric {
-        /*client.setScreen(dev.quarkos.capes.client.screen.CapeScreen.create(null,
-                Component.translatable("text.quarkos_capes.tab." + (tab == 0 ? "my_cape" : TABS[tab]))));
-        *///?} else {
-        Screen screen = CapeScreens.open(null);
-        client.setScreen(screen);
-        try {
-            if (screen.getClass().getSimpleName().equals("ForgeCapeScreen")) {
-                var field = screen.getClass().getDeclaredField("tab");
-                field.setAccessible(true);
-                field.setInt(screen, tab);
-                var rebuild = screen.getClass().getDeclaredMethod("rebuild");
-                rebuild.setAccessible(true);
-                rebuild.invoke(screen);
-            } else {
-                var field = screen.getClass().getField("selectedCategoryIndex");
-                field.setInt(screen, tab);
-                client.setScreen(screen);
-            }
-        } catch (ReflectiveOperationException failure) {
-            throw new IllegalStateException("Cannot select settings tab " + tab, failure);
-        }
-        //?}
+        client.setScreen(CapeScreens.openTab(null, tab));
     }
 
     private static void world(Minecraft client) {

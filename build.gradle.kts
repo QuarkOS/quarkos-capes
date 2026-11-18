@@ -216,7 +216,7 @@ tasks {
             providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
         }
         systemProperty("quarkos_capes.serverUrl", providers.gradleProperty("serverUrl").orElse("http://127.0.0.1:8787").get())
-        if (providers.gradleProperty("only").orNull in listOf("flows", "boot")) systemProperty("quarkos_capes.harness", "true")
+        if (providers.gradleProperty("only").orNull in listOf("flows", "boot", "ui")) systemProperty("quarkos_capes.harness", "true")
         for (key in listOf("CAPES_DEV_AUTH", "CAPES_DEV_AUTH_SECRET")) {
             System.getenv(key)?.let { environment(key, it) }
         }

@@ -11,6 +11,7 @@ import java.util.UUID
 import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
+import java.util.zip.ZipFile
 
 /**
  * Forge nodes for 1.20.1 (47.4.29), 1.21.1 (52.1.20), 1.21.4 (54.1.22),
@@ -62,21 +63,16 @@ private fun forge1201Load() {
         var entry = zip.nextEntry
         while (entry != null) {
             if (entry.name.endsWith(".class")) {
-                ClassReader(zip.readBytes()).accept(object : ClassVisitor(Opcodes.ASM9) {
-                    override fun visit(
-                        version: Int, access: Int, name: String, signature: String?,
-                        superName: String?, interfaces: Array<out String>?
-                    ) {
-                        val parents = ArrayList<String>()
-                        if (superName != null && superName != "java/lang/Object") parents.add(superName)
-                        if (interfaces != null) parents.addAll(interfaces)
-                        forge1201Parents[name] = parents
-                    }
-                }, ClassReader.SKIP_CODE or ClassReader.SKIP_DEBUG or ClassReader.SKIP_FRAMES)
+                recordForge1201Parents(zip.readBytes())
             }
             entry = zip.nextEntry
         }
     }
+}
+
+private fun recordForge1201Parents(bytes: ByteArray) {
+    val reader = ClassReader(bytes)
+    forge1201Parents[reader.className] = listOfNotNull(reader.superName) + reader.interfaces.toList()
 }
 
 private fun forge1201Walk(owner: String): Sequence<String> = sequence {
@@ -121,6 +117,13 @@ private val srgLeftovers = linkedSetOf<String>()
 
 private fun rewriteForge1201MixinTargets(jar: File) {
     srgLeftovers.clear()
+    forge1201Load()
+    // A screen or widget can inherit its Minecraft methods through a shared mod class.
+    ZipFile(jar).use { zip ->
+        zip.entries().asSequence().filter { it.name.startsWith("dev/quarkos/capes/") && it.name.endsWith(".class") }.forEach { entry ->
+            zip.getInputStream(entry).use { recordForge1201Parents(it.readBytes()) }
+        }
+    }
     val temp = File(jar.parentFile, jar.name + ".srg")
     ZipInputStream(jar.inputStream()).use { input ->
         ZipOutputStream(temp.outputStream()).use { output ->
@@ -746,7 +749,7 @@ side = "CLIENT"
             providers.gradleProperty(key).orNull?.let { systemProperty(key, it) }
         }
         systemProperty("quarkos_capes.serverUrl", providers.gradleProperty("serverUrl").orElse("http://127.0.0.1:8787").get())
-        if (providers.gradleProperty("only").orNull == "flows") systemProperty("quarkos_capes.harness", "true")
+        if (providers.gradleProperty("only").orNull in listOf("flows", "ui")) systemProperty("quarkos_capes.harness", "true")
         for (key in listOf("CAPES_DEV_AUTH", "CAPES_DEV_AUTH_SECRET")) {
             System.getenv(key)?.let { environment(key, it) }
         }

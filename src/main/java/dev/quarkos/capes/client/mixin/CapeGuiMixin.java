@@ -3,15 +3,18 @@ package dev.quarkos.capes.client.mixin;
 import com.mojang.blaze3d.vertex.PoseStack;
 import dev.quarkos.capes.client.render.CapeRenderPass;
 import org.spongepowered.asm.mixin.Mixin;
-//? if <1.21.11 {
+import org.spongepowered.asm.mixin.injection.Inject;
+//? if <1.21.6 {
 /*import net.minecraft.client.gui.screens.inventory.InventoryScreen;
 
 @Mixin(InventoryScreen.class)
 *///?} else {
-import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
-import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
 import net.minecraft.client.gui.render.pip.GuiEntityRenderer;
 import net.minecraft.client.gui.render.state.pip.GuiEntityRenderState;
+//? if >=1.21.11 {
+import com.llamalad7.mixinextras.injector.wrapmethod.WrapMethod;
+import com.llamalad7.mixinextras.injector.wrapoperation.Operation;
+//?}
 
 @Mixin(GuiEntityRenderer.class)
 //?}
@@ -35,13 +38,13 @@ public class CapeGuiMixin {
         CapeRenderPass.guiDepth--;
     }
     *///?} else if <1.21.11 {
-    /*@org.spongepowered.asm.mixin.injection.Inject(method = "renderEntityInInventory(Lnet/minecraft/client/gui/GuiGraphics;IIIIFLorg/joml/Vector3f;Lorg/joml/Quaternionf;Lorg/joml/Quaternionf;Lnet/minecraft/world/entity/LivingEntity;)V", at = @org.spongepowered.asm.mixin.injection.At("HEAD"))
-    private static void quarkosGuiBegin(net.minecraft.client.gui.GuiGraphics graphics, int x1, int y1, int x2, int y2, float scale, org.joml.Vector3f translation, org.joml.Quaternionf pose, org.joml.Quaternionf camera, net.minecraft.world.entity.LivingEntity entity, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+    /*@Inject(method = "renderToTexture(Lnet/minecraft/client/gui/render/state/pip/GuiEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;)V", at = @org.spongepowered.asm.mixin.injection.At("HEAD"))
+    private void quarkosGuiBegin(GuiEntityRenderState state, PoseStack pose, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
         CapeRenderPass.guiDepth++;
     }
 
-    @org.spongepowered.asm.mixin.injection.Inject(method = "renderEntityInInventory(Lnet/minecraft/client/gui/GuiGraphics;IIIIFLorg/joml/Vector3f;Lorg/joml/Quaternionf;Lorg/joml/Quaternionf;Lnet/minecraft/world/entity/LivingEntity;)V", at = @org.spongepowered.asm.mixin.injection.At("RETURN"))
-    private static void quarkosGuiEnd(net.minecraft.client.gui.GuiGraphics graphics, int x1, int y1, int x2, int y2, float scale, org.joml.Vector3f translation, org.joml.Quaternionf pose, org.joml.Quaternionf camera, net.minecraft.world.entity.LivingEntity entity, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
+    @Inject(method = "renderToTexture(Lnet/minecraft/client/gui/render/state/pip/GuiEntityRenderState;Lcom/mojang/blaze3d/vertex/PoseStack;)V", at = @org.spongepowered.asm.mixin.injection.At("RETURN"))
+    private void quarkosGuiEnd(GuiEntityRenderState state, PoseStack pose, org.spongepowered.asm.mixin.injection.callback.CallbackInfo ci) {
         CapeRenderPass.guiDepth--;
     }
     *///?} else {

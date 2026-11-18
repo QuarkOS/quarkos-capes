@@ -191,10 +191,18 @@ public final class CapeHttp {
     }
 
     public static void open(String id, Consumer<Opened> ok, Consumer<String> fail) {
+        open(id, ok, fail, false);
+    }
+
+    public static void openThumbnail(String id, Consumer<Opened> ok, Consumer<String> fail) {
+        open(id, ok, fail, true);
+    }
+
+    private static void open(String id, Consumer<Opened> ok, Consumer<String> fail, boolean thumbnail) {
         if (ClientSettings.get().localOnly) {
             fail.accept(message("offline")); return;
         }
-        if (!execute(() -> {
+        Runnable request = () -> {
             try {
                 Reply meta = send(CapeCalls.Kind.GALLERY_ONE, id, "", "", 12, "", null);
                 if (meta == null || meta.status / 100 != 2) {
@@ -211,10 +219,16 @@ public final class CapeHttp {
             } catch (Exception e) {
                 Minecraft.getInstance().execute(() -> fail.accept(message("cape_unavailable")));
             }
-        })) fail.accept(message("busy"));
+        };
+        if (!(thumbnail ? download(request) : execute(request))) fail.accept(message("busy"));
     }
 
     public static void equip(GalleryPages.Detail detail, byte[] png) {
+        OwnerCape.set(owner(detail, png));
+        ClientSettings.get().equippedGalleryId = detail.id();
+    }
+
+    public static OwnerCape owner(GalleryPages.Detail detail, byte[] png) {
         OwnerCape cape = new OwnerCape();
         cape.style = detail.style() == null ? "flat" : detail.style();
         cape.animateFrames = detail.animateFrames();
@@ -224,8 +238,7 @@ public final class CapeHttp {
         cape.frameDelayMs = detail.frameDelayMs();
         cape.modelJson = detail.modelJson();
         cape.png = png;
-        OwnerCape.set(cape);
-        ClientSettings.get().equippedGalleryId = detail.id();
+        return cape;
     }
 
     public static void publish(Consumer<String> status) {
