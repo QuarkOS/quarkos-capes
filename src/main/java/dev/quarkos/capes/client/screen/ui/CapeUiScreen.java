@@ -13,6 +13,7 @@ public abstract class CapeUiScreen extends Screen {
     protected Rect frame;
     private final CapePreview.Rotation rotation = new CapePreview.Rotation();
     private Rect previewBounds;
+    private int harnessMouseX = -1, harnessMouseY;
 
     protected CapeUiScreen(Component title) {
         super(title);
@@ -46,8 +47,15 @@ public abstract class CapeUiScreen extends Screen {
         return previewBounds;
     }
 
+    /** Supplies a GUI-space pointer for capture without moving the window's cursor. */
+    public final void setHarnessPointer(int x, int y) {
+        harnessMouseX = x;
+        harnessMouseY = y;
+    }
+
     @Override
     public void removed() {
+        harnessMouseX = -1;
         rotation.reset();
         CapePreview.clearDraft();
         super.removed();
@@ -83,6 +91,10 @@ public abstract class CapeUiScreen extends Screen {
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float delta) {
         CapeTheme.background(graphics, width, height);
         renderPanels(graphics);
+        if (harnessMouseX >= 0) {
+            mouseX = harnessMouseX;
+            mouseY = harnessMouseY;
+        }
         super.render(graphics, mouseX, mouseY, delta);
     }
 

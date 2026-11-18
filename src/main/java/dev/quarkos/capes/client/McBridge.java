@@ -241,13 +241,14 @@ public final class McBridge {
             Quaternionf pose = new Quaternionf().rotateZ((float) Math.PI);
             // Inventory's upright basis faces the camera. Turn it to expose the cape.
             //? if <1.21.11 {
-            /*float angle = dev.quarkos.capes.client.render.CapeBook.previewBack ? 25f : 155f;
+            /*float angle = dev.quarkos.capes.client.render.CapeBook.previewBack ? 45f : 155f;
             *///?} else {
-            float angle = dev.quarkos.capes.client.render.CapeBook.previewBack ? 155f : 25f;
+            float angle = dev.quarkos.capes.client.render.CapeBook.previewBack ? 135f : 25f;
             //?}
             pose.rotateY((float) Math.toRadians(angle + turn));
             Quaternionf camera = new Quaternionf();
-            float scale = Math.max(1f, Math.min((y2 - y1) / 2.2f, (x2 - x1) / 1.6f));
+            // The standing model spans about 30/16 units. Keep it inside the viewport at any yaw.
+            float scale = Math.max(1f, Math.min((y2 - y1) * 0.8f / 1.875f, (x2 - x1) / 1.35f));
             //? if <1.21 {
             /*int feet = (y1 + y2) / 2 + Math.round(scale * 0.9f);
             InventoryScreen.renderEntityInInventory(graphics, (x1 + x2) / 2, feet, (int) scale, pose, camera, player);

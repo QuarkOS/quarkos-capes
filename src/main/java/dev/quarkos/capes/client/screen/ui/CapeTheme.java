@@ -28,8 +28,9 @@ public final class CapeTheme {
     private static final int SELECTED_HOVER = 0xFF304361;
     private static final int PRIMARY_HOVER = 0xFF77A9FF;
     private static final int PRIMARY_TEXT = 0xFF121C2B;
+    private static final int ONLINE = 0xFF77C992;
 
-    public enum Face { BUTTON, PRIMARY, CHIP, CYCLE, TAB }
+    public enum Face { BUTTON, PRIMARY, CHIP, SEGMENT, SWITCH, CYCLE, TAB }
 
     @FunctionalInterface
     public interface Thumbnail {
@@ -83,6 +84,18 @@ public final class CapeTheme {
         String value = CapeText.ellipsis(title.getString(), width - 14,
                 string -> font.width(Component.literal(string).withStyle(ChatFormatting.BOLD)));
         graphics.drawString(font, Component.literal(value).withStyle(ChatFormatting.BOLD), x + 14, y, TEXT, false);
+    }
+
+    public static void connectionStatus(GuiGraphics graphics, Font font, Rect area, boolean online) {
+        graphics.fill(area.x() + 1, area.y(), area.right() - 1, area.bottom(), BORDER);
+        graphics.fill(area.x(), area.y() + 1, area.right(), area.bottom() - 1, BORDER);
+        graphics.fill(area.x() + 1, area.y() + 1, area.right() - 1, area.bottom() - 1, INSET);
+        int x = area.x() + 5, y = area.centerY() - 2;
+        int dot = online ? ONLINE : MUTED;
+        graphics.fill(x + 1, y, x + 3, y + 4, dot);
+        graphics.fill(x, y + 1, x + 4, y + 3, dot);
+        label(graphics, font, text(online ? "ui.online" : "ui.offline"), area.x() + 13,
+                area.centerY() - font.lineHeight / 2, area.width() - 17, MUTED);
     }
 
     public static FlatButton button(Component label, Rect area, Face face, Runnable action) {
@@ -140,12 +153,18 @@ public final class CapeTheme {
             Rect area = bounds(this);
             boolean hover = active && isMouseOver(mouseX, mouseY);
             boolean primary = active && face == Face.PRIMARY;
-            boolean checked = selected && face == Face.CHIP;
+            boolean focused = isFocused();
+            boolean segment = face == Face.SEGMENT;
+            boolean checked = selected && (face == Face.CHIP || segment);
             int fill = !active ? PANEL : primary ? (hover ? PRIMARY_HOVER : ACCENT)
                     : checked ? (hover ? SELECTED_HOVER : SELECTED) : hover || selected && face == Face.TAB ? HOVER : RAISED;
-            int border = isFocused() ? TEXT : primary || checked ? ACCENT : hover ? HOVER_BORDER : BORDER;
+            int border = focused ? TEXT : primary || checked ? ACCENT : hover ? HOVER_BORDER : BORDER;
             int color = !active ? DISABLED : primary ? PRIMARY_TEXT : TEXT;
-            box(graphics, area, fill, border);
+            if (segment && !focused && !hover && !checked) {
+                graphics.fill(area.x(), area.y(), area.right(), area.bottom(), fill);
+            } else {
+                box(graphics, area, fill, border);
+            }
             Font font = Minecraft.getInstance().font;
             int y = area.centerY() - font.lineHeight / 2;
             if (face == Face.CYCLE && area.width() >= 28) {
@@ -154,6 +173,12 @@ public final class CapeTheme {
                 graphics.fill(x, y + 3, x + 5, y + 4, color);
                 graphics.fill(x + 1, y + 4, x + 4, y + 5, color);
                 graphics.fill(x + 2, y + 5, x + 3, y + 6, color);
+            } else if (face == Face.SWITCH && area.width() >= 34) {
+                Rect track = new Rect(area.right() - 23, area.centerY() - 4, 17, 9);
+                box(graphics, track, selected ? SELECTED : INSET, BORDER);
+                int knob = selected ? track.right() - 7 : track.x() + 2;
+                graphics.fill(knob, track.y() + 2, knob + 5, track.bottom() - 2, selected ? ACCENT : DISABLED);
+                label(graphics, font, getMessage(), area.x() + 6, y, track.x() - area.x() - 10, color);
             } else {
                 int mark = checked && area.width() >= 44 ? 10 : 0;
                 if (mark > 0) check(graphics, area.x() + 5, y, ACCENT);
@@ -184,14 +209,11 @@ public final class CapeTheme {
             boolean worn = equipped.getAsBoolean();
             boolean marked = worn || selected.getAsBoolean();
             box(graphics, area, hover ? HOVER : RAISED, marked ? ACCENT : isFocused() ? TEXT : hover ? HOVER_BORDER : BORDER);
-            int labels = creator == null ? 17 : 26;
-            Rect well = new Rect(area.x() + 4, area.y() + 4, area.width() - 8, area.height() - labels - 4);
-            if (well.height() > 0) {
-                graphics.fill(well.x(), well.y(), well.right(), well.bottom(), INSET);
-                image.draw(graphics, well.inset(3));
-            }
+            Rect well = new Rect(area.x() + 4, area.y() + 4, area.width() - 8, area.height() - 28);
+            graphics.fill(well.x(), well.y(), well.right(), well.bottom(), INSET);
+            image.draw(graphics, well.inset(2));
             Font font = Minecraft.getInstance().font;
-            int y = area.bottom() - labels + 5;
+            int y = well.bottom() + (creator == null ? (area.bottom() - well.bottom() - font.lineHeight) / 2 : 4);
             label(graphics, font, getMessage(), area.x() + 6, y, area.width() - 12, TEXT);
             if (creator != null) label(graphics, font, creator, area.x() + 6, y + 10, area.width() - 12, MUTED);
             if (worn) {

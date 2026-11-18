@@ -42,7 +42,7 @@ final class CapePreview extends AbstractWidget {
 
         CapeBook.preview = true;
         CapeBook.draft = shown;
-        Rect model = area.inset(5);
+        Rect model = area.inset(1);
         McBridge.preview(graphics, model.x(), model.y(), model.right(), model.bottom(), client.player, rotation.angle());
     }
 

@@ -18,8 +18,8 @@ public record CapeStyles(String mode, boolean animated) {
         return switch (chip) {
             case FLAT -> on(Chip.FLAT) ? this : new CapeStyles(flat, animated);
             case ANIMATED -> new CapeStyles(on(Chip.FLAT) ? (animated ? "flat" : "frames") : mode, !animated);
-            case WAVY -> new CapeStyles(on(chip) ? flat : "wave", animated);
-            case MODEL -> new CapeStyles(on(chip) ? flat : "model", animated);
+            case WAVY -> on(chip) ? this : new CapeStyles("wave", animated);
+            case MODEL -> on(chip) ? this : new CapeStyles("model", animated);
         };
     }
 }

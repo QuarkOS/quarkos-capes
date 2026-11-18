@@ -1,7 +1,9 @@
 package dev.quarkos.capes.client.screen.ui;
 
 /** Layout in GUI pixels. All right and bottom edges are exclusive. */
-public record CapeGridLayout(Rect area, int columns, int rows, int cardHeight) {
+public record CapeGridLayout(Rect area, int columns, int rows) {
+    public static final int CARD_WIDTH = 80;
+    public static final int CARD_HEIGHT = 96;
     public static final int GAP = 6;
 
     public record Rect(int x, int y, int width, int height) {
@@ -38,11 +40,14 @@ public record CapeGridLayout(Rect area, int columns, int rows, int cardHeight) {
         return Math.max(132, Math.min(252, frame.width() / 3));
     }
 
-    public static CapeGridLayout fit(Rect area, int minCardWidth, int preferredHeight, int maxColumns) {
-        int columns = Math.max(1, Math.min(maxColumns, (area.width() + GAP) / (minCardWidth + GAP)));
-        int cardHeight = Math.max(0, Math.min(preferredHeight, area.height()));
-        int rows = cardHeight < 36 || area.width() < 32 ? 0 : (area.height() + GAP) / (cardHeight + GAP);
-        return new CapeGridLayout(area, columns, rows, cardHeight);
+    public static int previewHeight(int width, int available) {
+        // Keep tall viewports within the aspect ratio that accommodates a full turn.
+        return Math.max(0, Math.min(available, width * 17 / 10));
+    }
+
+    public static CapeGridLayout fit(Rect area) {
+        return new CapeGridLayout(area, (area.width() + GAP) / (CARD_WIDTH + GAP),
+                (area.height() + GAP) / (CARD_HEIGHT + GAP));
     }
 
     public int capacity() { return rows * columns; }
@@ -55,8 +60,16 @@ public record CapeGridLayout(Rect area, int columns, int rows, int cardHeight) {
         return Math.max(0, Math.min(page, pages(items) - 1));
     }
 
+    public int visibleHeight(int items) {
+        int visible = Math.min(items, capacity());
+        if (visible <= 0) return 0;
+        int usedRows = (visible - 1) / columns + 1;
+        return usedRows * (CARD_HEIGHT + GAP) - GAP;
+    }
+
     public Rect card(int index) {
-        int y = area.y() + index / columns * (cardHeight + GAP);
-        return new Rect(area.x(), y, area.width(), cardHeight).cell(index % columns, columns, GAP);
+        int x = area.x() + index % columns * (CARD_WIDTH + GAP);
+        int y = area.y() + index / columns * (CARD_HEIGHT + GAP);
+        return new Rect(x, y, CARD_WIDTH, CARD_HEIGHT);
     }
 }

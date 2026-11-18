@@ -12,6 +12,8 @@ import java.util.List;
 /** Fits the outside face of one atlas frame into a card's texture well. */
 final class CapeThumbs {
     static final List<String> SAMPLES = List.of("bands", "slide", "cloak");
+    private static final int FACE_WIDTH = 10;
+    private static final int FACE_HEIGHT = 16;
 
     private CapeThumbs() { }
 
@@ -24,7 +26,9 @@ final class CapeThumbs {
     }
 
     static void draw(GuiGraphics graphics, Rect area, CapeTextures.Image image, OwnerCape cape) {
-        if (image == null || cape == null || area.width() <= 0 || area.height() <= 0) return;
+        if (image == null || cape == null) return;
+        int scale = Math.min(area.width() / FACE_WIDTH, area.height() / FACE_HEIGHT);
+        if (scale < 1) return;
         int frames = Math.max(1, cape.frameCount);
         int frameWidth = image.width(), frameHeight = image.height();
         boolean vertical = frames > 1 && image.height() / frames == cape.frameHeight
@@ -39,10 +43,8 @@ final class CapeThumbs {
 
         int frame = cape.animateFrames && frames > 1
                 ? Math.floorMod(StripFrames.index(System.currentTimeMillis() / 2, cape.frameDelayMs), frames) : 0;
-        int scale = Math.min(area.width() / 10, area.height() / 16);
-        int height = scale > 0 ? 16 * scale : Math.min(area.height(), area.width() * 16 / 10);
-        int width = Math.max(1, Math.round(height * 10f / 16f));
-        if (height == 0) return;
+        int width = FACE_WIDTH * scale;
+        int height = FACE_HEIGHT * scale;
         McBridge.capeThumb(graphics, image.id(), area.centerX() - width / 2, area.centerY() - height / 2,
                 width, height, image.width(), image.height(), frameWidth, frameHeight,
                 vertical ? 0 : frame * frameWidth, vertical ? frame * frameHeight : 0);

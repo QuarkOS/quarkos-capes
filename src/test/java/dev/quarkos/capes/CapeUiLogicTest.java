@@ -13,35 +13,37 @@ import static org.junit.jupiter.api.Assertions.*;
 class CapeUiLogicTest {
     @Test void galleryColumnsAndRowsFollowGuiDimensions() {
         assertGrid(1280, 720, 2, 4, 2, true);
-        assertGrid(1280, 720, 4, 3, 1, false);
+        assertGrid(1280, 720, 3, 2, 1, true);
         assertGrid(1920, 1080, 2, 6, 4, true);
-        assertGrid(1920, 1080, 4, 3, 2, true);
+        assertGrid(1920, 1080, 4, 3, 1, true);
+        assertGrid(960, 720, 3, 3, 1, false);
     }
 
     private static void assertGrid(int pixelsWide, int pixelsHigh, int scale, int columns, int rows, boolean preview) {
-        Rect frame = CapeGridLayout.frame(pixelsWide / scale, pixelsHigh / scale);
+        Rect frame = CapeGridLayout.frame(Math.ceilDiv(pixelsWide, scale), Math.ceilDiv(pixelsHigh, scale));
         int side = CapeGridLayout.previewWidth(frame);
         assertEquals(preview, side > 0);
         int width = frame.width() - (side == 0 ? 0 : side + 10);
         int top = frame.y() + (frame.width() >= 512 ? 54 : 78);
         int bodyHeight = frame.bottom() - 35 - top;
-        int preferredHeight = frame.height() < 205 ? 56 : frame.height() < 300 ? 60 : 95;
         Rect area = new Rect(frame.x(), top, width, bodyHeight).inset(6);
-        var grid = CapeGridLayout.fit(area, 75, preferredHeight, 6);
+        var grid = CapeGridLayout.fit(area);
         assertEquals(columns, grid.columns());
         assertEquals(rows, grid.rows());
         for (int i = 0; i < grid.capacity(); i++) {
             Rect card = grid.card(i);
+            assertEquals(CapeGridLayout.CARD_WIDTH, card.width());
+            assertEquals(CapeGridLayout.CARD_HEIGHT, card.height());
             assertTrue(area.contains(card.x(), card.y()));
             assertTrue(area.contains(card.right() - 1, card.bottom() - 1));
             if (i % columns != 0) assertEquals(CapeGridLayout.GAP, card.x() - grid.card(i - 1).right());
             if (i >= columns) assertEquals(CapeGridLayout.GAP, card.y() - grid.card(i - columns).bottom());
         }
-        assertEquals(area.right(), grid.card(columns - 1).right());
+        assertTrue(area.right() - grid.card(columns - 1).right() < CapeGridLayout.CARD_WIDTH + CapeGridLayout.GAP);
     }
 
     @Test void pagingClampsAfterFilteringOrResizing() {
-        var grid = CapeGridLayout.fit(new Rect(10, 20, 250, 160), 70, 70, 6);
+        var grid = CapeGridLayout.fit(new Rect(10, 20, 260, 200));
         assertEquals(6, grid.capacity());
         assertEquals(1, grid.pages(0));
         assertEquals(1, grid.pages(6));
@@ -50,7 +52,24 @@ class CapeUiLogicTest {
         assertEquals(2, grid.clampPage(9, 13));
         assertEquals(0, grid.clampPage(2, 1));
         assertEquals(0, grid.clampPage(-1, 13));
-        assertEquals(1, CapeGridLayout.fit(new Rect(0, 0, 30, 24), 75, 56, 6).pages(20));
+        var tooShort = CapeGridLayout.fit(new Rect(0, 0, CapeGridLayout.CARD_WIDTH, CapeGridLayout.CARD_HEIGHT - 1));
+        assertEquals(0, tooShort.capacity());
+        assertEquals(1, tooShort.pages(20));
+        assertEquals(1, CapeGridLayout.fit(new Rect(0, 0, CapeGridLayout.CARD_WIDTH, CapeGridLayout.CARD_HEIGHT)).capacity());
+    }
+
+    @Test void wardrobeHeightFitsOccupiedRows() {
+        var grid = CapeGridLayout.fit(new Rect(0, 0, 260, 400));
+        int cardHeight = CapeGridLayout.CARD_HEIGHT;
+        assertEquals(0, grid.visibleHeight(0));
+        assertEquals(cardHeight, grid.visibleHeight(3));
+        assertEquals(2 * cardHeight + CapeGridLayout.GAP, grid.visibleHeight(4));
+        assertEquals(3 * cardHeight + 2 * CapeGridLayout.GAP, grid.visibleHeight(100));
+    }
+
+    @Test void aTallPreviewLeavesRoomForTheModelToTurn() {
+        assertEquals(170, CapeGridLayout.previewHeight(100, 400));
+        assertEquals(100, CapeGridLayout.previewHeight(100, 100));
     }
 
     @Test void truncationAccountsForGlyphWidthAndKeepsUnicodeIntact() {
@@ -79,16 +98,18 @@ class CapeUiLogicTest {
         assertEquals(animated, oldFrames.toggle(Chip.ANIMATED));
     }
 
-    @Test void modeChipsSwitchGeometryWithoutLosingPlayback() {
+    @Test void selectingShapesKeepsPlaybackAndReselectingKeepsShape() {
         var wave = new CapeStyles("frames", true).toggle(Chip.WAVY);
         assertTrue(wave.on(Chip.WAVY));
         assertFalse(wave.on(Chip.FLAT));
         assertTrue(wave.on(Chip.ANIMATED));
+        assertEquals(wave, wave.toggle(Chip.WAVY));
         var model = wave.toggle(Chip.MODEL);
         assertFalse(model.on(Chip.WAVY));
         assertTrue(model.on(Chip.MODEL));
         assertEquals(new CapeStyles("model", false), model.toggle(Chip.ANIMATED));
-        assertEquals(new CapeStyles("frames", true), model.toggle(Chip.MODEL));
+        assertEquals(model, model.toggle(Chip.MODEL));
+        assertEquals(new CapeStyles("frames", true), model.toggle(Chip.FLAT));
         assertEquals(new CapeStyles("frames", true), wave.toggle(Chip.FLAT));
     }
 

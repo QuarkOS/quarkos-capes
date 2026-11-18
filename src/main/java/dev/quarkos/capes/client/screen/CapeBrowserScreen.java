@@ -158,8 +158,7 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
         int bodyWidth = frame.width() - (sideWidth == 0 ? 0 : sideWidth + 10);
         body = new Rect(frame.x(), top, bodyWidth, Math.max(0, statusY - top - 3));
         details = new Rect(frame.right() - sideWidth, top, sideWidth, frame.bottom() - top);
-        int cardHeight = frame.height() < 205 ? 56 : frame.height() < 300 ? 60 : 95;
-        grid = CapeGridLayout.fit(body.inset(6), 75, cardHeight, 6);
+        grid = CapeGridLayout.fit(body.inset(6));
         if (returnToLastPage && !loading) {
             page = grid.pages(items.size()) - 1;
             returnToLastPage = false;
@@ -186,10 +185,12 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
 
         if (sideWidth > 0) {
             int inset = 7;
-            int metadata = 39;
-            preview(new Rect(details.x() + inset, details.y() + 18, details.width() - 2 * inset,
-                    details.height() - metadata - 18 - (actions.isEmpty() ? 0 : 25)), () -> draft, () -> loadingCape);
-            addActions(actions, new Rect(details.x() + inset, footerY - 6, details.width() - 2 * inset, CapeTheme.CONTROL));
+            int previewWidth = details.width() - 2 * inset;
+            int chrome = 18 + 39 + (actions.isEmpty() ? 0 : 25);
+            int previewHeight = CapeGridLayout.previewHeight(previewWidth, details.height() - chrome);
+            details = new Rect(details.x(), details.y(), details.width(), chrome + previewHeight);
+            preview(new Rect(details.x() + inset, details.y() + 18, previewWidth, previewHeight), () -> draft, () -> loadingCape);
+            addActions(actions, new Rect(details.x() + inset, details.bottom() - CapeTheme.CONTROL - 6, previewWidth, CapeTheme.CONTROL));
         } else if (compactActionWidth > 0) {
             addActions(actions, new Rect(frame.right() - compactActionWidth, footerY, compactActionWidth, CapeTheme.CONTROL));
         }

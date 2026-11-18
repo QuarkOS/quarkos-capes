@@ -1,6 +1,7 @@
 //? if fabric || <1.21.2 {
 package dev.quarkos.capes.client.screen;
 
+import dev.quarkos.capes.client.McBridge;
 import dev.quarkos.capes.client.local.ClientSettings;
 import dev.quarkos.capes.client.net.CapeCalls;
 import dev.quarkos.capes.client.net.ServiceUrl;
@@ -12,9 +13,6 @@ import dev.quarkos.capes.sim.WaveCloth;
 /*import dev.quarkos.capes.client.net.LabyBrowse;
 import dev.quarkos.capes.client.net.LabyCatalog;
 *///?}
-//? if fabric {
-import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
-//?}
 import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import me.shedaniel.clothconfig2.api.ConfigCategory;
 import me.shedaniel.clothconfig2.api.ConfigEntryBuilder;
@@ -53,7 +51,9 @@ final class ClothCapeScreen {
         ConfigBuilder builder = ConfigBuilder.create()
                 .setParentScreen(parent)
                 .setTitle(text("ui.settings_title"))
-                .setTransparentBackground(true)
+                .setTransparentBackground(false)
+                // Cloth applies its own dark gray tint to this texture.
+                .setDefaultBackgroundTexture(McBridge.id("textures/gui/settings_background.png"))
                 .setSavingRunnable(() -> {
                     edits.apply();
                     CapeBoard.save(ignored -> { });
@@ -61,7 +61,7 @@ final class ClothCapeScreen {
         ConfigEntryBuilder fields = builder.entryBuilder();
 
         ConfigCategory physics = builder.getOrCreateCategory(text("tab.physics"));
-        physics.addEntry(new ActionRow(text("tab.my_cape"), () -> {
+        physics.addEntry(new ActionRow(text("ui.back_to_wardrobe"), () -> {
             edits.apply();
             returnToWardrobe(parent);
         }));
@@ -103,10 +103,6 @@ final class ClothCapeScreen {
 
         Component selected = text(tab.key);
         builder.setFallbackCategory(builder.getOrCreateCategory(selected));
-        //? if fabric {
-        builder.setAfterInitConsumer(screen -> ScreenEvents.beforeRender(screen).register((view, graphics, x, y, delta) ->
-                CapeTheme.background(graphics, view.width, view.height)));
-        //?}
 
         Screen built = builder.build();
         if (built instanceof ClothConfigScreen config) {
