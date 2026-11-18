@@ -1,13 +1,19 @@
 package dev.quarkos.capes.sim;
 
 /**
- * Original cape cloth. The settings match the ones Wavey Capes exposes
- * (movement, mesh, wind, gravity, height, strafe, gravity vector). The step
- * itself is not that mod's code: a 16-point chain whose links cannot grow
- * past rest length, with a traveling ripple while the player moves.
+ * Original cape cloth with Wavey Capes-style settings. A 16-point chain keeps
+ * links within rest length while the cloth ripples and settles with player motion.
  */
 public final class WaveCloth {
     public static final int SEGMENTS = 16;
+    public static final float REST_ANGLE_DEGREES = 6f;
+    private static final float MAX_ANGLE_DEGREES = 75f;
+    private static final double MIN_DOWN = Math.cos(Math.toRadians(MAX_ANGLE_DEGREES));
+    private static final float WALK_SPEED = 0.216f;
+    private static final float SPRINT_SPEED = 0.281f;
+    private static final float MAX_SPEED = 0.44f;
+    private static final float WALK_ANGLE = 34f;
+    private static final float SPRINT_ANGLE = 56f;
 
     public enum Movement {
         CLASSIC, SIMULATION, SIMULATION_V2, DUNGEONS
@@ -112,11 +118,10 @@ public final class WaveCloth {
         public final float[] py = new float[SEGMENTS];
         public final float[] pz = new float[SEGMENTS];
 
-        final float[] targetX = new float[SEGMENTS], targetY = new float[SEGMENTS], targetZ = new float[SEGMENTS];
         final float[] renderX = new float[SEGMENTS], renderY = new float[SEGMENTS], renderZ = new float[SEGMENTS];
         final float[] leftX = new float[SEGMENTS], leftY = new float[SEGMENTS];
         final float[] rightX = new float[SEGMENTS], rightY = new float[SEGMENTS];
-        final float[] classicPitch = new float[SEGMENTS], classicRoll = new float[SEGMENTS];
+        final float[] pitch = new float[SEGMENTS], roll = new float[SEGMENTS];
 
         public State() {
             reset();
@@ -149,29 +154,15 @@ public final class WaveCloth {
     }
 
     public static ClassicPose classic(Settings settings, Motion motion) {
-        return classic(settings, motion, new float[SEGMENTS], new float[SEGMENTS]);
+        float[] pitch = new float[SEGMENTS];
+        float[] roll = new float[SEGMENTS];
+        shape(settings.clamped(), motion, pitch, roll);
+        return new ClassicPose(pitch, roll);
     }
 
     public static ClassicPose classic(Settings settings, Motion motion, State state) {
-        return classic(settings, motion, state.classicPitch, state.classicRoll);
-    }
-
-    private static ClassicPose classic(Settings settings, Motion motion, float[] pitch, float[] roll) {
-        Settings tuned = settings.clamped();
-        float trail = clamp(Math.abs(motion.forward) * 2.8f, 0f, 1.25f) / weight(tuned, motion);
-        float lift = clamp(-motion.vertical * (tuned.heightMultiplier / 6f) * 0.4f, -0.7f, 0.9f);
-        if (motion.sneakStarted) {
-            lift += 0.3f;
-        }
-        float side = motion.lateral * tuned.straveMultiplier * 0.08f;
-        double travel = ripplePhase(motion);
-        for (int i = 0; i < SEGMENTS; i++) {
-            float along = i / (float) (SEGMENTS - 1);
-            float ripple = (float) Math.sin(travel - along * 6.0) * (0.09f + Math.min(0.25f, trail)) * along;
-            pitch[i] = (trail + lift) * along + ripple + windBend(tuned, motion, i);
-            roll[i] = (side + 0.035f * (float) Math.sin(travel * 0.6)) * along;
-        }
-        return new ClassicPose(pitch, roll);
+        shape(settings.clamped(), motion, state.pitch, state.roll);
+        return new ClassicPose(state.pitch, state.roll);
     }
 
     /** Advances a chain. Classic movement does not use this state. */
@@ -180,118 +171,85 @@ public final class WaveCloth {
         if (tuned.movement == Movement.CLASSIC) {
             return;
         }
-        float[] tx = state.targetX;
-        float[] ty = state.targetY;
-        float[] tz = state.targetZ;
-        shape(tuned, motion, tx, ty, tz);
+        shape(tuned, motion, state.pitch, state.roll);
         float follow = tuned.movement == Movement.DUNGEONS ? 0.55f : 0.42f;
+        float x = 0f, y = 0f, z = 0f;
+        pin(state);
+        // The target links have unit length. Interpolating all points by the same amount
+        // keeps every link at or below that length, including while the cape is settling.
         for (int i = 1; i < SEGMENTS; i++) {
+            float pitch = state.pitch[i], roll = state.roll[i];
+            float plane = (float) Math.cos(roll);
+            x += (float) Math.sin(pitch) * plane;
+            y -= (float) Math.cos(pitch) * plane;
+            z += (float) Math.sin(roll);
             state.px[i] = state.x[i];
             state.py[i] = state.y[i];
             state.pz[i] = state.z[i];
-            state.x[i] += (tx[i] - state.x[i]) * follow;
-            state.y[i] += (ty[i] - state.y[i]) * follow;
-            state.z[i] += (tz[i] - state.z[i]) * follow;
+            state.x[i] += (x - state.x[i]) * follow;
+            state.y[i] += (y - state.y[i]) * follow;
+            state.z[i] += (z - state.z[i]) * follow;
         }
-        // One pass from the shoulder pin. A link may bunch, but it cannot grow past rest length.
-        pin(state);
-        for (int i = 0; i < SEGMENTS - 1; i++) {
-            float dx = state.x[i + 1] - state.x[i];
-            float dy = state.y[i + 1] - state.y[i];
-            float dz = state.z[i + 1] - state.z[i];
-            float dist = (float) Math.sqrt(dx * dx + dy * dy + dz * dz);
-            if (dist > 1f) {
-                float scale = 1f / dist;
-                state.x[i + 1] = state.x[i] + dx * scale;
-                state.y[i + 1] = state.y[i] + dy * scale;
-                state.z[i + 1] = state.z[i] + dz * scale;
-            }
-        }
-        pin(state);
     }
 
-    /**
-     * Rest pose is a straight hang of {@code SEGMENTS - 1} links.
-     * Moving lifts that hang into the 45–80 degree range. A bulge then travels
-     * down the cloth. Positive {@code x} is behind the player. Negative {@code y} is down.
-     * Every link of the shape is at most one rest length.
-     */
-    private static void shape(Settings tuned, Motion motion, float[] tx, float[] ty, float[] tz) {
+    /** Fills the angle of each link, measured back and sideways from a straight hang. */
+    private static void shape(Settings tuned, Motion motion, float[] pitch, float[] roll) {
         float speed = Math.abs(motion.forward);
-        float lift = liftDegrees(speed) / weight(tuned, motion);
-        if (motion.vertical > 0f) {
-            lift += Math.min(12f, motion.vertical * tuned.heightMultiplier);
-        } else if (motion.vertical < 0f) {
-            lift += Math.max(-18f, motion.vertical * tuned.heightMultiplier * 0.5f);
-        }
+        float lift = REST_ANGLE_DEGREES + (targetAngleDegrees(speed) - REST_ANGLE_DEGREES) / weight(tuned, motion);
+        lift += clamp(motion.vertical * (tuned.heightMultiplier / 6f) * 16f, -18f, 12f);
         if (motion.sneakStarted) {
             lift += 8f;
         }
         if (motion.swimming) {
             lift *= 0.55f;
         }
-        lift = clamp(lift, 0f, 80f);
-        float sideAmp = tuned.movement == Movement.SIMULATION ? 0f : motion.lateral * tuned.straveMultiplier * 0.08f;
+        boolean sway = tuned.movement != Movement.SIMULATION;
+        float side = sway ? motion.lateral * tuned.straveMultiplier * 25f : 0f;
         if (tuned.computeGravityVector) {
-            sideAmp += motion.gravX * 0.15f;
-            lift += Math.max(0f, -motion.gravY) * 8f;
-            lift = clamp(lift, 0f, 80f);
+            side += motion.gravX * 8f;
+            lift += motion.gravZ * 8f;
         }
-        tx[0] = 0f;
-        ty[0] = 0f;
-        tz[0] = 0f;
-        float pitch = (float) Math.toRadians(lift);
-        float dx = (float) Math.sin(pitch);
-        float dy = -(float) Math.cos(pitch);
-        // Perpendicular to the hang, in the swing plane, so the ripple is a belly in the cloth.
-        float px = (float) Math.cos(pitch);
-        float py = (float) Math.sin(pitch);
-        double travel = ripplePhase(motion);
-        float speedBlend = clamp(speed / 0.27f, 0f, 1f);
-        float amp = 0.65f + 2.55f * speedBlend;
-        float idleBelly = 0.65f * (1f - speedBlend);
-        float idleSway = tuned.movement == Movement.SIMULATION ? 0f : 0.24f * (float) Math.sin(travel * 0.6);
+        lift = clamp(lift, 0f, MAX_ANGLE_DEGREES);
+        float motionRipple = 23f * clamp(speed / SPRINT_SPEED, 0f, 1f);
+        float idleRipple = tuned.wind == Wind.WAVES ? 5.6f : 2.2f;
+        float idleSway = sway ? (tuned.wind == Wind.WAVES ? 2f : 0.8f) : 0f;
+        double time = motion.timeMs * (motion.underwater ? 0.4 : 1.0);
+        double breathingPhase = time * 0.0038;
+        double motionPhase = time * 0.008;
         for (int i = 1; i < SEGMENTS; i++) {
             float along = i / (float) (SEGMENTS - 1);
-            // Zero at the shoulder and the hem, so the ripple is a belly and the chord stays at the lift.
-            float bulge = (idleBelly + (float) Math.sin(travel - along * 6.0) * amp) * (float) Math.sin(along * Math.PI);
-            tx[i] = Math.max(0f, dx * i + px * bulge);
-            ty[i] = dy * i + py * bulge;
-            tz[i] = (sideAmp * 4f + idleSway) * along;
-        }
-        for (int i = 0; i < SEGMENTS - 1; i++) {
-            float lx = tx[i + 1] - tx[i];
-            float ly = ty[i + 1] - ty[i];
-            float lz = tz[i + 1] - tz[i];
-            float dist = (float) Math.sqrt(lx * lx + ly * ly + lz * lz);
-            if (dist > 1f) {
-                float scale = 1f / dist;
-                tx[i + 1] = tx[i] + lx * scale;
-                ty[i + 1] = ty[i] + ly * scale;
-                tz[i + 1] = tz[i] + lz * scale;
-            }
+            double idlePhase = breathingPhase - along * 1.6;
+            float ripple = idleRipple * (float) Math.sin(idlePhase)
+                    + motionRipple * (float) Math.sin(motionPhase - along * 6.0);
+            float sideAngle = clamp((side + idleSway * (float) Math.cos(idlePhase)) * along, -20f, 20f);
+            // The delayed phase travels through the hem, and the shoulder moves the least.
+            pitch[i] = (float) Math.toRadians(clamp(lift + ripple * along, 0f, maxPitchDegrees(sideAngle)));
+            roll[i] = (float) Math.toRadians(sideAngle);
         }
     }
 
-    /** How far a moving cape swings back from a straight hang, in degrees. */
-    private static float liftDegrees(float speed) {
-        if (speed < 0.03f) {
-            return 52f * speed / 0.03f;
+    /** Steady pitch from vertical at default settings for forward displacement in blocks per tick. */
+    public static float targetAngleDegrees(float forwardSpeed) {
+        if (!Float.isFinite(forwardSpeed)) return REST_ANGLE_DEGREES;
+        float speed = Math.abs(forwardSpeed);
+        if (speed <= WALK_SPEED) {
+            return REST_ANGLE_DEGREES + (WALK_ANGLE - REST_ANGLE_DEGREES) * (speed / WALK_SPEED);
         }
-        if (speed < 0.2f) {
-            float t = (speed - 0.03f) / 0.17f;
-            return 52f + t * 8f;
+        if (speed <= SPRINT_SPEED) {
+            float progress = (speed - WALK_SPEED) / (SPRINT_SPEED - WALK_SPEED);
+            return WALK_ANGLE + (SPRINT_ANGLE - WALK_ANGLE) * progress;
         }
-        float t = Math.min(1f, (speed - 0.2f) / 0.25f);
-        return 64f + t * 10f;
+        float progress = Math.min(1f, (speed - SPRINT_SPEED) / (MAX_SPEED - SPRINT_SPEED));
+        return SPRINT_ANGLE + (MAX_ANGLE_DEGREES - SPRINT_ANGLE) * progress;
+    }
+
+    /** The pitch budget at a given side angle, so their combined tilt stays within the limit. */
+    public static float maxPitchDegrees(float rollDegrees) {
+        return (float) Math.toDegrees(Math.acos(MIN_DOWN / Math.cos(Math.toRadians(rollDegrees))));
     }
 
     private static float weight(Settings settings, Motion motion) {
         return 0.65f + 0.35f * settings.gravity / (motion.underwater ? 250f : 25f);
-    }
-
-    private static double ripplePhase(Motion motion) {
-        return motion.timeMs * (motion.underwater ? 0.003 : 0.008);
     }
 
     public static void run(State state, Settings settings, Motion motion, int ticks) {
@@ -307,19 +265,6 @@ public final class WaveCloth {
         state.px[0] = 0;
         state.py[0] = 0;
         state.pz[0] = 0;
-    }
-
-    /**
-     * Extra bend for waves, in radians. Amplitude is 3 degrees and the phase
-     * advances three times slower underwater. It is not a force in {@link #step}.
-     */
-    public static float windBend(Settings settings, Motion motion, int index) {
-        if (settings == null || settings.wind != Wind.WAVES) {
-            return 0f;
-        }
-        double divisor = motion.underwater ? 9.0 : 3.0;
-        double phase = (motion.timeMs / divisor) * 0.02 + index * 0.35;
-        return (float) (Math.toRadians(3.0) * Math.sin(phase));
     }
 
     private static float clamp(float value, float min, float max) {

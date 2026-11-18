@@ -129,7 +129,6 @@ public final class CapeGeometry {
     public static List<Quad> cloth(
             WaveCloth.State state,
             WaveCloth.Settings settings,
-            WaveCloth.Motion motion,
             float[] classicPitch,
             float[] classicRoll,
             int frame,
@@ -137,10 +136,10 @@ public final class CapeGeometry {
             boolean vertical,
             boolean blocky
     ) {
-        return cloth(state, settings, motion, classicPitch, classicRoll, frame, frameCount, vertical, blocky, 1f);
+        return cloth(state, settings, classicPitch, classicRoll, frame, frameCount, vertical, blocky, 1f);
     }
 
-    public static List<Quad> cloth(WaveCloth.State state, WaveCloth.Settings settings, WaveCloth.Motion motion,
+    public static List<Quad> cloth(WaveCloth.State state, WaveCloth.Settings settings,
                                    float[] classicPitch, float[] classicRoll, int frame, int frameCount,
                                    boolean vertical, boolean blocky, float partial) {
         float[] xs = state.renderX, ys = state.renderY, zs = state.renderZ;
@@ -154,7 +153,6 @@ public final class CapeGeometry {
                 xs[i] = (state.pz[i] + (state.z[i] - state.pz[i]) * partial) * scale;
                 ys[i] = -(state.py[i] + (state.y[i] - state.py[i]) * partial) * scale;
                 zs[i] = 2f / 16f + (state.px[i] + (state.x[i] - state.px[i]) * partial) * scale;
-                bend(xs, ys, zs, i, WaveCloth.windBend(settings, motion, i));
             }
         }
         int count = Math.max(1, frameCount);
@@ -211,22 +209,11 @@ public final class CapeGeometry {
             float step = (16f / 15f) / 16f;
             float p = pitch[Math.min(i, pitch.length - 1)];
             float r = roll[Math.min(i, roll.length - 1)];
+            float plane = step * (float) Math.cos(r);
             xs[i] = xs[i - 1] + (float) Math.sin(r) * step;
-            ys[i] = ys[i - 1] + (float) Math.cos(p) * step;
-            zs[i] = zs[i - 1] + (float) Math.sin(p) * step;
+            ys[i] = ys[i - 1] + (float) Math.cos(p) * plane;
+            zs[i] = zs[i - 1] + (float) Math.sin(p) * plane;
         }
-    }
-
-    private static void bend(float[] xs, float[] ys, float[] zs, int index, float radians) {
-        if (index == 0 || radians == 0f) {
-            return;
-        }
-        float dy = ys[index] - ys[0];
-        float dz = zs[index] - zs[0];
-        float c = (float) Math.cos(radians);
-        float s = (float) Math.sin(radians);
-        ys[index] = ys[0] + dy * c - dz * s;
-        zs[index] = zs[0] + dy * s + dz * c;
     }
 
     private static Quad panel(float x0, float y0, float z, float x1, float y1, float ignored, float u0, float v0, float u1, float v1) {

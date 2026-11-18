@@ -65,11 +65,12 @@ public class CapeLayerMixin {
         }
         boolean preview = CapeRenderPass.guiDepth > 0 || CapeBook.renderingPreview;
         pose.pushPose();
-        ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
+        if (choice.kind() == CapeBook.Kind.CLOTH) {
+            ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
+        }
         pose.translate(0.0F, 0.0F, player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).isEmpty() ? 0.0F : 0.0625F);
-        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(6.0F));
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose.last(), consumer, preview ? 15728880 : light, player.getUUID(), choice, preview);
+        CapeDraw.emit(pose, consumer, preview ? 15728880 : light, player, choice, preview, partial);
         pose.popPose();
         ci.cancel();
     }
@@ -131,6 +132,7 @@ public class CapeLayerMixin {
         }
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1 && state.skin != null) {
             state.showCape = true;
+            if (!preview) state.capeFlap = CapeDraw.boundedFlap(state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
             Identifier cape = choice.texture();
             state.skin = new PlayerSkin(state.skin.texture(), state.skin.textureUrl(), cape, state.skin.elytraTexture(), state.skin.model(), state.skin.secure());
             return;
@@ -139,9 +141,9 @@ public class CapeLayerMixin {
         pose.pushPose();
         ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
         pose.translate(0.0F, 0.0F, state.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
-        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(6.0F));
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose.last(), consumer, bright, id, choice, preview);
+        CapeDraw.emit(pose, consumer, bright, id, choice, preview, McBridge.partialTick(),
+                state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
         pose.popPose();
         ci.cancel();
     }
@@ -185,6 +187,7 @@ public class CapeLayerMixin {
         }
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1 && state.skin != null) {
             state.showCape = true;
+            if (!preview) state.capeFlap = CapeDraw.boundedFlap(state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
             Identifier cape = choice.texture();
             state.skin = new PlayerSkin(
                     state.skin.body(),

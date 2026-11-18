@@ -12,17 +12,22 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.PlayerModelPart;
 import org.joml.Matrix4f;
+import org.joml.Quaternionf;
 
 import java.util.List;
 import java.util.UUID;
+//? if <1.21.2 {
+/*import net.minecraft.client.player.AbstractClientPlayer;
+import net.minecraft.util.Mth;
+*///?}
 //? if >=1.21.11 {
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.entity.state.AvatarRenderState;
-import org.joml.Quaternionf;
 //?}
 
 /** One draw path for the world and the picker preview. */
 public final class CapeDraw {
+    private static final float SHOULDER_Z = 2f / 16f;
     private static final TextureSlot LOCAL = new TextureSlot("local");
     private static final TextureSlot PREVIEW = new TextureSlot("preview");
 
@@ -51,10 +56,38 @@ public final class CapeDraw {
         }
     }
 
-    public static void emit(PoseStack.Pose pose, VertexConsumer consumer, int light, UUID id, CapeBook.Choice choice, boolean preview) {
-        List<CapeGeometry.Quad> quads = geometry(pose, id, choice, preview, McBridge.partialTick());
-        draw(quads, pose, consumer, light, id, choice, preview);
+    //? if <1.21.2 {
+    /*public static void emit(PoseStack pose, VertexConsumer consumer, int light, AbstractClientPlayer player,
+                            CapeBook.Choice choice, boolean preview, float partial) {
+        float lean = 0f, flap = 0f, sway = 0f;
+        if (!preview && choice.kind() != CapeBook.Kind.CLOTH) {
+            // These versions compute the cape angles directly in CapeLayer.
+            double dx = Mth.lerp(partial, player.xCloakO, player.xCloak) - Mth.lerp(partial, player.xo, player.getX());
+            double dy = Mth.lerp(partial, player.yCloakO, player.yCloak) - Mth.lerp(partial, player.yo, player.getY());
+            double dz = Mth.lerp(partial, player.zCloakO, player.zCloak) - Mth.lerp(partial, player.zo, player.getZ());
+            float yaw = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot) * Mth.DEG_TO_RAD;
+            float sin = Mth.sin(yaw), cos = -Mth.cos(yaw);
+            lean = Mth.clamp((float) (dx * sin + dz * cos) * 100f, 0f, 150f);
+            sway = Mth.clamp((float) (dx * cos - dz * sin) * 100f, -20f, 20f);
+            float bob = Mth.lerp(partial, player.oBob, player.bob);
+            flap = Mth.clamp((float) dy * 10f, -6f, 32f)
+                    + Mth.sin(Mth.lerp(partial, player.walkDistO, player.walkDist) * 6f) * 32f * bob;
+            if (player.isCrouching()) flap += 25f;
+        }
+        emit(pose, consumer, light, player.getUUID(), choice, preview, partial, lean, flap, sway, player.isFallFlying());
     }
+    *///?}
+
+    //? if <1.21.11 {
+    /*public static void emit(PoseStack pose, VertexConsumer consumer, int light, UUID id, CapeBook.Choice choice,
+                            boolean preview, float partial, float lean, float flap, float sway, boolean flying) {
+        List<CapeGeometry.Quad> quads = geometry(pose.last(), id, choice, preview, partial);
+        if (!quads.isEmpty() && choice.kind() != CapeBook.Kind.CLOTH) {
+            rotateRigid(pose, lean, flap, sway, flying, preview);
+        }
+        draw(quads, pose.last(), consumer, light, id, choice, preview);
+    }
+    *///?}
 
     //? if >=1.21.11 {
     public static void submit(PoseStack pose, SubmitNodeCollector collector, int light, AvatarRenderState state,
@@ -67,31 +100,45 @@ public final class CapeDraw {
         List<CapeGeometry.Quad> quads = geometry(pose.last(), id, choice, preview, partial);
         if (quads.isEmpty()) return;
 
-        // Custom quads include the vanilla shoulder offset. Rotate around that pin.
-        float pitch = 6f;
+        Quaternionf rotation = choice.kind() == CapeBook.Kind.CLOTH ? null
+                : rotateRigid(pose, state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying, preview);
+        collector.submitCustomGeometry(pose, McBridge.cutout(choice.texture(), choice.kind()), (entry, consumer) -> {
+            draw(quads, entry, consumer, preview ? 15728880 : light, id, choice, preview);
+            if (dev.quarkos.capes.DevFlags.HARNESS && !preview && !CapeRenderPass.shadow()) {
+                if (rotation == null) dev.quarkos.capes.client.harness.CapeMotionCapture.cloth(id, quads);
+                else dev.quarkos.capes.client.harness.CapeMotionCapture.rigid(id, choice.kind(), rotation);
+            }
+        });
+    }
+    //?}
+
+    /** Limit the combined pitch and sway in the extracted vanilla pose. */
+    public static float boundedFlap(float lean, float flap, float sway, boolean flying) {
+        if (flying) return flap;
+        float basePitch = WaveCloth.REST_ANGLE_DEGREES + lean / 2f;
+        return Math.min(flap, WaveCloth.maxPitchDegrees(sway / 2f) - basePitch);
+    }
+
+    private static Quaternionf rotateRigid(PoseStack pose, float lean, float flap, float sway, boolean flying, boolean preview) {
+        float pitch = WaveCloth.REST_ANGLE_DEGREES;
         float roll = 0f;
-        if (!preview && choice.kind() != CapeBook.Kind.CLOTH) {
-            pitch += state.capeLean / 2f + state.capeFlap;
-            roll = state.capeLean2 / 2f;
+        if (!preview) {
+            pitch = WaveCloth.REST_ANGLE_DEGREES + lean / 2f + boundedFlap(lean, flap, sway, flying);
+            roll = sway / 2f;
         }
         float pitchRadians = (float) Math.toRadians(pitch);
         float rollRadians = (float) Math.toRadians(roll);
+        // The vanilla model starts with a 180-degree yaw on its cape part.
         var rotation = new Quaternionf().rotationX(pitchRadians).rotateZ(rollRadians).rotateY(-rollRadians);
-        pose.translate(0f, 0f, 2f / 16f);
+        pose.translate(0f, 0f, SHOULDER_Z);
         //? if >=26.1 {
         /*pose.rotate(rotation);
         *///?} else {
         pose.mulPose(rotation);
         //?}
-        pose.translate(0f, 0f, -2f / 16f);
-        collector.submitCustomGeometry(pose, McBridge.cutout(choice.texture(), choice.kind()), (entry, consumer) -> {
-            draw(quads, entry, consumer, preview ? 15728880 : light, id, choice, preview);
-            if (dev.quarkos.capes.DevFlags.HARNESS && !preview && !CapeRenderPass.shadow()) {
-                dev.quarkos.capes.client.harness.CapeMotionCapture.custom(id, choice.kind(), quads, pitchRadians, rollRadians);
-            }
-        });
+        pose.translate(0f, 0f, -SHOULDER_Z);
+        return rotation;
     }
-    //?}
 
     private static List<CapeGeometry.Quad> geometry(PoseStack.Pose pose, UUID id, CapeBook.Choice choice, boolean preview, float partial) {
         if (choice.kind() == CapeBook.Kind.NONE || choice.texture() == null) return List.of();
@@ -106,19 +153,18 @@ public final class CapeDraw {
         if (choice.kind() == CapeBook.Kind.CLOTH) {
             WaveCloth.Settings settings = ClientSettings.get().cloth;
             PlayerFacts.Fact fact = preview ? null : PlayerFacts.byUuid(id);
-            WaveCloth.Motion motion = preview ? WaveCloth.Motion.idle(System.nanoTime() / 1_000_000L)
-                    : fact == null ? WaveCloth.Motion.still() : ClothSim.motion(fact);
             if (!preview) {
-                rememberGravity(pose, id, fact);
+                rememberGravity(pose, id);
                 ClothSim.markDrawn(id);
             }
+            WaveCloth.Motion motion = preview ? WaveCloth.Motion.idle(System.nanoTime() / 1_000_000L)
+                    : fact == null ? WaveCloth.Motion.still() : ClothSim.motion(fact);
             WaveCloth.State state = preview ? dev.quarkos.capes.sim.PreviewCloth.state(settings, motion) : ClothSim.state(id);
             WaveCloth.ClassicPose classic = settings.movement() == WaveCloth.Movement.CLASSIC
                     ? WaveCloth.classic(settings, motion, state) : null;
             return CapeGeometry.cloth(
                     state,
                     settings,
-                    motion,
                     classic == null ? null : classic.pitch(),
                     classic == null ? null : classic.roll(),
                     frame,
@@ -168,17 +214,14 @@ public final class CapeDraw {
         return CapeBook.other(id, vanillaCape, true);
     }
 
-    private static void rememberGravity(PoseStack.Pose pose, UUID id, PlayerFacts.Fact fact) {
+    private static void rememberGravity(PoseStack.Pose pose, UUID id) {
         if (!ClientSettings.get().cloth.computeGravityVector() || id == null) {
             return;
         }
         Matrix4f matrix = pose.pose();
-        float ux = matrix.m10();
-        float uy = matrix.m11();
-        float uz = matrix.m12();
-        float yaw = fact == null ? 0f : (float) Math.toRadians(fact.bodyYaw());
-        float c = (float) Math.cos(yaw);
-        float s = (float) Math.sin(yaw);
-        ClothSim.gravity(id, ux * c + uz * s, uy, -ux * s + uz * c);
+        // Project world down onto the model axes. The sim uses negative Y for down.
+        float x = -matrix.m01(), y = matrix.m11(), z = -matrix.m21();
+        float length = (float) Math.sqrt(x * x + y * y + z * z);
+        if (length > 0f) ClothSim.gravity(id, x / length, y / length, z / length);
     }
 }

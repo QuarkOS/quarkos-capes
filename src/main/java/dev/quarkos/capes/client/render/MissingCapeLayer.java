@@ -69,12 +69,11 @@ public class MissingCapeLayer extends RenderLayer {
             return;
         }
         pose.pushPose();
-        pose.translate(0.0F, player.isCrouching() ? 0.2F : 0.0F,
+        pose.translate(0.0F, player.isCrouching() && choice.kind() == CapeBook.Kind.CLOTH ? 0.2F : 0.0F,
                 player.getItemBySlot(net.minecraft.world.entity.EquipmentSlot.CHEST).isEmpty() ? 0.0F : 0.0625F);
-        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(player.isCrouching() ? 31.0F : 6.0F));
         boolean preview = CapeRenderPass.guiDepth > 0 || CapeBook.renderingPreview;
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose.last(), consumer, preview ? 15728880 : light, player.getUUID(), choice, preview);
+        CapeDraw.emit(pose, consumer, preview ? 15728880 : light, player, choice, preview, partial);
         pose.popPose();
     }
     *///?} else if <1.21.11 {
@@ -108,9 +107,9 @@ public class MissingCapeLayer extends RenderLayer {
         int bright = preview ? 15728880 : light;
         pose.pushPose();
         pose.translate(0.0F, player.isCrouching ? 0.2F : 0.0F, player.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
-        pose.mulPose(com.mojang.math.Axis.XP.rotationDegrees(player.isCrouching ? 31.0F : 6.0F));
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose.last(), consumer, bright, id, choice, preview);
+        CapeDraw.emit(pose, consumer, bright, id, choice, preview, McBridge.partialTick(),
+                player.capeLean, player.capeFlap, player.capeLean2, player.isFallFlying);
         pose.popPose();
     }
     *///?} else {

@@ -62,7 +62,7 @@ class BughuntTest {
         var vertical = CapeGeometry.flat(2, 4, true).getFirst();
         assertEquals((2 + 1f / 32) / 4, vertical.v0(), 0.00001);
         WaveCloth.State state = new WaveCloth.State();
-        var cloth = CapeGeometry.cloth(state, WaveCloth.Settings.defaults(), WaveCloth.Motion.still(), null, null, 2, 4, true, false);
+        var cloth = CapeGeometry.cloth(state, WaveCloth.Settings.defaults(), null, null, 2, 4, true, false);
         assertEquals(vertical.u0(), cloth.getFirst().u0());
         assertEquals(vertical.v0(), cloth.getFirst().v0());
         assertEquals(vertical.v1(), cloth.getLast().v1());
@@ -74,9 +74,9 @@ class BughuntTest {
         var settings = WaveCloth.Settings.defaults();
         WaveCloth.step(state, settings, motion(0, 0, 0.2, 0));
         float simulated = state.x[15];
-        var previous = CapeGeometry.cloth(state, settings, motion(0, 0, 0.2, 0), null, null, 0, 1, false, false, 0f).getLast();
-        var middle = CapeGeometry.cloth(state, settings, motion(0, 0, 0.2, 0), null, null, 0, 1, false, false, 0.5f).getLast();
-        var current = CapeGeometry.cloth(state, settings, motion(0, 0, 0.2, 0), null, null, 0, 1, false, false, 1f).getLast();
+        var previous = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false, 0f).getLast();
+        var middle = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false, 0.5f).getLast();
+        var current = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false, 1f).getLast();
         assertEquals((previous.z1() + current.z1()) / 2, middle.z1(), 0.00001);
         assertEquals(simulated, state.x[15]);
     }
@@ -105,7 +105,7 @@ class BughuntTest {
         for (int i = 0; i < 5000; i++) {
             sink = CapeGeometry.model(json, 0, 1, 64, 32, false);
             WaveCloth.step(state, settings, moving);
-            sink = CapeGeometry.cloth(state, settings, moving, null, null, 0, 1, false, false);
+            sink = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false);
         }
         long start = bean.getThreadAllocatedBytes(id);
         for (int i = 0; i < 10000; i++) sink = CapeGeometry.model(json, 0, 1, 64, 32, false);
@@ -114,7 +114,7 @@ class BughuntTest {
         for (int i = 0; i < 10000; i++) WaveCloth.step(state, settings, moving);
         assertTrue((bean.getThreadAllocatedBytes(id) - start) / 10000 < 64, "step must reuse scratch arrays");
         start = bean.getThreadAllocatedBytes(id);
-        for (int i = 0; i < 10000; i++) sink = CapeGeometry.cloth(state, settings, moving, null, null, 0, 1, false, false);
+        for (int i = 0; i < 10000; i++) sink = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false);
         assertTrue((bean.getThreadAllocatedBytes(id) - start) / 10000 < 3000, "cloth must avoid per-vertex arrays");
     }
 

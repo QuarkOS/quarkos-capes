@@ -43,7 +43,7 @@ class CapeCoreTest {
     @Test
     void waveIsDeterministicAndSeparatesMovement() {
         WaveCloth.Settings defaults = WaveCloth.Settings.defaults();
-        WaveCloth.Motion motion = new WaveCloth.Motion(0.4f, 0.8f, 0.5f, false, false, 0f, false, false, 1000L, 0f, -1f, 0f);
+        WaveCloth.Motion motion = WaveCloth.playerMotion(0.2, 0.25, 0.216, 0, false, false, 0, false, false, 1000L, 0, -1, 0);
         WaveCloth.State a = new WaveCloth.State();
         WaveCloth.State b = new WaveCloth.State();
         WaveCloth.run(a, defaults, motion, 20);
@@ -63,15 +63,50 @@ class CapeCoreTest {
         WaveCloth.run(sway, defaults, motion, 16);
         assertEquals(0f, flat.z[15]);
         assertNotEquals(0f, sway.z[15]);
+    }
 
-        WaveCloth.State calm = new WaveCloth.State();
-        WaveCloth.State windy = new WaveCloth.State();
-        WaveCloth.Motion waves = new WaveCloth.Motion(0.4f, 0.8f, 0.5f, false, false, 0f, false, false, 1000L, 0f, -1f, 0f);
-        WaveCloth.run(calm, defaults, waves, 8);
-        WaveCloth.run(windy, new WaveCloth.Settings(WaveCloth.Movement.SIMULATION_V2, WaveCloth.Mesh.SMOOTH, WaveCloth.Wind.WAVES, 25, 6, 2, false), waves, 8);
-        assertEquals(calm.x[15], windy.x[15]);
-        assertEquals(0f, WaveCloth.windBend(defaults, waves, 3));
-        assertNotEquals(0f, WaveCloth.windBend(new WaveCloth.Settings(WaveCloth.Movement.SIMULATION_V2, WaveCloth.Mesh.SMOOTH, WaveCloth.Wind.WAVES, 25, 6, 2, false), waves, 3));
+    @Test
+    void targetAngleRisesFromIdleThroughWalkAndSprintAndClamps() {
+        assertEquals(6f, WaveCloth.targetAngleDegrees(0f));
+        assertTrue(WaveCloth.targetAngleDegrees(0.03f) < 15f);
+        assertEquals(34f, WaveCloth.targetAngleDegrees(0.216f));
+        assertEquals(56f, WaveCloth.targetAngleDegrees(0.281f));
+        assertEquals(56f, WaveCloth.targetAngleDegrees(-0.281f));
+        assertEquals(75f, WaveCloth.targetAngleDegrees(0.5f));
+        assertEquals(75f, WaveCloth.targetAngleDegrees(-Float.MAX_VALUE));
+        assertEquals(6f, WaveCloth.targetAngleDegrees(Float.NaN));
+        assertEquals(6f, WaveCloth.targetAngleDegrees(Float.POSITIVE_INFINITY));
+
+        float previous = 6f;
+        for (int i = 1; i <= 500; i++) {
+            float angle = WaveCloth.targetAngleDegrees(i / 1000f);
+            assertTrue(angle >= previous && angle - previous < 0.5f, "speed " + i / 1000f);
+            previous = angle;
+        }
+    }
+
+    @Test
+    void idleHemBreathesAndWavesIncreaseTheRipple() {
+        WaveCloth.Settings calm = WaveCloth.Settings.defaults();
+        WaveCloth.Settings windy = new WaveCloth.Settings(calm.movement(), calm.mesh(), WaveCloth.Wind.WAVES,
+                calm.gravity(), calm.heightMultiplier(), calm.straveMultiplier(), calm.computeGravityVector());
+        float breathing = idleHemAmplitude(calm);
+        float waves = idleHemAmplitude(windy);
+        assertTrue(breathing > 1f && breathing < 3f, "breathing " + breathing);
+        assertTrue(waves >= 3f && waves <= 6f, "windy hem " + waves);
+        assertTrue(waves > breathing * 2f);
+    }
+
+    private static float idleHemAmplitude(WaveCloth.Settings settings) {
+        WaveCloth.State state = new WaveCloth.State();
+        float amplitude = 0f;
+        for (int tick = 0; tick < 90; tick++) {
+            WaveCloth.step(state, settings, WaveCloth.Motion.idle(tick * 50L));
+            if (tick < 20) continue;
+            assertTrue(angle(state, 0, 15) < 15f);
+            amplitude = Math.max(amplitude, Math.abs(angle(state, 14, 15) - 6f));
+        }
+        return amplitude;
     }
 
     @Test
@@ -80,28 +115,59 @@ class CapeCoreTest {
         WaveCloth.State stand = new WaveCloth.State();
         WaveCloth.run(stand, defaults, WaveCloth.Motion.still(), 40);
         assertCapeLength(stand);
-        assertTrue(Math.abs(stand.x[15]) < 0.35f);
+        assertTrue(angle(stand, 0, 15) < 15f);
         assertTrue(stand.y[15] < -14f);
 
-        WaveCloth.Motion walk = new WaveCloth.Motion(0.12f, 0f, 0f, false, false, 0f, false, false, 800L, 0f, -1f, 0f);
-        WaveCloth.Motion sprint = new WaveCloth.Motion(0.28f, 0f, 0f, false, false, 0f, false, false, 800L, 0f, -1f, 0f);
+        WaveCloth.Motion walk = WaveCloth.playerMotion(0, 0, 0.216, 0, false, false, 0, false, false, 800L, 0, -1, 0);
+        WaveCloth.Motion sprint = WaveCloth.playerMotion(0, 0, 0.281, 0, false, false, 0, false, false, 800L, 0, -1, 0);
         WaveCloth.State walking = new WaveCloth.State();
         WaveCloth.State sprinting = new WaveCloth.State();
         WaveCloth.run(walking, defaults, walk, 40);
         WaveCloth.run(sprinting, defaults, sprint, 40);
         assertCapeLength(walking);
         assertCapeLength(sprinting);
-        float walkAngle = (float) Math.toDegrees(Math.atan2(walking.x[15], -walking.y[15]));
-        float sprintAngle = (float) Math.toDegrees(Math.atan2(sprinting.x[15], -sprinting.y[15]));
-        assertTrue(walkAngle >= 45f && walkAngle <= 80f, "walk " + walkAngle);
-        assertTrue(sprintAngle >= 45f && sprintAngle <= 80f, "sprint " + sprintAngle);
-        assertTrue(sprintAngle > walkAngle + 4f, "walk " + walkAngle + " sprint " + sprintAngle);
+        float walkAngle = angle(walking, 0, 15);
+        float sprintAngle = angle(sprinting, 0, 15);
+        assertTrue(walkAngle >= 25f && walkAngle <= 40f, "walk " + walkAngle);
+        assertTrue(sprintAngle >= 50f && sprintAngle <= 65f, "sprint " + sprintAngle);
         // One block behind is the whole cape. The old sim ran many blocks past that.
         assertTrue(sprinting.x[15] <= 15.02f, "tipx " + sprinting.x[15]);
-        // A ripple means the middle is not on the straight line from the shoulder to the hem.
-        float mid = 8f / 15f;
-        float line = sprinting.x[15] * mid;
-        assertTrue(Math.abs(sprinting.x[8] - line) > 0.4f, "ripple " + Math.abs(sprinting.x[8] - line));
+        assertTrue(Math.abs(angle(sprinting, 14, 15) - sprintAngle) > 5f, "sprint hem ripple");
+    }
+
+    @Test
+    void heightAndStrafeScaleTheClothWithoutBreakingTheAngleLimit() {
+        WaveCloth.Settings defaults = WaveCloth.Settings.defaults();
+        WaveCloth.Settings responsive = new WaveCloth.Settings(defaults.movement(), defaults.mesh(), defaults.wind(),
+                defaults.gravity(), 16, 8, defaults.computeGravityVector());
+        WaveCloth.State normal = new WaveCloth.State();
+        WaveCloth.State tuned = new WaveCloth.State();
+        var rise = WaveCloth.playerMotion(0.1, 0.4, 0.216, 0, false, false, 0, false, false, 800L, 0, -1, 0);
+        WaveCloth.run(normal, defaults, rise, 40);
+        WaveCloth.run(tuned, responsive, rise, 40);
+        assertTrue(angle(tuned, 0, 15) > angle(normal, 0, 15));
+        assertTrue(tuned.z[15] > normal.z[15]);
+        var fall = WaveCloth.playerMotion(0.1, -0.4, 0.216, 0, false, false, 0, false, false, 800L, 0, -1, 0);
+        WaveCloth.run(normal, defaults, fall, 40);
+        WaveCloth.run(tuned, responsive, fall, 40);
+        assertTrue(angle(tuned, 0, 15) < angle(normal, 0, 15));
+
+        WaveCloth.Settings maxLift = new WaveCloth.Settings(defaults.movement(), defaults.mesh(), WaveCloth.Wind.WAVES,
+                5, 16, 8, true);
+        for (int tick = 0; tick < 60; tick++) {
+            var burst = WaveCloth.playerMotion(1.5, 1, 1, 0, false, false, 0, false, true, tick * 50L, 0, -1, 0);
+            WaveCloth.step(tuned, maxLift, burst);
+            assertTrue(angle(tuned, 0, 15) <= 75.001f);
+            for (int link = 1; link < WaveCloth.SEGMENTS; link++) {
+                assertTrue(angle(tuned, link - 1, link) <= 75.001f);
+            }
+        }
+        assertCapeLength(tuned);
+    }
+
+    private static float angle(WaveCloth.State state, int from, int to) {
+        double horizontal = Math.hypot(state.x[to] - state.x[from], state.z[to] - state.z[from]);
+        return (float) Math.toDegrees(Math.atan2(horizontal, state.y[from] - state.y[to]));
     }
 
     private static void assertCapeLength(WaveCloth.State state) {
