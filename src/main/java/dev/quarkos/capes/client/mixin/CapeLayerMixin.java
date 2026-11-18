@@ -80,6 +80,16 @@ public class CapeLayerMixin {
         CapeLayerWatch.textureOverride = null;
     }
 
+    @Redirect(method = "render", at = @At(value = "INVOKE", target = "Lcom/mojang/math/Axis;rotationDegrees(F)Lorg/joml/Quaternionf;", ordinal = 0))
+    private org.joml.Quaternionf quarkosCapePitch(com.mojang.math.Axis axis, float degrees,
+                                                 PoseStack pose, MultiBufferSource buffers, int light,
+                                                 AbstractClientPlayer player, float limbSwing, float limbSwingAmount, float partial) {
+        if (CapeLayerWatch.textureOverride != null && CapeRenderPass.guiDepth == 0 && !CapeBook.renderingPreview) {
+            degrees = CapeDraw.legacyRigidPitch(player, partial);
+        }
+        return axis.rotationDegrees(degrees);
+    }
+
     @Redirect(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/player/AbstractClientPlayer;isModelPartShown(Lnet/minecraft/world/entity/player/PlayerModelPart;)Z"))
     private boolean quarkosCapePart(AbstractClientPlayer player, PlayerModelPart part) {
         if (part == PlayerModelPart.CAPE && CapeLayerWatch.textureOverride != null) {
@@ -132,7 +142,10 @@ public class CapeLayerMixin {
         }
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1 && state.skin != null) {
             state.showCape = true;
-            if (!preview) state.capeFlap = CapeDraw.boundedFlap(state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
+            if (!preview) {
+                state.capeLean = CapeDraw.rigidLean(fact, state.capeLean, state.isFallFlying);
+                state.capeFlap = CapeDraw.boundedFlap(state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
+            }
             Identifier cape = choice.texture();
             state.skin = new PlayerSkin(state.skin.texture(), state.skin.textureUrl(), cape, state.skin.elytraTexture(), state.skin.model(), state.skin.secure());
             return;
@@ -187,7 +200,10 @@ public class CapeLayerMixin {
         }
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1 && state.skin != null) {
             state.showCape = true;
-            if (!preview) state.capeFlap = CapeDraw.boundedFlap(state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
+            if (!preview) {
+                state.capeLean = CapeDraw.rigidLean(fact, state.capeLean, state.isFallFlying);
+                state.capeFlap = CapeDraw.boundedFlap(state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
+            }
             Identifier cape = choice.texture();
             state.skin = new PlayerSkin(
                     state.skin.body(),

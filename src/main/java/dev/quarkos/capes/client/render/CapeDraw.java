@@ -57,24 +57,37 @@ public final class CapeDraw {
     }
 
     //? if <1.21.2 {
-    /*public static void emit(PoseStack pose, VertexConsumer consumer, int light, AbstractClientPlayer player,
+    /*private record LegacyCapeAngles(float lean, float flap, float sway) {
+        private static final LegacyCapeAngles RESTING = new LegacyCapeAngles(0f, 0f, 0f);
+    }
+
+    private static LegacyCapeAngles legacyCapeAngles(AbstractClientPlayer player, float partial) {
+        // These versions compute the cape angles directly in CapeLayer.
+        double dx = Mth.lerp(partial, player.xCloakO, player.xCloak) - Mth.lerp(partial, player.xo, player.getX());
+        double dy = Mth.lerp(partial, player.yCloakO, player.yCloak) - Mth.lerp(partial, player.yo, player.getY());
+        double dz = Mth.lerp(partial, player.zCloakO, player.zCloak) - Mth.lerp(partial, player.zo, player.getZ());
+        float yaw = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot) * Mth.DEG_TO_RAD;
+        float sin = Mth.sin(yaw), cos = -Mth.cos(yaw);
+        float lean = Mth.clamp((float) (dx * sin + dz * cos) * 100f, 0f, 150f);
+        float sway = Mth.clamp((float) (dx * cos - dz * sin) * 100f, -20f, 20f);
+        float bob = Mth.lerp(partial, player.oBob, player.bob);
+        float flap = Mth.clamp((float) dy * 10f, -6f, 32f)
+                + Mth.sin(Mth.lerp(partial, player.walkDistO, player.walkDist) * 6f) * 32f * bob;
+        if (player.isCrouching()) flap += 25f;
+        return new LegacyCapeAngles(lean, flap, sway);
+    }
+
+    public static float legacyRigidPitch(AbstractClientPlayer player, float partial) {
+        LegacyCapeAngles angles = legacyCapeAngles(player, partial);
+        return rigidPitch(player.getUUID(), angles.lean(), angles.flap(), angles.sway(), player.isFallFlying());
+    }
+
+    public static void emit(PoseStack pose, VertexConsumer consumer, int light, AbstractClientPlayer player,
                             CapeBook.Choice choice, boolean preview, float partial) {
-        float lean = 0f, flap = 0f, sway = 0f;
-        if (!preview && choice.kind() != CapeBook.Kind.CLOTH) {
-            // These versions compute the cape angles directly in CapeLayer.
-            double dx = Mth.lerp(partial, player.xCloakO, player.xCloak) - Mth.lerp(partial, player.xo, player.getX());
-            double dy = Mth.lerp(partial, player.yCloakO, player.yCloak) - Mth.lerp(partial, player.yo, player.getY());
-            double dz = Mth.lerp(partial, player.zCloakO, player.zCloak) - Mth.lerp(partial, player.zo, player.getZ());
-            float yaw = Mth.rotLerp(partial, player.yBodyRotO, player.yBodyRot) * Mth.DEG_TO_RAD;
-            float sin = Mth.sin(yaw), cos = -Mth.cos(yaw);
-            lean = Mth.clamp((float) (dx * sin + dz * cos) * 100f, 0f, 150f);
-            sway = Mth.clamp((float) (dx * cos - dz * sin) * 100f, -20f, 20f);
-            float bob = Mth.lerp(partial, player.oBob, player.bob);
-            flap = Mth.clamp((float) dy * 10f, -6f, 32f)
-                    + Mth.sin(Mth.lerp(partial, player.walkDistO, player.walkDist) * 6f) * 32f * bob;
-            if (player.isCrouching()) flap += 25f;
-        }
-        emit(pose, consumer, light, player.getUUID(), choice, preview, partial, lean, flap, sway, player.isFallFlying());
+        LegacyCapeAngles angles = preview || choice.kind() == CapeBook.Kind.CLOTH
+                ? LegacyCapeAngles.RESTING : legacyCapeAngles(player, partial);
+        emit(pose, consumer, light, player.getUUID(), choice, preview, partial,
+                angles.lean(), angles.flap(), angles.sway(), player.isFallFlying());
     }
     *///?}
 
@@ -83,7 +96,7 @@ public final class CapeDraw {
                             boolean preview, float partial, float lean, float flap, float sway, boolean flying) {
         List<CapeGeometry.Quad> quads = geometry(pose.last(), id, choice, preview, partial);
         if (!quads.isEmpty() && choice.kind() != CapeBook.Kind.CLOTH) {
-            rotateRigid(pose, lean, flap, sway, flying, preview);
+            rotateRigid(pose, id, lean, flap, sway, flying, preview);
         }
         draw(quads, pose.last(), consumer, light, id, choice, preview);
     }
@@ -101,7 +114,7 @@ public final class CapeDraw {
         if (quads.isEmpty()) return;
 
         Quaternionf rotation = choice.kind() == CapeBook.Kind.CLOTH ? null
-                : rotateRigid(pose, state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying, preview);
+                : rotateRigid(pose, id, state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying, preview);
         collector.submitCustomGeometry(pose, McBridge.cutout(choice.texture(), choice.kind()), (entry, consumer) -> {
             draw(quads, entry, consumer, preview ? 15728880 : light, id, choice, preview);
             if (dev.quarkos.capes.DevFlags.HARNESS && !preview && !CapeRenderPass.shadow()) {
@@ -112,6 +125,13 @@ public final class CapeDraw {
     }
     //?}
 
+    /** Vanilla adds half of capeLean to the resting pitch. */
+    public static float rigidLean(PlayerFacts.Fact fact, float vanillaLean, boolean flying) {
+        if (fact == null || flying) return vanillaLean;
+        float speed = (float) Math.hypot(fact.x() - fact.px(), fact.z() - fact.pz());
+        return 2f * (WaveCloth.targetAngleDegrees(speed) - WaveCloth.REST_ANGLE_DEGREES);
+    }
+
     /** Limit the combined pitch and sway in the extracted vanilla pose. */
     public static float boundedFlap(float lean, float flap, float sway, boolean flying) {
         if (flying) return flap;
@@ -119,11 +139,16 @@ public final class CapeDraw {
         return Math.min(flap, WaveCloth.maxPitchDegrees(sway / 2f) - basePitch);
     }
 
-    private static Quaternionf rotateRigid(PoseStack pose, float lean, float flap, float sway, boolean flying, boolean preview) {
+    private static float rigidPitch(UUID id, float vanillaLean, float flap, float sway, boolean flying) {
+        float lean = rigidLean(PlayerFacts.byUuid(id), vanillaLean, flying);
+        return WaveCloth.REST_ANGLE_DEGREES + lean / 2f + boundedFlap(lean, flap, sway, flying);
+    }
+
+    private static Quaternionf rotateRigid(PoseStack pose, UUID id, float lean, float flap, float sway, boolean flying, boolean preview) {
         float pitch = WaveCloth.REST_ANGLE_DEGREES;
         float roll = 0f;
         if (!preview) {
-            pitch = WaveCloth.REST_ANGLE_DEGREES + lean / 2f + boundedFlap(lean, flap, sway, flying);
+            pitch = rigidPitch(id, lean, flap, sway, flying);
             roll = sway / 2f;
         }
         float pitchRadians = (float) Math.toRadians(pitch);
