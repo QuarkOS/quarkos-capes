@@ -245,7 +245,7 @@ public final class CapeDraw {
         for (int i = 0; i < quads.size(); i++) {
             McBridge.quad(consumer, pose, light, quads.get(i), offsetU, offsetV, scaleU, scaleV);
         }
-        CapeBook.drawn(id, choice.texture(), preview);
+        CapeBook.drawn(id, choice.texture(), preview, frame);
     }
 
     public static CapeBook.Choice resolve(UUID id, boolean local, Identifier vanillaCape) {

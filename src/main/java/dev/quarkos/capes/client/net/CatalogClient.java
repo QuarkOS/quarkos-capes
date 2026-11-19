@@ -10,6 +10,8 @@ import java.util.function.LongSupplier;
 
 /** HTTP contract without Minecraft dependencies; transport and clock are injectable for offline tests. */
 public final class CatalogClient {
+    public static final String FEATURED = "featured";
+
     public record Reply(int status, byte[] bytes, String etag, String retryAfter) {
         public String text() { return new String(bytes, StandardCharsets.UTF_8); }
     }
@@ -25,7 +27,7 @@ public final class CatalogClient {
     }
     public record Item(String source, String id, String kind, String title, String author, String style,
                        boolean animateFrames, int frameCount, int frameWidth, int frameHeight, int[] delays,
-                       String textureUrl, String sha256, String modelJson) { }
+                       String textureUrl, String sha256, String modelJson, boolean verticalStrip) { }
     /** The live catalog supplies cursors. Catalogs with a known result count can also supply a total. */
     public record Page(List<Item> items, String nextCursor, Map<String, String> sources, Integer total) {
         public Page(List<Item> items, String nextCursor, Map<String, String> sources) {
@@ -114,7 +116,7 @@ public final class CatalogClient {
         if (!(value instanceof Map<?, ?>)) return null;
         Map<String, Object> map = JsonValues.object(value);
         String id = string(map, "id", ""), source = string(map, "source", "");
-        if (id.isBlank() || !(source.equals("ours") || source.equals("labymod"))) return null;
+        if (id.isBlank() || !(source.equals("ours") || source.equals("labymod") || source.equals(FEATURED))) return null;
         int count = number(map, "frameCount", 1, 1, 256);
         int[] delays = new int[count]; Arrays.fill(delays, 100);
         if (map.get("frameDelayMs") instanceof List<?> list) for (int i=0; i<Math.min(count,list.size()); i++)
@@ -122,7 +124,9 @@ public final class CatalogClient {
         return new Item(source, id, string(map,"kind","cape"), string(map,"title",id), string(map,"author",""),
                 string(map,"style","flat"), Boolean.TRUE.equals(map.get("animateFrames")), count,
                 number(map,"frameWidth",64,1,8192), number(map,"frameHeight",32,1,8192), delays,
-                string(map,"textureUrl",""), string(map,"sha256",""), map.get("model") instanceof Map<?,?> ? JsonValues.write(map.get("model")) : null);
+                string(map,"textureUrl",""), string(map,"sha256",""),
+                map.get("model") instanceof Map<?,?> ? JsonValues.write(map.get("model")) : null,
+                "vertical".equals(map.get("stripLayout")));
     }
     public static Item wearing(String json) { return item(JsonValues.object(JsonValues.parse(json)).get("wearing")); }
     public static Map<UUID, Item> players(String json) {

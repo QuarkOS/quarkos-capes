@@ -86,6 +86,7 @@ abstract class CapeBrowserScreen<T> extends CapeUiScreen {
     public final String status() { return status; }
     public final boolean isLoading() { return loading; }
     public final boolean previewReady() { return draft != null; }
+    public final boolean thumbnailReady(T item) { return art.containsKey(key(item)); }
     public final String unavailableUrl() { return displayedIssue == null ? "" : displayedIssue.url(); }
     public final Component emptyHeading() {
         return text(displayedIssue != null ? "site.unreachable"

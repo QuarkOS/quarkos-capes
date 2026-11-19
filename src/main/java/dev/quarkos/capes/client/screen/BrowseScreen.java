@@ -36,7 +36,7 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
         @Override public void unwear(Consumer<String> ready, Consumer<String> error) { SiteApi.unwear(ready, error); }
     };
 
-    private static final String[] SOURCES = {"all_sources", "ours", "labymod"};
+    private static final List<String> SOURCES = List.of("", CatalogClient.FEATURED, "ours", "labymod");
     private static final String[] KINDS = {"all_kinds", "cape", "cloak"};
     private static final String[] SORTS = {"popular", "newest", "name"};
 
@@ -45,10 +45,10 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
     private int source, kind, sort, wearingRequest;
     private boolean writing;
 
-    public BrowseScreen(Screen parent) { this(parent, SITE); }
+    public BrowseScreen(Screen parent) { this(parent, CatalogClient.FEATURED); }
 
     public BrowseScreen(Screen parent, String source) {
-        this(parent);
+        this(parent, SITE);
         this.source = sourceIndex(source);
     }
 
@@ -60,7 +60,7 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
     public static Component text(String key) { return CapeTheme.text("site." + key); }
 
     private static int sourceIndex(String value) {
-        return "ours".equals(value) ? 1 : "labymod".equals(value) ? 2 : 0;
+        return value == null ? 0 : Math.max(0, SOURCES.indexOf(value));
     }
 
     public void search(String query, String sourceValue) {
@@ -121,7 +121,8 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
 
     @Override
     protected List<Filter> filters() {
-        return List.of(new Filter(text(SOURCES[source]), () -> source = (source + 1) % SOURCES.length),
+        return List.of(new Filter(text(source == 0 ? "all_sources" : SOURCES.get(source)),
+                        () -> source = (source + 1) % SOURCES.size()),
                 new Filter(text(KINDS[kind]), () -> kind = (kind + 1) % KINDS.length),
                 new Filter(text(SORTS[sort]), () -> sort = (sort + 1) % SORTS.length));
     }
@@ -159,12 +160,13 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
 
     @Override
     protected void request(String query, String cursor, Consumer<Results<CatalogClient.Item>> ready, Consumer<String> error) {
-        var filters = new CatalogClient.Query(source == 0 ? "" : SOURCES[source], kind == 0 ? "" : KINDS[kind], query,
+        var filters = new CatalogClient.Query(SOURCES.get(source), kind == 0 ? "" : KINDS[kind], query,
                 SORTS[sort], "", "", cursor, 20);
         catalog.page(filters, result -> {
             Map<String, String> available = result.sources();
             String note = "";
             if (available.containsValue("unavailable")) note = SiteApi.message("source_unavailable");
+            else if ("disabled".equals(available.get(CatalogClient.FEATURED))) note = SiteApi.message("featured_empty");
             else if (available.containsValue("disabled")) note = SiteApi.message("source_disabled");
             else if (result.items().isEmpty() && result.nextCursor() != null) note = SiteApi.message("empty_page");
             ready.accept(new Results<>(result.items(), result.nextCursor(), note, result.total()));

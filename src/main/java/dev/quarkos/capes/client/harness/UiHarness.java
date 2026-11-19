@@ -44,12 +44,15 @@ public final class UiHarness {
         SELECT("select"), HOVER("select-hover"), STYLES("styles"), GALLERY("gallery"),
         OFFLINE("gallery-empty"), SETTINGS("settings"), LINK("link"),
         WORLD_BACK("world-back"), WORLD_SIDE("world-side"), PAUSE("ingame-pause"),
-        INGAME("ingame-wardrobe"), KEYBIND("ingame-keybind"), BAD_SERVICE("browse-404");
+        INGAME("ingame-wardrobe"), KEYBIND("ingame-keybind"),
+        FEATURED_LIST("featured-list"), FEATURED_PREVIEW("featured-preview"), FEATURED_WORLD("featured-world-back"),
+        BAD_SERVICE("browse-404");
 
         final String file;
         Scene(String file) { this.file = file; }
 
-        boolean world() { return this == WORLD_BACK || this == WORLD_SIDE; }
+        boolean world() { return this == WORLD_BACK || this == WORLD_SIDE || this == FEATURED_WORLD; }
+        boolean featured() { return this == FEATURED_LIST || this == FEATURED_PREVIEW || this == FEATURED_WORLD; }
         boolean fixedScale() { return world() || ordinal() >= PAUSE.ordinal(); }
     }
 
@@ -74,6 +77,7 @@ public final class UiHarness {
     private static Screen expectedScreen;
     private static Screen pauseMenu;
     private static UiServiceProbe serviceProbe;
+    private static UiFeaturedProbe featuredProbe;
     private static CapeMotionCapture motion;
     private static Button hovered;
     private static int sent, saveFadeTicks;
@@ -134,6 +138,7 @@ public final class UiHarness {
             if (++age >= 7 && !opened) {
                 if (stage.scene() == Scene.KEYBIND && client.player != null && client.screen == null
                         && CapeBook.draws(client.player.getUUID()) == 0 && System.nanoTime() < deadline) return;
+                if (stage.scene().featured()) Files.deleteIfExists(DIRECTORY.resolve(stage.name() + ".png"));
                 open(client, stage.scene());
                 opened = true;
                 age = 7;
@@ -156,6 +161,7 @@ public final class UiHarness {
                     if (System.nanoTime() > deadline) record(client, stage, "World save indicator did not clear");
                     return;
                 }
+                if (stage.scene().featured() && !featuredReady(client, stage)) return;
                 if (stage.scene().world() && client.player != null && CapeBook.draws(client.player.getUUID()) == 0
                         && System.nanoTime() < deadline) return;
                 try {
@@ -201,7 +207,8 @@ public final class UiHarness {
         }
         if (width != 1280 || height != 720) addLayoutSweep(plan, 1280, 720);
         if (width != 1920 || height != 1080) addLayoutSweep(plan, 1920, 1080);
-        for (Scene scene : List.of(Scene.WORLD_BACK, Scene.WORLD_SIDE, Scene.PAUSE, Scene.INGAME, Scene.KEYBIND, Scene.BAD_SERVICE)) {
+        for (Scene scene : List.of(Scene.WORLD_BACK, Scene.WORLD_SIDE, Scene.PAUSE, Scene.INGAME, Scene.KEYBIND,
+                Scene.FEATURED_LIST, Scene.FEATURED_PREVIEW, Scene.FEATURED_WORLD, Scene.BAD_SERVICE)) {
             plan.add(new Stage(scene, width, height, 2, scene != Scene.KEYBIND));
         }
         return plan;
@@ -216,7 +223,7 @@ public final class UiHarness {
     }
 
     private static void open(Minecraft client, Scene scene) throws IOException {
-        McBridge.hideHud(client, scene.world());
+        McBridge.hideHud(client, scene.world() && scene != Scene.FEATURED_WORLD);
         sent = CapeHttp.sent;
         hovered = null;
         switch (scene) {
@@ -291,6 +298,11 @@ public final class UiHarness {
                 KeyMapping.click(QuarkosCapes.OPEN.getDefaultKey());
                 //?}
             }
+            case FEATURED_LIST -> {
+                featuredProbe = new UiFeaturedProbe();
+                featuredProbe.open(client);
+            }
+            case FEATURED_PREVIEW, FEATURED_WORLD -> { }
             case BAD_SERVICE -> {
                 serviceProbe = new UiServiceProbe();
                 serviceProbe.openAdvanced(client);
@@ -304,6 +316,31 @@ public final class UiHarness {
             int y = hovered == null ? 1 : hovered.getY() + hovered.getHeight() / 2;
             screen.setHarnessPointer(x, y);
         }
+    }
+
+    private static boolean featuredReady(Minecraft client, Stage stage) {
+        if (featuredProbe != null && featuredProbe.skip() == null) {
+            boolean ready = switch (stage.scene()) {
+                case FEATURED_LIST -> featuredProbe.listReady();
+                case FEATURED_PREVIEW -> featuredProbe.previewReady(client);
+                case FEATURED_WORLD -> featuredProbe.worldReady(client);
+                default -> throw new AssertionError("Expected a featured capture stage");
+            };
+            if (!ready) {
+                if (System.nanoTime() > deadline) record(client, stage,
+                        "Timed out waiting for " + stage.name() + ". " + featuredProbe.screen().status());
+                return false;
+            }
+        }
+        if (featuredProbe == null || featuredProbe.skip() != null) {
+            record(client, stage, null);
+            return false;
+        }
+        expectedScreen = stage.scene().world() ? null : featuredProbe.screen();
+        if (stage.scene() == Scene.FEATURED_PREVIEW) {
+            stageDetail = "frame=" + CapeBook.previewFrame(client.player.getUUID());
+        }
+        return true;
     }
 
     private static void check(Minecraft client, Stage stage) {
@@ -322,6 +359,7 @@ public final class UiHarness {
             stageDetail = serviceProbe.check();
             return;
         }
+        if (stage.scene().featured()) return;
         if (CapeHttp.sent != sent) throw new AssertionError("UI capture sent a cape service request");
         if (stage.scene().world()) {
             if (client.screen != null || client.options.getCameraType() != CameraType.THIRD_PERSON_BACK
@@ -435,8 +473,19 @@ public final class UiHarness {
     }
 
     private static void record(Minecraft client, Stage stage, String error) {
+        String skip = null;
         if (stage.scene() == Scene.BAD_SERVICE) {
             closeServiceProbe();
+        } else if (stage.scene().featured()) {
+            skip = featuredProbe == null ? "featured check could not start" : featuredProbe.skip();
+            if (featuredProbe != null) {
+                if (stage.scene() == Scene.FEATURED_LIST && featuredProbe.metric() != null) {
+                    RESULTS.add(featuredProbe.metric());
+                    System.out.println(featuredProbe.metric());
+                }
+                if (error != null) featuredProbe.skipRemaining();
+                if (stage.scene() == Scene.FEATURED_WORLD) closeFeaturedProbe();
+            }
         } else if (error == null) {
             try {
                 checkReturn(client, stage.scene());
@@ -448,6 +497,7 @@ public final class UiHarness {
         String mode = stage.capture() ? "capture" : "layout";
         String detail = mode + " " + window.getWidth() + "x" + window.getHeight() + " GUI " + window.getGuiScale();
         if (stageDetail != null) detail += " " + stageDetail;
+        if (error == null && skip != null) detail = "SKIP " + skip;
         recordCheck(stage.name(), detail, error);
         index++;
         age = 0;
@@ -487,6 +537,13 @@ public final class UiHarness {
         }
     }
 
+    private static void closeFeaturedProbe() {
+        if (featuredProbe != null) {
+            featuredProbe.close();
+            featuredProbe = null;
+        }
+    }
+
     static void abort(Minecraft client, String message) {
         if (finished) return;
         RESULTS.add("FAIL startup " + message.replace('\n', ' '));
@@ -497,6 +554,7 @@ public final class UiHarness {
     private static void finish(Minecraft client) {
         finished = true;
         closeServiceProbe();
+        closeFeaturedProbe();
         if (motion != null) motion.stop(client);
         if (oldCape != null) {
             OwnerCape.set(oldCape);
@@ -549,7 +607,7 @@ public final class UiHarness {
             OwnerCape cape = capes.get(sample);
             var item = new CatalogClient.Item("ours", id, sample.equals("cloak") ? "cloak" : "cape",
                     title, author, cape.style, cape.animateFrames, cape.frameCount, cape.frameWidth, cape.frameHeight,
-                    cape.frameDelayMs, "", "", cape.modelJson);
+                    cape.frameDelayMs, "", "", cape.modelJson, false);
             return new Entry(item, cape.png);
         }
 

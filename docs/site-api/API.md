@@ -40,9 +40,9 @@ A code is single use. Expired, invalid, or consumed codes return 400. A Minecraf
 
 | Parameter | Values / behavior |
 | --- | --- |
-| source | empty for merged, `ours`, `labymod` |
+| source | empty for merged uploads and LabyMod, `ours`, `labymod`, `featured` |
 | kind | empty, `cape`, `cloak`; Minecraft capes are `labymod` + `cape`, LabyMod user cloaks are `labymod` + `cloak` |
-| q | title/author/tags substring for uploads; upstream `input` search for LabyMod, maximum 48 characters |
+| q | title, author, or tags substring for uploads, title or author for featured, upstream `input` search for LabyMod. Maximum 48 characters. |
 | sort | `popular` default, `newest`, `name` |
 | style | empty, `flat`, `frames`, `wave`, `model`; LabyMod has `flat` |
 | tag | case-insensitive tag text, maximum 48 characters |
@@ -71,6 +71,65 @@ Uploads also include `owner`, `status`, `revision`, and `updatedAt`. LabyMod ite
 
 LabyMod `popular`/`newest` map to `most_used`/`latest`. The upstream has no global alphabetical sort or creation timestamps: `name` orders each fixed 50-item discovery window alphabetically, and newest preserves upstream order within each LabyMod collection, before dated local uploads. Local uploads have full-catalog name/newest/popular ordering. Cursors are a live feed, not a frozen snapshot; upstream changes or cache refreshes can move records. Filtering may produce an empty page with a non-null nextCursor; continue until null. Source states are `available`, `unavailable`, or `disabled`. An unavailable source never turns a merged response into a 500; community results remain available. A disabled direct LabyMod detail returns 503 `source_disabled`.
 
+### Featured capes
+
+| Method and path | Response |
+| --- | --- |
+| `GET /v1/catalog?source=featured` | Standard v1 catalog page. `popular` and `newest` use manifest order. `name` sorts by title, then ID. |
+| `GET /v1/catalog/featured/{id}` | Standard v1 item with `api: 1`. Missing IDs return 404. |
+| `GET /v1/catalog/featured/{id}/asset` | PNG with a SHA-256 ETag. Send `If-None-Match` for 304. Missing IDs return 404. |
+
+Featured items use `kind: cape`. They include `title`, `author`, `sourceUrl` (an attribution URL or null), `license`, and `sha256` for the returned PNG. A static item has `style: flat`, `animateFrames: false`, and one frame. An animated item has `style: frames`, `animateFrames: true`, and `stripLayout: vertical`. Its PNG is `frameWidth` pixels wide and `frameHeight * frameCount` pixels tall. `frameDelayMs` gives one duration per frame, starting at the top. Featured uses `tags: []` and `uses: 0`. Select `source=featured` explicitly for list requests. Existing merged cursors keep their format.
+
+Set `CAPES_FEATURED_DIR` to an external folder. The server reads it once at startup. An unset variable or an empty `items` array gives an empty page with `sources.featured: disabled`. A configured folder with a missing or invalid manifest or PNG fails startup.
+
+```text
+featured/
+  manifest.json
+  textures/
+    bands.png
+    slide.png
+```
+
+`manifest.json` has an `items` array. Each row has an `id` and a `texture` filename under `textures/`. An ID is a lowercase slug of 1–64 letters, digits, underscores, or hyphens and starts with a letter or digit. A row also accepts the importer sidecar fields below. A source path beginning with `/` resolves against `CAPES_PUBLIC_URL`.
+
+#### Import a folder
+
+Run the command with the built server jar and a folder of PNGs. Use each filename stem as its ID. The importer lowercases stems and checks for duplicates. It cleans the PNGs, names them by content hash, and replaces the manifest after it validates the whole folder. Point `CAPES_FEATURED_DIR` at the output folder and restart the server.
+
+```powershell
+java -jar .\server\build\libs\quarkos-capes-server-0.1.0.jar import-featured .\cape-input .\featured
+```
+
+An optional JSON sidecar shares the PNG's stem, for example `slide.json` for `slide.png`.
+
+```json
+{
+  "title": "Slide",
+  "author": "QuarkOS",
+  "sourceUrl": "/legal#featured-capes",
+  "license": "MIT",
+  "frameCount": 4,
+  "frameWidth": 64,
+  "frameHeight": 32,
+  "frameDelayMs": [100, 100, 100, 100]
+}
+```
+
+Without a sidecar, the importer uses a single frame and the lowercase filename stem for the title. Author defaults to `Unknown`, `sourceUrl` to null, and license to `unverified`. For animations, supply the frame count and dimensions. Delays default to 100 ms and each delay must be 50–1000 ms. The PNG must use 64×32 cape atlases or integer HD multiples. Limits are 1 MiB, 32 frames, 512×256 pixels per frame, and 8192 pixels for the width of all frames laid side by side. Give each cape its source URL and license before public use.
+
+#### Scraper configuration
+
+`java -jar <jar> scrape-featured <review-folder>` is disabled when `CAPES_FEATURED_SCRAPE_URL` is unset. Server startup reads the manifest independently.
+
+After Emilio chooses the site, provide a `FeaturedScraper.Source` adapter. Register it with Java's `ServiceLoader` in `META-INF/services/dev.quarkos.capes.server.FeaturedScraper$Source`. Set `CAPES_FEATURED_SCRAPE_URL` to the approved HTTP(S) site. With separate server and adapter jars on Windows, run the scraper with both jars on the classpath.
+
+```powershell
+java -cp "server.jar;source-adapter.jar" dev.quarkos.capes.server.CapesServer scrape-featured .\review
+```
+
+The adapter collects PNGs and sidecars into the review folder for import. A configured site without an adapter returns an error.
+
 ## Wearing (stable mod contract)
 
 `PUT /v1/me/wearing` with a Minecraft bearer **or** a linked web session + CSRF:
@@ -79,7 +138,7 @@ LabyMod `popular`/`newest` map to `most_used`/`latest`. The upstream has no glob
 {"source":"labymod","id":"cloak:a0c8e54d8f03aaa9f1ba58190b75ef4a"}
 ```
 
-For an upload: `{"source":"ours","id":"verdant-signal"}`. The server stores only `{source,id,updatedAt}`. Repeating the same equip does not increment its count; a transition to an upload increments that upload’s cumulative wears once. A web account without a Minecraft link gets 409 `minecraft_not_linked`.
+For an upload, send `{"source":"ours","id":"verdant-signal"}`. For a featured cape, send `{"source":"featured","id":"slide"}`. The server stores only `{source,id,updatedAt}`. Repeating the same equip does not increment its count; a transition to an upload increments that upload’s cumulative wears once. A web account without a Minecraft link gets 409 `minecraft_not_linked`.
 
 PUT and `GET /v1/me/wearing` return:
 

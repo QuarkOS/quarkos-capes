@@ -57,11 +57,18 @@ public final class CapeBook {
             || Boolean.getBoolean("quarkos_capes.store");
     private static final Map<UUID,Integer> DRAWN = new ConcurrentHashMap<>();
     private static final Map<UUID,Integer> PREVIEW_DRAWN = new ConcurrentHashMap<>();
+    private static final Map<UUID,Integer> PREVIEW_FRAME = new ConcurrentHashMap<>();
     public static void drawn(UUID id, Identifier texture, boolean preview) {
+        drawn(id, texture, preview, 0);
+    }
+    static void drawn(UUID id, Identifier texture, boolean preview, int frame) {
         boolean gui = preview || renderingPreview || CapeRenderPass.guiDepth > 0;
         boolean shadow = CapeRenderPass.shadow();
         if (!CapeRenderPass.worldDraw(gui, shadow)) {
-            if (WATCH_DRAWS && gui && !shadow) PREVIEW_DRAWN.merge(id, 1, Integer::sum);
+            if (WATCH_DRAWS && gui && !shadow) {
+                PREVIEW_DRAWN.merge(id, 1, Integer::sum);
+                PREVIEW_FRAME.put(id, frame);
+            }
             return;
         }
         draws++;
@@ -71,7 +78,8 @@ public final class CapeBook {
     }
     public static int draws(UUID id) { return DRAWN.getOrDefault(id,0); }
     public static int previewDraws(UUID id) { return PREVIEW_DRAWN.getOrDefault(id, 0); }
-    public static void resetDraws() { draws=0; DRAWN.clear(); PREVIEW_DRAWN.clear(); }
+    public static int previewFrame(UUID id) { return PREVIEW_FRAME.getOrDefault(id, -1); }
+    public static void resetDraws() { draws=0; DRAWN.clear(); PREVIEW_DRAWN.clear(); PREVIEW_FRAME.clear(); }
 
     private CapeBook() {
     }

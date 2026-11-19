@@ -117,8 +117,9 @@ public final class SiteApi {
                     String hash = java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256").digest(bytes));
                     if (!hash.equalsIgnoreCase(item.sha256())) throw new java.io.IOException("hash");
                 }
+                byte[] png = CatalogTexture.localPng(item, bytes);
                 Minecraft.getInstance().execute(() -> {
-                    if (!ClientSettings.get().localOnly && base.equals(ClientSettings.get().baseUrl)) ok.accept(bytes);
+                    if (!ClientSettings.get().localOnly && base.equals(ClientSettings.get().baseUrl)) ok.accept(png);
                     else fail.accept(message("offline"));
                 });
             } catch (Exception e) { Minecraft.getInstance().execute(() -> fail.accept(failure(e))); }
@@ -158,7 +159,7 @@ public final class SiteApi {
         }
         String identity = item.source() + "/" + item.id() + "/" + item.sha256() + "/" + item.textureUrl()
                 + "/" + item.style() + item.animateFrames() + "/" + item.frameCount() + "/" + item.frameWidth() + "/" + item.frameHeight()
-                + "/" + Arrays.toString(item.delays()) + "/" + item.modelJson();
+                + "/" + Arrays.toString(item.delays()) + "/" + item.modelJson() + "/" + item.verticalStrip();
         if (identity.equals(REMOTE.get(id)) && CapeBook.remote(id)!=null && CapeTextures.get(CapeBook.textureKey(id))!=null) return;
         if (identity.equals(PENDING_IMAGES.put(id, identity))) return;
         int request = remoteGeneration;
