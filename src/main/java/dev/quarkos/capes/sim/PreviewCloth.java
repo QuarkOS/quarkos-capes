@@ -10,7 +10,11 @@ public final class PreviewCloth {
 
     public static WaveCloth.State state(WaveCloth.Settings settings, WaveCloth.Motion motion) {
         WaveCloth.State state = new WaveCloth.State();
-        WaveCloth.run(state, settings, motion, 20);
+        pose(state, settings, motion);
         return state;
+    }
+
+    public static void pose(WaveCloth.State state, WaveCloth.Settings settings, WaveCloth.Motion motion) {
+        WaveCloth.settle(state, settings, motion);
     }
 }

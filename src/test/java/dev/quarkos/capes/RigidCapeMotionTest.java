@@ -2,6 +2,7 @@ package dev.quarkos.capes;
 
 import dev.quarkos.capes.client.render.CapeDraw;
 import dev.quarkos.capes.client.render.PlayerFacts;
+import dev.quarkos.capes.sim.CapeLift;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -46,9 +47,10 @@ class RigidCapeMotionTest {
     }
 
     private static float pitch(double dx, double dz, float flap, float sway) {
+        CapeLift lift = CapeLift.RESTING.advance(dx, dz).advance(dx, dz).advance(dx, dz);
         PlayerFacts.Fact fact = new PlayerFacts.Fact(ID, "Player", 1, false, false, false, false, false, true,
-                0f, 0f, 0f, 0f, 1, 10 + dx, 65, 20 + dz, 10, 64, 20);
-        float lean = CapeDraw.rigidLean(fact, 100f, false);
+                0f, 0f, 0f, 0f, 1, 10 + dx, 65, 20 + dz, 10, 64, 20, lift);
+        float lean = CapeDraw.rigidLean(fact, 100f, false, 0.5f);
         return 6f + lean / 2f + CapeDraw.boundedFlap(lean, flap, sway, false);
     }
 

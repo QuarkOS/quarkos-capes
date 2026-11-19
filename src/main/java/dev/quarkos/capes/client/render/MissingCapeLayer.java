@@ -108,7 +108,7 @@ public class MissingCapeLayer extends RenderLayer {
         pose.pushPose();
         pose.translate(0.0F, player.isCrouching ? 0.2F : 0.0F, player.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose, consumer, bright, id, choice, preview, McBridge.partialTick(),
+        CapeDraw.emit(pose, consumer, bright, id, choice, preview, McBridge.playerPartialTick(),
                 player.capeLean, player.capeFlap, player.capeLean2, player.isFallFlying);
         pose.popPose();
     }

@@ -68,13 +68,13 @@ public final class McBridge {
         //?}
     }
 
-    public static float partialTick() {
+    public static float playerPartialTick() {
         //? if <1.21 {
         /*return Minecraft.getInstance().getFrameTime();
         *///?} else if <1.21.2 {
-        /*return Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(false);
+        /*return Minecraft.getInstance().getTimer().getGameTimeDeltaPartialTick(true);
         *///?} else {
-        return Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(false);
+        return Minecraft.getInstance().getDeltaTracker().getGameTimeDeltaPartialTick(true);
         //?}
     }
 
@@ -340,11 +340,14 @@ public final class McBridge {
         //?}
     }
 
-    public static void quad(VertexConsumer consumer, PoseStack.Pose pose, int light, CapeGeometry.Quad quad) {
-        vertex(consumer, pose, light, 255, quad.x0(), quad.y0(), quad.z0(), quad.u0(), quad.v0(), quad.nx(), quad.ny(), quad.nz());
-        vertex(consumer, pose, light, 255, quad.x1(), quad.y1(), quad.z1(), quad.u0(), quad.v1(), quad.nx(), quad.ny(), quad.nz());
-        vertex(consumer, pose, light, 255, quad.x2(), quad.y2(), quad.z2(), quad.u1(), quad.v1(), quad.nx(), quad.ny(), quad.nz());
-        vertex(consumer, pose, light, 255, quad.x3(), quad.y3(), quad.z3(), quad.u1(), quad.v0(), quad.nx(), quad.ny(), quad.nz());
+    public static void quad(VertexConsumer consumer, PoseStack.Pose pose, int light, CapeGeometry.Quad quad,
+                            float offsetU, float offsetV, float scaleU, float scaleV) {
+        float u0 = offsetU + quad.u0() * scaleU, v0 = offsetV + quad.v0() * scaleV;
+        float u1 = offsetU + quad.u1() * scaleU, v1 = offsetV + quad.v1() * scaleV;
+        vertex(consumer, pose, light, 255, quad.x0(), quad.y0(), quad.z0(), u0, v0, quad.nx(), quad.ny(), quad.nz());
+        vertex(consumer, pose, light, 255, quad.x1(), quad.y1(), quad.z1(), u0, v1, quad.nx(), quad.ny(), quad.nz());
+        vertex(consumer, pose, light, 255, quad.x2(), quad.y2(), quad.z2(), u1, v1, quad.nx(), quad.ny(), quad.nz());
+        vertex(consumer, pose, light, 255, quad.x3(), quad.y3(), quad.z3(), u1, v0, quad.nx(), quad.ny(), quad.nz());
     }
 
     private static void vertex(VertexConsumer consumer, PoseStack.Pose pose, int light, int shade, float x, float y, float z, float u, float v, float nx, float ny, float nz) {

@@ -59,11 +59,8 @@ public class CapeModelDrawMixin {
         if (id == null || state.skin == null || state.skin.cape() == null) return;
         boolean preview = CapeRenderPass.guiDepth > 0 || state == CapeBook.previewState;
         CapeBook.drawn(id, state.skin.cape().texturePath(), preview);
-        if (dev.quarkos.capes.DevFlags.HARNESS && !preview && !CapeRenderPass.shadow()
-                && dev.quarkos.capes.client.harness.CapeMotionCapture.tracking(id, CapeBook.Kind.QUAD)) {
-            var cape = model.body.getChild("cape");
-            var rotation = new org.joml.Quaternionf().rotationZYX(cape.zRot, cape.yRot, cape.xRot);
-            dev.quarkos.capes.client.harness.CapeMotionCapture.rigid(id, CapeBook.Kind.QUAD, rotation);
+        if (dev.quarkos.capes.DevFlags.HARNESS && !preview && !CapeRenderPass.shadow()) {
+            dev.quarkos.capes.client.harness.CapeMotionCapture.rigidModel(id, model.body);
         }
     }
     //?}

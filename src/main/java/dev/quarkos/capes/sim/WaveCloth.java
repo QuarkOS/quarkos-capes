@@ -165,14 +165,28 @@ public final class WaveCloth {
         return new ClassicPose(state.pitch, state.roll);
     }
 
-    /** Advances a chain. Classic movement does not use this state. */
+    /** Advances a chain. Classic follows the target directly each tick. */
     public static void step(State state, Settings settings, Motion motion) {
         Settings tuned = settings.clamped();
-        if (tuned.movement == Movement.CLASSIC) {
-            return;
-        }
         shape(tuned, motion, state.pitch, state.roll);
-        float follow = tuned.movement == Movement.DUNGEONS ? 0.55f : 0.42f;
+        float follow = switch (tuned.movement) {
+            case CLASSIC -> 1f;
+            case DUNGEONS -> 0.55f;
+            default -> 0.42f;
+        };
+        followShape(state, follow);
+    }
+
+    static void settle(State state, Settings settings, Motion motion) {
+        state.reset();
+        shape(settings.clamped(), motion, state.pitch, state.roll);
+        followShape(state, 1f);
+        System.arraycopy(state.x, 0, state.px, 0, SEGMENTS);
+        System.arraycopy(state.y, 0, state.py, 0, SEGMENTS);
+        System.arraycopy(state.z, 0, state.pz, 0, SEGMENTS);
+    }
+
+    private static void followShape(State state, float follow) {
         float x = 0f, y = 0f, z = 0f;
         pin(state);
         // The target links have unit length. Interpolating all points by the same amount

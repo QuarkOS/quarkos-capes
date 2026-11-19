@@ -59,6 +59,7 @@ public abstract class ShotCameraMixin {
         if (!dev.quarkos.capes.client.harness.ShotView.active()) {
             return;
         }
+        dev.quarkos.capes.client.harness.CapeMotionCapture.frame(entity.getUUID());
         setRotation(entity.getViewYRot(partial) + dev.quarkos.capes.client.harness.ShotView.yaw(), dev.quarkos.capes.client.harness.ShotView.pitch());
         Vec3 eye = entity.getEyePosition(partial);
         setPosition(eye.x, eye.y + dev.quarkos.capes.client.harness.ShotView.lift(), eye.z);

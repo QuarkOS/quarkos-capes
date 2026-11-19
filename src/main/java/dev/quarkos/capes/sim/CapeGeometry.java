@@ -144,7 +144,7 @@ public final class CapeGeometry {
                                    boolean vertical, boolean blocky, float partial) {
         float[] xs = state.renderX, ys = state.renderY, zs = state.renderZ;
         partial = Math.clamp(partial, 0f, 1f);
-        if (settings.movement() == WaveCloth.Movement.CLASSIC) {
+        if (settings.movement() == WaveCloth.Movement.CLASSIC && classicPitch != null && classicRoll != null) {
             classicPoints(classicPitch, classicRoll, xs, ys, zs);
         } else {
             float scale = (16f / 15f) / 16f;

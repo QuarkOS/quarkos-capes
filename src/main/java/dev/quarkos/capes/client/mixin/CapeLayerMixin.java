@@ -143,7 +143,7 @@ public class CapeLayerMixin {
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1 && state.skin != null) {
             state.showCape = true;
             if (!preview) {
-                state.capeLean = CapeDraw.rigidLean(fact, state.capeLean, state.isFallFlying);
+                state.capeLean = CapeDraw.rigidLean(fact, state.capeLean, state.isFallFlying, McBridge.playerPartialTick());
                 state.capeFlap = CapeDraw.boundedFlap(state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
             }
             Identifier cape = choice.texture();
@@ -155,7 +155,7 @@ public class CapeLayerMixin {
         ((CapeLayer) (Object) this).getParentModel().body.translateAndRotate(pose);
         pose.translate(0.0F, 0.0F, state.chestEquipment.isEmpty() ? 0.0F : 0.0625F);
         var consumer = buffers.getBuffer(McBridge.cutout(choice.texture(), choice.kind()));
-        CapeDraw.emit(pose, consumer, bright, id, choice, preview, McBridge.partialTick(),
+        CapeDraw.emit(pose, consumer, bright, id, choice, preview, McBridge.playerPartialTick(),
                 state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
         pose.popPose();
         ci.cancel();
@@ -201,7 +201,7 @@ public class CapeLayerMixin {
         if (choice.kind() == CapeBook.Kind.QUAD && choice.frames() <= 1 && state.skin != null) {
             state.showCape = true;
             if (!preview) {
-                state.capeLean = CapeDraw.rigidLean(fact, state.capeLean, state.isFallFlying);
+                state.capeLean = CapeDraw.rigidLean(fact, state.capeLean, state.isFallFlying, McBridge.playerPartialTick());
                 state.capeFlap = CapeDraw.boundedFlap(state.capeLean, state.capeFlap, state.capeLean2, state.isFallFlying);
             }
             Identifier cape = choice.texture();

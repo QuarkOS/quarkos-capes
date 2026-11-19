@@ -70,15 +70,18 @@ class BughuntTest {
     }
 
     @Test void renderingInterpolatesWithoutAdvancingSimulation() {
-        WaveCloth.State state = new WaveCloth.State();
-        var settings = WaveCloth.Settings.defaults();
-        WaveCloth.step(state, settings, motion(0, 0, 0.2, 0));
-        float simulated = state.x[15];
-        var previous = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false, 0f).getLast();
-        var middle = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false, 0.5f).getLast();
-        var current = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false, 1f).getLast();
-        assertEquals((previous.z1() + current.z1()) / 2, middle.z1(), 0.00001);
-        assertEquals(simulated, state.x[15]);
+        for (var movement : WaveCloth.Movement.values()) {
+            WaveCloth.State state = new WaveCloth.State();
+            var settings = new WaveCloth.Settings(movement, WaveCloth.Mesh.SMOOTH, WaveCloth.Wind.NONE, 25, 6, 2, false);
+            WaveCloth.step(state, settings, motion(0, 0, 0.2, 0));
+            float simulated = state.x[15];
+            var previous = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false, 0f).getLast();
+            var middle = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false, 0.5f).getLast();
+            var current = CapeGeometry.cloth(state, settings, null, null, 0, 1, false, false, 1f).getLast();
+            assertTrue(current.z1() > previous.z1(), movement.toString());
+            assertEquals((previous.z1() + current.z1()) / 2, middle.z1(), 0.00001);
+            assertEquals(simulated, state.x[15]);
+        }
     }
 
     @Test void cachedModelPreservesGeometryAndEvictsOldModels() {

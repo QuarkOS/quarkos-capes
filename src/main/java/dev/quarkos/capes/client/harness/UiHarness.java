@@ -110,7 +110,10 @@ public final class UiHarness {
             if (motion == null) motion = new CapeMotionCapture(DIRECTORY);
             if (!motion.finished()) {
                 var result = motion.tick(client);
-                if (result != null) recordCheck(result.name(), result.detail(), result.failure());
+                if (result != null) {
+                    RESULTS.addAll(result.metrics());
+                    recordCheck(result.name(), result.detail(), result.failure());
+                }
                 return;
             }
             //?}
