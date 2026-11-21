@@ -46,7 +46,7 @@ public final class UiHarness {
         WORLD_BACK("world-back"), WORLD_SIDE("world-side"), PAUSE("ingame-pause"),
         INGAME("ingame-wardrobe"), KEYBIND("ingame-keybind"),
         FEATURED_LIST("featured-list"), FEATURED_PREVIEW("featured-preview"), FEATURED_ANIMATED("featured-animated"), FEATURED_WORLD("featured-world-back"),
-        BAD_SERVICE("browse-404");
+        BAD_SERVICE("browse-404"), ABOUT("about"), LABY_LIST("labymod-browse");
 
         final String file;
         Scene(String file) { this.file = file; }
@@ -162,6 +162,7 @@ public final class UiHarness {
                     return;
                 }
                 if (stage.scene().featured() && !featuredReady(client, stage)) return;
+                if (stage.scene() == Scene.LABY_LIST && !labyReady(client, stage)) return;
                 if (stage.scene().world() && client.player != null && CapeBook.draws(client.player.getUUID()) == 0
                         && System.nanoTime() < deadline) return;
                 try {
@@ -201,14 +202,15 @@ public final class UiHarness {
         int height = Integer.getInteger("quarkos_capes.height", 1080);
         List<Stage> plan = new ArrayList<>();
         for (int scale : List.of(2, 4)) {
-            for (Scene scene : List.of(Scene.SELECT, Scene.HOVER, Scene.STYLES, Scene.GALLERY, Scene.OFFLINE, Scene.SETTINGS, Scene.LINK)) {
+            for (Scene scene : List.of(Scene.SELECT, Scene.HOVER, Scene.STYLES, Scene.GALLERY, Scene.OFFLINE, Scene.SETTINGS, Scene.LINK, Scene.ABOUT)) {
                 plan.add(new Stage(scene, width, height, scale, scene != Scene.LINK));
             }
         }
         if (width != 1280 || height != 720) addLayoutSweep(plan, 1280, 720);
         if (width != 1920 || height != 1080) addLayoutSweep(plan, 1920, 1080);
         for (Scene scene : List.of(Scene.WORLD_BACK, Scene.WORLD_SIDE, Scene.PAUSE, Scene.INGAME, Scene.KEYBIND,
-                Scene.FEATURED_LIST, Scene.FEATURED_PREVIEW, Scene.FEATURED_ANIMATED, Scene.FEATURED_WORLD, Scene.BAD_SERVICE)) {
+                Scene.FEATURED_LIST, Scene.FEATURED_PREVIEW, Scene.FEATURED_ANIMATED, Scene.FEATURED_WORLD, Scene.BAD_SERVICE,
+                Scene.LABY_LIST)) {
             plan.add(new Stage(scene, width, height, 2, scene != Scene.KEYBIND));
         }
         return plan;
@@ -261,6 +263,14 @@ public final class UiHarness {
             }
             case OFFLINE -> client.setScreen(new BrowseScreen(null));
             case LINK -> client.setScreen(new LinkScreen(null));
+            case ABOUT -> client.setScreen(new dev.quarkos.capes.client.screen.LegalScreen(null));
+            case LABY_LIST -> {
+                // Live laby.net read: the release gallery's default source, online.
+                ClientSettings.get().localOnly = false;
+                labyBrowse = new BrowseScreen(null);
+                labySelected = false;
+                client.setScreen(labyBrowse);
+            }
             case WORLD_BACK, WORLD_SIDE -> {
                 client.setScreen(null);
                 CapeBoard.equipSample("cloak");
@@ -318,6 +328,23 @@ public final class UiHarness {
         }
     }
 
+    private static BrowseScreen labyBrowse;
+    private static boolean labySelected;
+
+    private static boolean labyReady(Minecraft client, Stage stage) {
+        boolean ready = false;
+        if (!labyBrowse.items().isEmpty()) {
+            if (!labySelected) { labyBrowse.selectFirst(); labySelected = true; }
+            ready = labyBrowse.previewReady();
+        }
+        if (!ready && System.nanoTime() > deadline) {
+            record(client, stage, "Timed out waiting for the LabyMod gallery. " + labyBrowse.status());
+            return false;
+        }
+        if (ready) expectedScreen = labyBrowse;
+        return ready;
+    }
+
     private static boolean featuredReady(Minecraft client, Stage stage) {
         if (featuredProbe != null && featuredProbe.skip() == null) {
             boolean ready = switch (stage.scene()) {
@@ -362,6 +389,13 @@ public final class UiHarness {
             return;
         }
         if (stage.scene().featured()) return;
+        if (stage.scene() == Scene.LABY_LIST) {
+            if (labyBrowse.items().isEmpty() || !labyBrowse.previewReady()) throw new AssertionError("LabyMod gallery did not load");
+            boolean cloaksOnly = labyBrowse.items().stream().allMatch(item -> "labymod".equals(item.source()) && "cloak".equals(item.kind()));
+            if (!cloaksOnly) throw new AssertionError("LabyMod gallery listed something other than LabyMod cloaks");
+            stageDetail = "labymod items=" + labyBrowse.items().size() + " first=" + labyBrowse.items().get(0).title();
+            return;
+        }
         if (CapeHttp.sent != sent) throw new AssertionError("UI capture sent a cape service request");
         if (stage.scene().world()) {
             if (client.screen != null || client.options.getCameraType() != CameraType.THIRD_PERSON_BACK

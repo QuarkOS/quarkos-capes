@@ -42,7 +42,7 @@ final class UiFeaturedProbe implements AutoCloseable {
     private final OwnerCape oldCape = OwnerCape.get();
     private final String oldGalleryId = settings.equippedGalleryId;
     private final String url = System.getProperty("quarkos_capes.serverUrl", oldUrl).trim();
-    private final BrowseScreen browse = new BrowseScreen(null);
+    private final BrowseScreen browse = new BrowseScreen(null, dev.quarkos.capes.client.net.CatalogClient.FEATURED);
     private CatalogClient.Item still, animated;
     private CapeTextures.Image previousPreview;
     private Session session = Session.UNCHECKED;

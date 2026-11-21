@@ -1,6 +1,17 @@
 # Changelog
 
-## 1.0.0
+## 1.0.0 — first public release as Quark's Capes
+
+- Name: Quark's Capes (mod id `quarkos_capes`, jar names and slugs unchanged). New icon.
+- Fabric 1.20.1, 1.21.1, 1.21.4, 1.21.8, 1.21.11 and 26.3; Forge 1.20.1, 1.21.1, 1.21.4, 1.21.8, 1.21.11; NeoForge 1.21.1, 1.21.4, 1.21.8, 1.21.11. Client only.
+- Browse opens on a LabyMod gallery: LabyMod cloaks are loaded live from laby.net while you browse (online access on). Search, Popular/Newest/Name sort, paging. LabyMod cloaks are try-on only: shown on your own player, never uploaded or shown to others. Each one names its laby.net page. Official Minecraft capes are not offered as a gallery, and cloak uploads that copy Minecon/Mojang capes are hidden.
+- Featured and Community sources come from the Quark's Capes service (api.emilioschwaiger.com): static and animated capes, Try on, Wear/Unwear for capes others with the mod can see after you sign in with your Minecraft account.
+- New About screen (wardrobe tab) with credits, license, LabyMod attribution and the not-affiliated notices.
+- Smoother 2D/3D cape motion (interpolated lift, cached animated mesh, smoother Wavy cloth). Wardrobe from the pause menu and the O key.
+- Offline mode is still the default: no network requests until you choose Go online.
+- Source and issues: https://github.com/QuarkOS/quarkos-capes
+
+## 1.0.0 (internal pre-release notes)
 
 - Fabric and Forge for 1.20.1, 1.21.1, 1.21.4, 1.21.8, and 1.21.11. NeoForge for 1.21.1, 1.21.4, 1.21.8, and 1.21.11. The file list, store versions, and loaders are in `docs/RELEASE.md`.
 - Release jars (`scripts/release.sh`) omit the dev harness and the LabyMod try-on catalog. `verifyReleaseJar` rejects a localhost service URL unless `-PallowLocalService=true`.
