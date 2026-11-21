@@ -41,7 +41,7 @@ public final class LabyGallery {
         catch (NumberFormatException ignored) { return ""; }
         String order = "newest".equals(sort) ? "latest" : "most_used";
         String url = SEARCH + "?order=" + order + "&size=" + PAGE + "&offset=" + offset;
-        if (query != null && !query.isBlank()) url += "&input=" + URLEncoder.encode(query.trim(), StandardCharsets.UTF_8);
+        if (query != null && !query.isBlank()) url += "&input=" + URLEncoder.encode(query.trim(), StandardCharsets.UTF_8).replace("+", "%20");
         return url;
     }
 
