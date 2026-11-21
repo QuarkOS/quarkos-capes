@@ -8,7 +8,7 @@ issueTrackerURL = "${issues}"
 [[mods]]
 modId = "quarkos_capes"
 version = "${version}"
-displayName = "QuarkOS Capes"
+displayName = "Quark's Capes"
 authors = "Emilio Schwaiger (QuarkOS)"
 displayURL = "${homepage}"
 logoFile = "assets/quarkos_capes/icon.png"

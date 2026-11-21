@@ -12,7 +12,7 @@ import java.util.UUID;
  * no request at all, including Mojang session join.
  */
 public final class CapeCalls {
-    public static final String USER_AGENT = "QuarkOS-Capes/1.0.0";
+    public static final String USER_AGENT = "QuarksCapes/1.0.0 (+https://github.com/QuarkOS/quarkos-capes)";
     public static final String DEFAULT_SERVICE_URL = defaultServiceUrl();
     public static final String DEFAULT_BASE = DEFAULT_SERVICE_URL;
 

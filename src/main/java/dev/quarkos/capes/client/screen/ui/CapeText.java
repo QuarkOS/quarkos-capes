@@ -23,4 +23,28 @@ public final class CapeText {
         }
         return line.substring(0, line.offsetByCodePoints(0, low)).stripTrailing() + ELLIPSIS;
     }
+
+    /** Word wrap that keeps blank lines between paragraphs; long words are split by width. */
+    public static java.util.List<String> wrap(String text, int width, ToIntFunction<String> measure) {
+        java.util.List<String> out = new java.util.ArrayList<>();
+        for (String paragraph : text.split("\n", -1)) {
+            if (paragraph.isBlank()) { out.add(""); continue; }
+            StringBuilder line = new StringBuilder();
+            for (String word : paragraph.trim().split(" +")) {
+                String next = line.isEmpty() ? word : line + " " + word;
+                if (measure.applyAsInt(next) <= width) { line.setLength(0); line.append(next); continue; }
+                if (!line.isEmpty()) { out.add(line.toString()); line.setLength(0); }
+                while (measure.applyAsInt(word) > width && word.length() > 1) {
+                    int cut = word.length() - 1;
+                    while (cut > 1 && measure.applyAsInt(word.substring(0, cut)) > width) cut--;
+                    out.add(word.substring(0, cut));
+                    word = word.substring(cut);
+                }
+                line.append(word);
+            }
+            if (!line.isEmpty()) out.add(line.toString());
+        }
+        return out;
+    }
+
 }

@@ -1,5 +1,5 @@
 mod.id = "quarkos_capes"
-mod.name = "QuarkOS Capes"
+mod.name = "Quark's Capes"
 mod.version = "1.0.0"
 
 deps.fabric_loader = "0.19.5"

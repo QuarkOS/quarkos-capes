@@ -81,13 +81,14 @@ public final class CapeScreen extends CapeUiScreen {
         int switchWidth = 33 + Math.max(font.width(animationOff), font.width(text("ui.animation_on")));
         layout(switchWidth);
 
-        int navWidth = Math.min(260, frame.width() * 3 / 5);
+        int navWidth = Math.min(320, frame.width() * 2 / 3);
         Rect nav = new Rect(frame.right() - navWidth, frame.y(), navWidth, CapeTheme.CONTROL);
         titleWidth = nav.x() - frame.x() - 8;
-        button(text("tab.gallery"), nav.cell(0, 4, 4), Face.TAB, () -> minecraft.setScreen(new CapeGalleryScreen(this)));
-        button(text("site.browse"), nav.cell(1, 4, 4), Face.TAB, () -> minecraft.setScreen(new BrowseScreen(this)));
-        button(text("ui.settings"), nav.cell(2, 4, 4), Face.TAB, () -> minecraft.setScreen(CapeScreens.settings(this)));
-        button(text("button.done"), nav.cell(3, 4, 4), Face.BUTTON, this::onClose);
+        button(text("tab.gallery"), nav.cell(0, 5, 4), Face.TAB, () -> minecraft.setScreen(new CapeGalleryScreen(this)));
+        button(text("site.browse"), nav.cell(1, 5, 4), Face.TAB, () -> minecraft.setScreen(new BrowseScreen(this)));
+        button(text("ui.settings"), nav.cell(2, 5, 4), Face.TAB, () -> minecraft.setScreen(CapeScreens.settings(this)));
+        button(text("ui.legal"), nav.cell(3, 5, 4), Face.TAB, () -> minecraft.setScreen(new LegalScreen(this)));
+        button(text("button.done"), nav.cell(4, 5, 4), Face.BUTTON, this::onClose);
 
         Rect segments = shapeBar.inset(1);
         for (int i = 0; i < SHAPES.length; i++) {

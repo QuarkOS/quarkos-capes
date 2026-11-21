@@ -408,7 +408,7 @@ fun clothRange(version: String): String {
 fun legacyPack(format: Int): String = """
 {
   "pack": {
-    "description": "QuarkOS Capes",
+    "description": "Quark's Capes",
     "pack_format": $format
   }
 }
@@ -417,7 +417,7 @@ fun legacyPack(format: Int): String = """
 fun modernPack(major: Int, minor: Int): String = """
 {
   "pack": {
-    "description": "QuarkOS Capes",
+    "description": "Quark's Capes",
     "pack_format": $major,
     "supported_formats": [64, 94],
     "min_format": [64, 0],
