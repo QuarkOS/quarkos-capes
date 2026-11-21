@@ -25,7 +25,7 @@ public final class CapeCalls {
                 if (ServiceUrl.valid(value)) return value.trim();
             }
         } catch (java.io.IOException ignored) { }
-        return "http://127.0.0.1:8787";
+        return "https://api.emilioschwaiger.com";
     }
 
     public enum Kind {

@@ -11,7 +11,9 @@ import dev.quarkos.capes.sim.CapeLift;
 import dev.quarkos.capes.sim.PreviewCloth;
 import dev.quarkos.capes.sim.StripFrames;
 import dev.quarkos.capes.sim.WaveCloth;
+import net.minecraft.client.CameraType;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.player.PlayerModelPart;
 import org.joml.Matrix4f;
@@ -30,6 +32,7 @@ import net.minecraft.client.renderer.entity.state.AvatarRenderState;
 
 /** One draw path for the world and the picker preview. */
 public final class CapeDraw {
+    public static final String TRY_ON_TEXTURE = "try-on";
     private static final float SHOULDER_Z = 2f / 16f;
     private static final TextureSlot LOCAL = new TextureSlot("local");
     private static final TextureSlot PREVIEW = new TextureSlot("preview");
@@ -39,12 +42,34 @@ public final class CapeDraw {
     private static final boolean DEFAULT_SMOOTHING = !DevFlags.HARNESS
             || !"false".equalsIgnoreCase(System.getProperty("quarkos_capes.smooth"));
     private static boolean smoothing = DEFAULT_SMOOTHING;
+    private record TryOn(LocalPlayer player, CameraType previousCamera, CapeBook.Choice choice) { }
+    private static TryOn tryOn;
 
     private CapeDraw() {
     }
 
     public static void syncLocal() {
         LOCAL.sync(OwnerCape.get().png);
+    }
+
+    public static boolean tryOn(Minecraft client, OwnerCape cape) {
+        if (client.player == null) return false;
+        tickTryOn(client);
+        var texture = CapeTextures.upload(TRY_ON_TEXTURE, cape.png, false, false);
+        if (texture == null) return false;
+        tryOn = new TryOn(client.player, client.options.getCameraType(), CapeBook.local(cape, texture));
+        client.setScreen(null);
+        McBridge.thirdPerson(client.options);
+        return true;
+    }
+
+    public static void tickTryOn(Minecraft client) {
+        if (tryOn == null || (client.player == tryOn.player() && client.screen == null)) return;
+        if (client.options.getCameraType() == CameraType.THIRD_PERSON_BACK) {
+            client.options.setCameraType(tryOn.previousCamera());
+        }
+        tryOn = null;
+        CapeTextures.clear(TRY_ON_TEXTURE);
     }
 
     public static void harnessSmoothing(Boolean enabled) {
@@ -254,20 +279,23 @@ public final class CapeDraw {
 
     public static CapeBook.Choice resolve(UUID id, boolean local, Identifier vanillaCape, boolean preview) {
         if (local) {
-            OwnerCape cape = preview && CapeBook.preview && CapeBook.draft != null ? CapeBook.draft : OwnerCape.get();
+            Minecraft client = Minecraft.getInstance();
             PlayerFacts.Fact fact = PlayerFacts.byUuid(id);
             // The synced customization byte starts at 0, so isModelPartShown(CAPE) is false
             // until the server applies client settings. Options are the local player's choice.
-            boolean capeOn = Minecraft.getInstance().options.isModelPartEnabled(PlayerModelPart.CAPE);
+            boolean capeOn = client.options.isModelPartEnabled(PlayerModelPart.CAPE);
             if (!capeOn || (fact != null && fact.elytra())) {
                 return CapeBook.none();
             }
+            if (!preview && tryOn != null && client.player == tryOn.player()) return tryOn.choice();
 //? if dev_catalog {
             /*if (LabyWear.showing()) {
                 return LabyWear.choice();
             }
 *///?}
-            TextureSlot slot = cape == OwnerCape.get() ? LOCAL : PREVIEW;
+            OwnerCape worn = OwnerCape.get();
+            OwnerCape cape = preview && CapeBook.preview && CapeBook.draft != null ? CapeBook.draft : worn;
+            TextureSlot slot = cape == worn ? LOCAL : PREVIEW;
             return CapeBook.local(cape, slot.sync(cape.png));
         }
         PlayerFacts.Fact fact = PlayerFacts.byUuid(id);

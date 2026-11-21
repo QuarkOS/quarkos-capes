@@ -17,6 +17,7 @@ public final class ClientSettings {
     public boolean showOthers = true;
     public volatile boolean localOnly = true;
     public volatile String baseUrl = CapeCalls.DEFAULT_SERVICE_URL;
+    private static final java.util.Set<String> LEGACY_DEFAULTS = java.util.Set.of("http://127.0.0.1:8787", "http://localhost:8787");
     public boolean enableOptifine;
     public boolean enableLabyMod;
     public boolean enableMinecraftCapesMod;
@@ -40,6 +41,8 @@ public final class ClientSettings {
                 if (root.get("baseUrl") instanceof String url && dev.quarkos.capes.client.net.ServiceUrl.valid(url)) {
                     settings.baseUrl = url.trim();
                 }
+                // Configs saved before the public API existed hold the old local default; move them to the current default.
+                if (LEGACY_DEFAULTS.contains(settings.baseUrl)) settings.baseUrl = CapeCalls.DEFAULT_SERVICE_URL;
                 settings.enableOptifine = bool(root, "enableOptifine", false);
                 settings.enableLabyMod = bool(root, "enableLabyMod", false);
                 settings.enableMinecraftCapesMod = bool(root, "enableMinecraftCapesMod", false);

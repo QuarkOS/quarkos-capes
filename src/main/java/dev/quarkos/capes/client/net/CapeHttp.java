@@ -52,6 +52,9 @@ public final class CapeHttp {
             .readTimeout(8, TimeUnit.SECONDS)
             .writeTimeout(8, TimeUnit.SECONDS)
             .followRedirects(true)
+            // HTTP/1.1 only: an HTTP/2 connection to the HTTPS service keeps a non-daemon OkHttp writer thread
+            // alive, which trips the client shutdown watchdog on quit (seen on 26.3 against api.emilioschwaiger.com).
+            .protocols(List.of(okhttp3.Protocol.HTTP_1_1))
             .build();
     private static final OkHttpClient PRIVATE_HTTP = HTTP.newBuilder().followRedirects(false).followSslRedirects(false).build();
     private static final org.slf4j.Logger LOGGER = org.slf4j.LoggerFactory.getLogger("quarkos_capes");

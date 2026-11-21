@@ -54,7 +54,8 @@ function Step([string]$name, [string[]]$tasks, [int]$minutes = 40) {
     Write-Host "    $($results[$name])  log: $log"
 }
 function Stop-RepoJava {
-    $needle = $Repo.ToLower()
+    # Trailing separator: do not match sibling folders such as D:\dev\capes-site (the local API).
+    $needle = $Repo.ToLower().TrimEnd('\') + '\'
     Get-CimInstance Win32_Process -Filter "Name='java.exe' OR Name='javaw.exe'" | Where-Object { "$($_.CommandLine)".ToLower().Contains($needle) } |
         ForEach-Object { Write-Host "    stopping java pid $($_.ProcessId)"; Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
 }

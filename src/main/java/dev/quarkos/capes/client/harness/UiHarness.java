@@ -45,14 +45,14 @@ public final class UiHarness {
         OFFLINE("gallery-empty"), SETTINGS("settings"), LINK("link"),
         WORLD_BACK("world-back"), WORLD_SIDE("world-side"), PAUSE("ingame-pause"),
         INGAME("ingame-wardrobe"), KEYBIND("ingame-keybind"),
-        FEATURED_LIST("featured-list"), FEATURED_PREVIEW("featured-preview"), FEATURED_WORLD("featured-world-back"),
+        FEATURED_LIST("featured-list"), FEATURED_PREVIEW("featured-preview"), FEATURED_ANIMATED("featured-animated"), FEATURED_WORLD("featured-world-back"),
         BAD_SERVICE("browse-404");
 
         final String file;
         Scene(String file) { this.file = file; }
 
         boolean world() { return this == WORLD_BACK || this == WORLD_SIDE || this == FEATURED_WORLD; }
-        boolean featured() { return this == FEATURED_LIST || this == FEATURED_PREVIEW || this == FEATURED_WORLD; }
+        boolean featured() { return this == FEATURED_LIST || this == FEATURED_PREVIEW || this == FEATURED_ANIMATED || this == FEATURED_WORLD; }
         boolean fixedScale() { return world() || ordinal() >= PAUSE.ordinal(); }
     }
 
@@ -208,7 +208,7 @@ public final class UiHarness {
         if (width != 1280 || height != 720) addLayoutSweep(plan, 1280, 720);
         if (width != 1920 || height != 1080) addLayoutSweep(plan, 1920, 1080);
         for (Scene scene : List.of(Scene.WORLD_BACK, Scene.WORLD_SIDE, Scene.PAUSE, Scene.INGAME, Scene.KEYBIND,
-                Scene.FEATURED_LIST, Scene.FEATURED_PREVIEW, Scene.FEATURED_WORLD, Scene.BAD_SERVICE)) {
+                Scene.FEATURED_LIST, Scene.FEATURED_PREVIEW, Scene.FEATURED_ANIMATED, Scene.FEATURED_WORLD, Scene.BAD_SERVICE)) {
             plan.add(new Stage(scene, width, height, 2, scene != Scene.KEYBIND));
         }
         return plan;
@@ -302,7 +302,7 @@ public final class UiHarness {
                 featuredProbe = new UiFeaturedProbe();
                 featuredProbe.open(client);
             }
-            case FEATURED_PREVIEW, FEATURED_WORLD -> { }
+            case FEATURED_PREVIEW, FEATURED_ANIMATED, FEATURED_WORLD -> { }
             case BAD_SERVICE -> {
                 serviceProbe = new UiServiceProbe();
                 serviceProbe.openAdvanced(client);
@@ -323,6 +323,7 @@ public final class UiHarness {
             boolean ready = switch (stage.scene()) {
                 case FEATURED_LIST -> featuredProbe.listReady();
                 case FEATURED_PREVIEW -> featuredProbe.previewReady(client);
+                case FEATURED_ANIMATED -> featuredProbe.animatedReady(client, DIRECTORY);
                 case FEATURED_WORLD -> featuredProbe.worldReady(client);
                 default -> throw new AssertionError("Expected a featured capture stage");
             };
@@ -340,6 +341,7 @@ public final class UiHarness {
         if (stage.scene() == Scene.FEATURED_PREVIEW) {
             stageDetail = "frame=" + CapeBook.previewFrame(client.player.getUUID());
         }
+        if (stage.scene() == Scene.FEATURED_ANIMATED) stageDetail = featuredProbe.animatedDetail();
         return true;
     }
 

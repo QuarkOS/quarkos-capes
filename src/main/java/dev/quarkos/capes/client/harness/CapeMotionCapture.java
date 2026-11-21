@@ -9,6 +9,7 @@ import dev.quarkos.capes.sim.CapeGeometry;
 import dev.quarkos.capes.sim.WaveCloth;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.model.geom.ModelPart;
+import net.minecraft.client.player.LocalPlayer;
 import org.joml.Quaternionf;
 import org.joml.Vector3f;
 //? if >=1.21.11 {
@@ -34,6 +35,31 @@ public final class CapeMotionCapture {
     private record Sample(float angle, float[] values) { }
     private record Trial(CapeSmoothness.Stats stats, double speed) { }
     record Result(String name, String detail, String failure, List<String> metrics) { }
+
+    private record Runway(int x, int z) {
+        private static final int FEET_Y = 311;
+
+        static Runway build(LocalPlayer player) {
+            // Keep the fill in the player's chunk and the two chunks directly ahead.
+            int x = Math.floorDiv((int) Math.floor(player.getX()), 16) * 16 + 8;
+            int z = Math.floorDiv((int) Math.floor(player.getZ()), 16) * 16 + 4;
+            String atStart = "execute positioned " + x + " " + FEET_Y + " " + z + " run ";
+            player.connection.sendCommand(atStart + "fill ~-4 ~-1 ~-4 ~4 ~-1 ~40 minecraft:smooth_stone");
+            player.connection.sendCommand(atStart + "fill ~-4 ~ ~-4 ~4 ~8 ~40 minecraft:air");
+            return new Runway(x, z);
+        }
+
+        boolean atStart(LocalPlayer player) {
+            return player.onGround() && player.getYRot() == 0f
+                    && Math.abs(player.getX() - (x + 0.5)) < 0.05
+                    && Math.abs(player.getY() - FEET_Y) < 0.05
+                    && Math.abs(player.getZ() - (z + 0.5)) < 0.05;
+        }
+
+        void reset(LocalPlayer player) {
+            player.connection.sendCommand("tp @s " + (x + 0.5) + " " + FEET_Y + " " + (z + 0.5) + " 0 0");
+        }
+    }
 
     private enum Phase { SHOTS, LEGACY, SMOOTHED }
 
@@ -68,6 +94,7 @@ public final class CapeMotionCapture {
     private static final float MIN_CHANGE = 0.02f;
     private static final double MIN_SPRINT_SPEED = 0.24;
     private static final long TIMEOUT = 20_000_000_000L;
+    private static final String RUNWAY_TIMEOUT = "Timed out waiting for the motion capture runway start";
     private static CapeMotionCapture active;
 
     private final Path directory;
@@ -79,6 +106,8 @@ public final class CapeMotionCapture {
     private int sequence, age, nextShot, firstShot;
     private long deadline;
     private UUID playerId;
+    private Runway runway;
+    private boolean waitingForRunway;
     private float latestAngle;
     private int latestSize, draws, capturedDraw;
     private double startX, startZ, travel, speed;
@@ -102,7 +131,10 @@ public final class CapeMotionCapture {
         if (phase != Phase.SHOTS) return measure(client);
         String name = scene();
         try {
-            if (age == 0) start(client);
+            if (active != this) start(client);
+            if (waitingForStart(client)) {
+                return System.nanoTime() > deadline ? completeShots(client, name, RUNWAY_TIMEOUT) : null;
+            }
             age++;
             drive(client, files.size() < FRAMES ? gait() : Gait.IDLE);
             if (files.size() < FRAMES && age >= nextShot && (draws != capturedDraw || age >= nextShot + 8)) capture(client, name);
@@ -140,10 +172,27 @@ public final class CapeMotionCapture {
         ShotView.frame(43f, 8f, 3.5f);
         Files.deleteIfExists(directory.resolve(scene() + "-strip.png"));
         playerId = client.player.getUUID();
+        resetStart(client);
         active = this;
         CapeDraw.harnessSmoothing(true);
         nextShot = SETTLE_TICKS;
+    }
+
+    private void resetStart(Minecraft client) {
+        drive(client, Gait.IDLE);
+        LocalPlayer player = client.player;
+        if (runway == null) runway = Runway.build(player);
+        waitingForRunway = !runway.atStart(player);
+        if (waitingForRunway) runway.reset(player);
         deadline = System.nanoTime() + TIMEOUT;
+    }
+
+    private boolean waitingForStart(Minecraft client) {
+        if (waitingForRunway && client.player != null && runway.atStart(client.player)) {
+            waitingForRunway = false;
+            deadline = System.nanoTime() + TIMEOUT;
+        }
+        return waitingForRunway;
     }
 
     private void capture(Minecraft client, String name) throws IOException {
@@ -196,7 +245,7 @@ public final class CapeMotionCapture {
         draws = capturedDraw = 0;
         travel = speed = 0;
         age = 0;
-        if (gait() != Gait.IDLE && active == this && client.player != null && client.screen == null) {
+        if (!waitingForRunway && gait() != Gait.IDLE && active == this && client.player != null && client.screen == null) {
             oldFps = client.options.framerateLimit().get();
             oldVsync = client.options.enableVsync().get();
             client.options.framerateLimit().set(TRIAL_FPS);
@@ -213,18 +262,20 @@ public final class CapeMotionCapture {
     }
 
     private void startTrial(Minecraft client, Phase next) {
-        drive(client, Gait.IDLE);
+        resetStart(client);
         CapeDraw.harnessSmoothing(next == Phase.SMOOTHED);
         phase = next;
         age = 0;
-        deadline = System.nanoTime() + TIMEOUT;
     }
 
     private Result measure(Minecraft client) {
         if (client.player == null || client.screen != null || !playerId.equals(client.player.getUUID())) {
             return completeTrials(client, null, "Gameplay was interrupted during the smoothness capture");
         }
-        if (System.nanoTime() > deadline) return completeTrials(client, null, "Timed out during the smoothness capture");
+        if (System.nanoTime() > deadline) {
+            return completeTrials(client, null, waitingForRunway ? RUNWAY_TIMEOUT : "Timed out during the smoothness capture");
+        }
+        if (waitingForStart(client)) return null;
         age++;
         if (age == SETTLE_TICKS) {
             startX = client.player.getX();

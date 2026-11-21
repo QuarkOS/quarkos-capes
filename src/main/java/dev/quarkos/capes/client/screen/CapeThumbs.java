@@ -42,7 +42,7 @@ final class CapeThumbs {
         }
 
         int frame = cape.animateFrames && frames > 1
-                ? Math.floorMod(StripFrames.index(System.currentTimeMillis() / 2, cape.frameDelayMs), frames) : 0;
+                ? Math.floorMod(StripFrames.index(System.currentTimeMillis(), cape.frameDelayMs), frames) : 0;
         int width = FACE_WIDTH * scale;
         int height = FACE_HEIGHT * scale;
         McBridge.capeThumb(graphics, image.id(), area.centerX() - width / 2, area.centerY() - height / 2,

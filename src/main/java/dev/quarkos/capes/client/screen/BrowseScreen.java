@@ -5,6 +5,7 @@ import dev.quarkos.capes.client.local.OwnerCape;
 import dev.quarkos.capes.client.net.CapeHttp;
 import dev.quarkos.capes.client.net.CatalogClient;
 import dev.quarkos.capes.client.net.SiteApi;
+import dev.quarkos.capes.client.render.CapeDraw;
 import dev.quarkos.capes.client.screen.ui.CapeTheme;
 import dev.quarkos.capes.client.screen.ui.CapeTheme.Face;
 import net.minecraft.client.gui.screens.Screen;
@@ -39,10 +40,12 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
     private static final List<String> SOURCES = List.of("", CatalogClient.FEATURED, "ours", "labymod");
     private static final String[] KINDS = {"all_kinds", "cape", "cloak"};
     private static final String[] SORTS = {"popular", "newest", "name"};
+    /** Catalog style filter: every cape, or only frame-animated capes (style=frames). */
+    private static final String[] STYLES = {"", "frames"};
 
     private final Catalog catalog;
     private CatalogClient.Item wearing;
-    private int source, kind, sort, wearingRequest;
+    private int source, kind, sort, style, wearingRequest;
     private boolean writing;
 
     public BrowseScreen(Screen parent) { this(parent, CatalogClient.FEATURED); }
@@ -69,6 +72,13 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
     }
 
     public boolean isWriting() { return writing; }
+    public boolean animatedOnly() { return style == 1; }
+
+    /** Lists only capes whose frames animate; static capes are filtered out by the catalog. */
+    public void showAnimatedOnly(boolean on) {
+        style = on ? 1 : 0;
+        searchFor("");
+    }
     public boolean isWearing(CatalogClient.Item item) { return wearing != null && key(wearing).equals(key(item)); }
 
     public void wearSelected() {
@@ -88,6 +98,13 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
             wearing = null;
             finishWrite(message);
         }, this::finishWrite);
+    }
+
+    private void tryOnSelected() {
+        CatalogClient.Item item = selected();
+        OwnerCape cape = draft();
+        if (offline() || item == null || !CatalogClient.FEATURED.equals(item.source()) || cape == null || writing) return;
+        if (!CapeDraw.tryOn(minecraft, cape)) setStatus(SiteApi.message("error"));
     }
 
     private void startWrite() {
@@ -124,14 +141,21 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
         return List.of(new Filter(text(source == 0 ? "all_sources" : SOURCES.get(source)),
                         () -> source = (source + 1) % SOURCES.size()),
                 new Filter(text(KINDS[kind]), () -> kind = (kind + 1) % KINDS.length),
-                new Filter(text(SORTS[sort]), () -> sort = (sort + 1) % SORTS.length));
+                new Filter(text(SORTS[sort]), () -> sort = (sort + 1) % SORTS.length),
+                new Filter(text(style == 0 ? "all_styles" : "animated_only"), () -> style = (style + 1) % STYLES.length));
     }
 
     @Override
     protected List<Action> actions() {
         CatalogClient.Item item = selected();
-        return List.of(new Action(text("wear"), Face.PRIMARY, item != null && previewReady() && !isWearing(item) && !writing, this::wearSelected),
-                new Action(text("unwear"), Face.BUTTON, wearing != null && !writing, this::unwear));
+        boolean ready = item != null && previewReady() && !writing;
+        var wear = new Action(text("wear"), Face.PRIMARY, ready && !isWearing(item), this::wearSelected);
+        var unwear = new Action(text("unwear"), Face.BUTTON, wearing != null && !writing, this::unwear);
+        if (item != null && CatalogClient.FEATURED.equals(item.source())) {
+            var tryOn = new Action(text("try_on"), Face.BUTTON, ready && minecraft.player != null, this::tryOnSelected);
+            return List.of(wear, tryOn, unwear);
+        }
+        return List.of(wear, unwear);
     }
 
     @Override
@@ -161,7 +185,7 @@ public final class BrowseScreen extends CapeBrowserScreen<CatalogClient.Item> {
     @Override
     protected void request(String query, String cursor, Consumer<Results<CatalogClient.Item>> ready, Consumer<String> error) {
         var filters = new CatalogClient.Query(SOURCES.get(source), kind == 0 ? "" : KINDS[kind], query,
-                SORTS[sort], "", "", cursor, 20);
+                SORTS[sort], STYLES[style], "", cursor, 20);
         catalog.page(filters, result -> {
             Map<String, String> available = result.sources();
             String note = "";

@@ -5,6 +5,7 @@ import dev.quarkos.capes.client.harness.ClientHarness;
 import dev.quarkos.capes.client.local.LocalFiles;
 import dev.quarkos.capes.client.net.CapeHttp;
 import dev.quarkos.capes.client.render.CapeBook;
+import dev.quarkos.capes.client.render.CapeDraw;
 import dev.quarkos.capes.client.render.ClothSim;
 import dev.quarkos.capes.client.render.PlayerFacts;
 import dev.quarkos.capes.client.screen.CapeScreens;
@@ -66,6 +67,7 @@ public final class QuarkosCapes implements ClientModInitializer {
             dev.quarkos.capes.client.ProdSmoke.tick(client);
         }
         CapeScreens.tick(client.screen);
+        CapeDraw.tickTryOn(client);
         LocalFiles.autosave(CapeScreens.isSettings(client.screen));
         if (!CapeScreens.isSettings(client.screen)) {
             CapeBook.preview = false;

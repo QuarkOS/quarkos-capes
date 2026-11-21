@@ -365,7 +365,7 @@ class CapeCoreTest {
         settings.showOthers = false;
         settings.enableOptifine = true;
         settings.enableElytraTexture = false;
-        settings.baseUrl = "http://127.0.0.1:8787";
+        settings.baseUrl = "http://127.0.0.1:8797";
         settings.equippedGalleryId = null;
         settings.cloth = new WaveCloth.Settings(WaveCloth.Movement.CLASSIC, WaveCloth.Mesh.BLOCKY, WaveCloth.Wind.WAVES, 12, 8, 4, true);
         settings.save(file);
@@ -375,7 +375,7 @@ class CapeCoreTest {
         assertFalse(loaded.showOthers);
         assertTrue(loaded.enableOptifine);
         assertFalse(loaded.enableElytraTexture);
-        assertEquals("http://127.0.0.1:8787", loaded.baseUrl);
+        assertEquals("http://127.0.0.1:8797", loaded.baseUrl);
         assertEquals(WaveCloth.Movement.CLASSIC, loaded.cloth.movement());
         assertEquals(WaveCloth.Mesh.BLOCKY, loaded.cloth.mesh());
         assertEquals(WaveCloth.Wind.WAVES, loaded.cloth.wind());
