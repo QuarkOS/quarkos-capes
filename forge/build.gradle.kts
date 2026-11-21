@@ -30,11 +30,13 @@ private val forge1201Parents = HashMap<String, List<String>>(20_000)
 
 private fun forge1201Load() {
     if (forge1201Parents.isNotEmpty()) return
-    val root = File(
-        System.getProperty("user.home"),
-        ".gradle/caches/minecraftforge/forgegradle/slime-launcher/cache/net/minecraftforge/forge/1.20.1-47.4.29/mappings/srgs"
-    )
-    val srg = root.walkTopDown().first { it.isFile && it.name == "mcp-srg.srg" }
+    // ForgeGradle's slime launcher writes this when a Forge 1.20.1 run is prepared. Look in the
+    // configured GRADLE_USER_HOME first (Quark uses D:\dev\capes-gradle-home), then ~/.gradle.
+    val sub = "caches/minecraftforge/forgegradle/slime-launcher/cache/net/minecraftforge/forge/1.20.1-47.4.29/mappings/srgs"
+    val roots = listOfNotNull(System.getenv("GRADLE_USER_HOME")?.let { File(it, sub) },
+        File(System.getProperty("user.home"), ".gradle/$sub"))
+    val srg = roots.filter { it.isDirectory }.flatMap { it.walkTopDown().filter { f -> f.isFile && f.name == "mcp-srg.srg" }.toList() }
+        .firstOrNull() ?: error("mcp-srg.srg not found under ${roots.joinToString()}: run :forge:1.20.1:runClient once to let ForgeGradle write it")
     srg.forEachLine { line ->
         when {
             line.startsWith("MD: ") -> {
