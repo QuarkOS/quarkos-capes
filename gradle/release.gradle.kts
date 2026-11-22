@@ -8,7 +8,8 @@ fun validateReleaseService(value: String, allowLocal: Boolean) {
             val classFile = dir.resolve("dev/quarkos/capes/release/ReleaseServicePolicy.class")
             val lockFile = dir.resolve(".compile.lock")
             dir.mkdirs()
-            java.nio.channels.FileChannel.open(
+            // Parallel nodes share one Gradle JVM: a FileChannel lock alone throws OverlappingFileLockException.
+            synchronized("quarkos-capes-policy-compile".intern()) { java.nio.channels.FileChannel.open(
                 lockFile.toPath(),
                 java.nio.file.StandardOpenOption.CREATE,
                 java.nio.file.StandardOpenOption.WRITE
@@ -31,7 +32,7 @@ fun validateReleaseService(value: String, allowLocal: Boolean) {
                         check(process.waitFor() == 0) { "ReleaseServicePolicy did not compile:\n$log" }
                     }
                 }
-            }
+            } }
             val loader = java.net.URLClassLoader(arrayOf(dir.toURI().toURL()), null as ClassLoader?)
             try {
                 val method = loader.loadClass("dev.quarkos.capes.release.ReleaseServicePolicy")
