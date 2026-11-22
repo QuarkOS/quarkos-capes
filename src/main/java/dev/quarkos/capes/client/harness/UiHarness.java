@@ -512,9 +512,13 @@ public final class UiHarness {
                                     m.setAccessible(true); m.invoke(screen, entry); modsSelected = true; return;
                                 }
                             }
-                            @SuppressWarnings({"unchecked", "rawtypes"}) var raw = (net.minecraft.client.gui.components.AbstractSelectionList) list;
-                            raw.setSelected((net.minecraft.client.gui.components.AbstractSelectionList.Entry) entry);
-                            modsSelected = true;
+                            for (Class<?> lc = list.getClass(); lc != null; lc = lc.getSuperclass()) {
+                                for (var m : lc.getDeclaredMethods()) {
+                                    if (m.getName().equals("setSelected") && m.getParameterCount() == 1) {
+                                        m.setAccessible(true); m.invoke(list, entry); modsSelected = true; return;
+                                    }
+                                }
+                            }
                             return;
                         }
                     }
