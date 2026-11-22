@@ -503,9 +503,9 @@ public final class UiHarness {
                 for (var field : c.getDeclaredFields()) {
                     if (!net.minecraft.client.gui.components.AbstractSelectionList.class.isAssignableFrom(field.getType())) continue;
                     field.setAccessible(true);
-                    var list = (net.minecraft.client.gui.components.AbstractSelectionList<?>) field.get(screen);
-                    if (list == null) continue;
-                    for (var entry : list.children()) {
+                    Object list = field.get(screen);
+                    if (!(list instanceof net.minecraft.client.gui.components.events.ContainerEventHandler handler)) continue;
+                    for (Object entry : handler.children()) {
                         if (!entry.toString().isEmpty()) {
                             for (var m : screen.getClass().getDeclaredMethods()) {
                                 if (m.getName().equals("setSelected") && m.getParameterCount() == 1 && m.getParameterTypes()[0].isInstance(entry)) {
