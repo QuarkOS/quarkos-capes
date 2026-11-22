@@ -57,10 +57,11 @@ private fun forge1201Load() {
             }
         }
     }
-    val named = File(
-        System.getProperty("user.home"),
-        ".gradle/caches/minecraftforge/forgegradle/mavenizer/caches/forge/net/minecraftforge/forge/1.20.1-47.4.29/official/1.20.1/recompiled.jar"
-    )
+    // Same lookup order as mcp-srg.srg: GRADLE_USER_HOME first, then ~/.gradle.
+    val recompiled = "caches/minecraftforge/forgegradle/mavenizer/caches/forge/net/minecraftforge/forge/1.20.1-47.4.29/official/1.20.1/recompiled.jar"
+    val named = listOfNotNull(System.getenv("GRADLE_USER_HOME")?.let { File(it, recompiled) },
+        File(System.getProperty("user.home"), ".gradle/$recompiled")).firstOrNull { it.isFile }
+        ?: error("recompiled.jar for Forge 1.20.1 not found under GRADLE_USER_HOME or ~/.gradle")
     ZipInputStream(named.inputStream()).use { zip ->
         var entry = zip.nextEntry
         while (entry != null) {
