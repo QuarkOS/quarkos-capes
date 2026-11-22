@@ -163,6 +163,10 @@ public final class UiHarness {
                 }
                 if (stage.scene().featured() && !featuredReady(client, stage)) return;
                 if (stage.scene() == Scene.LABY_LIST && !labyReady(client, stage)) return;
+                if (stage.scene() == Scene.MODS) {
+                    if (!modsSelected) { selectMod(expectedScreen); settle = 0; return; }
+                    if (++settle < 10) return;
+                }
                 if (stage.scene() == Scene.LABY_TRYON && client.player != null
                         && (CapeBook.draws(client.player.getUUID()) == 0 || dev.quarkos.capes.client.render.CapeTextures.get(dev.quarkos.capes.client.render.CapeDraw.TRY_ON_TEXTURE) == null)
                         && System.nanoTime() < deadline) return;
@@ -359,8 +363,10 @@ public final class UiHarness {
             record(client, stage, "Timed out waiting for the LabyMod gallery. " + labyBrowse.status());
             return false;
         }
-        if (ready) expectedScreen = labyBrowse;
-        return ready;
+        if (!ready) { settle = 0; return false; }
+        expectedScreen = labyBrowse;
+        // Let the preview and the Try on action render at least one settled frame before the capture.
+        return ++settle >= 10;
     }
 
     private static boolean featuredReady(Minecraft client, Stage stage) {
@@ -424,7 +430,7 @@ public final class UiHarness {
         }
         if (stage.scene() == Scene.MODS) {
             if (expectedScreen == null || expectedScreen.getClass().getName().equals(TitleScreen.class.getName())) throw new AssertionError("No mods list screen");
-            stageDetail = "mods " + expectedScreen.getClass().getSimpleName() + (modsFiltered ? " filtered" : "") + (modsSelected ? " selected" : "");
+            stageDetail = "mods " + expectedScreen.getClass().getSimpleName() + (modsFiltered ? " filtered" : "") + (modsSelected && !modsSelectFailed ? " selected" : " not-selected");
             return;
         }
         if (CapeHttp.sent != sent) throw new AssertionError("UI capture sent a cape service request");
@@ -472,7 +478,8 @@ public final class UiHarness {
         return wardrobe;
     }
 
-    private static boolean modsFiltered, modsSelected;
+    private static boolean modsFiltered, modsSelected, modsSelectFailed;
+    private static int settle;
 
     /** Loader mods list (Forge/NeoForge built in, Fabric via Mod Menu when on the dev runtime), filtered to this mod. */
     private static Screen modsScreen() {
@@ -498,6 +505,11 @@ public final class UiHarness {
                 break;
             }
         }
+    }
+
+    /** Runs after the search filter has refreshed the list, so the selection is not reset. */
+    private static void selectMod(Screen screen) {
+        if (screen == null) { modsSelected = true; return; }
         try {
             for (Class<?> c = screen.getClass(); c != null && c != Screen.class; c = c.getSuperclass()) {
                 for (var field : c.getDeclaredFields()) {
@@ -519,12 +531,13 @@ public final class UiHarness {
                                     }
                                 }
                             }
-                            return;
+                            modsSelected = true; modsSelectFailed = true; return;
                         }
                     }
                 }
             }
         } catch (ReflectiveOperationException | RuntimeException ignored) { }
+        if (!modsSelected) { modsSelected = true; modsSelectFailed = true; }
     }
 
     static Button button(Screen screen, String key) {
