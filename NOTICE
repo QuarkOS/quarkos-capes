@@ -1,0 +1,14 @@
+Quark's Capes
+Copyright (c) 2026 Emilio Schwaiger. Licensed under the MIT License (see LICENSE).
+
+Third-party components bundled in release jars (not relicensed):
+
+- Cloth Config by shedaniel - GNU Lesser General Public License v3.0 only (LGPL-3.0-only).
+  Shipped unmodified as a nested jar (Fabric: all versions; Forge/NeoForge: 1.20.1 and 1.21.1).
+  Source: https://github.com/shedaniel/cloth-config
+  License text: src/main/resources/META-INF/licenses/Cloth-Config-LGPL-3.0.md
+  Under the LGPL you may replace the nested Cloth Config jar with a modified version.
+- OkHttp 3.14.9 and Okio 1.17.5 by Square - Apache License 2.0
+  (src/main/resources/META-INF/licenses/Apache-2.0.txt, OkHttp-PublicSuffix-NOTICE.txt).
+
+See CREDITS.md and src/main/resources/META-INF/licenses/NOTICE for full attributions.
