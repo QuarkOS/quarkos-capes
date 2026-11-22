@@ -62,6 +62,10 @@ dependencies {
     include("me.shedaniel.cloth:cloth-config-fabric:$cloth")
     val modMenu = if (unobfuscated) "maven.modrinth:modmenu" else "com.terraformersmc:modmenu"
     modCompileOnly("$modMenu:${sc.properties.get<String>("deps.modmenu")}")
+    // Dev-only: put Mod Menu on the runClient classpath for the mods-list capture (-PwithModMenu=true).
+    if (!unobfuscated && providers.gradleProperty("withModMenu").orNull == "true") {
+        "modLocalRuntime"("$modMenu:${sc.properties.get<String>("deps.modmenu")}")
+    }
 
     implementation("com.squareup.okhttp3:okhttp:3.14.9")
     include("com.squareup.okhttp3:okhttp:3.14.9")

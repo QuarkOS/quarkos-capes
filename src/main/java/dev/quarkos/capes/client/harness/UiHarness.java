@@ -46,7 +46,7 @@ public final class UiHarness {
         WORLD_BACK("world-back"), WORLD_SIDE("world-side"), PAUSE("ingame-pause"),
         INGAME("ingame-wardrobe"), KEYBIND("ingame-keybind"),
         FEATURED_LIST("featured-list"), FEATURED_PREVIEW("featured-preview"), FEATURED_ANIMATED("featured-animated"), FEATURED_WORLD("featured-world-back"),
-        BAD_SERVICE("browse-404"), ABOUT("about"), LABY_LIST("labymod-browse");
+        BAD_SERVICE("browse-404"), ABOUT("about"), LABY_LIST("labymod-browse"), LABY_TRYON("labymod-tryon"), MODS("mods-list");
 
         final String file;
         Scene(String file) { this.file = file; }
@@ -163,6 +163,9 @@ public final class UiHarness {
                 }
                 if (stage.scene().featured() && !featuredReady(client, stage)) return;
                 if (stage.scene() == Scene.LABY_LIST && !labyReady(client, stage)) return;
+                if (stage.scene() == Scene.LABY_TRYON && client.player != null
+                        && (CapeBook.draws(client.player.getUUID()) == 0 || dev.quarkos.capes.client.render.CapeTextures.get(dev.quarkos.capes.client.render.CapeDraw.TRY_ON_TEXTURE) == null)
+                        && System.nanoTime() < deadline) return;
                 if (stage.scene().world() && client.player != null && CapeBook.draws(client.player.getUUID()) == 0
                         && System.nanoTime() < deadline) return;
                 try {
@@ -210,7 +213,7 @@ public final class UiHarness {
         if (width != 1920 || height != 1080) addLayoutSweep(plan, 1920, 1080);
         for (Scene scene : List.of(Scene.WORLD_BACK, Scene.WORLD_SIDE, Scene.PAUSE, Scene.INGAME, Scene.KEYBIND,
                 Scene.FEATURED_LIST, Scene.FEATURED_PREVIEW, Scene.FEATURED_ANIMATED, Scene.FEATURED_WORLD, Scene.BAD_SERVICE,
-                Scene.LABY_LIST)) {
+                Scene.LABY_LIST, Scene.LABY_TRYON, Scene.MODS)) {
             plan.add(new Stage(scene, width, height, 2, scene != Scene.KEYBIND));
         }
         return plan;
@@ -271,6 +274,20 @@ public final class UiHarness {
                 labySelected = false;
                 client.setScreen(labyBrowse);
             }
+            case LABY_TRYON -> {
+                if (client.screen != labyBrowse || client.player == null) throw new AssertionError("LabyMod gallery is not open over the world");
+                client.options.setCameraType(CameraType.FIRST_PERSON);
+                press(button(labyBrowse, "text.quarkos_capes.site.try_on"), "Try on LabyMod cloak");
+                if (client.screen != null) throw new AssertionError("LabyMod Try on did not open the world view: " + labyBrowse.status());
+                McBridge.hideHud(client, true);
+                ShotView.frame(0f, 8f, 3.5f);
+                CapeBook.resetDraws();
+            }
+            case MODS -> {
+                ShotView.clear();
+                McBridge.hideHud(client, false);
+                client.setScreen(modsScreen());
+            }
             case WORLD_BACK, WORLD_SIDE -> {
                 client.setScreen(null);
                 CapeBoard.equipSample("cloak");
@@ -319,6 +336,7 @@ public final class UiHarness {
             }
         }
         expectedScreen = client.screen;
+        if (scene == Scene.MODS && expectedScreen != null) filterMods(expectedScreen);
         CapeBook.resetDraws();
         if (scene == Scene.HOVER && hovered == null) throw new AssertionError("Missing hover card");
         if (expectedScreen instanceof CapeUiScreen screen) {
@@ -380,9 +398,9 @@ public final class UiHarness {
         }
         if (window.getWidth() / stage.scale() >= 320 && window.getHeight() / stage.scale() >= 240
                 && window.getGuiScale() != stage.scale()) throw new AssertionError("Requested GUI scale was not applied");
-        if (!stage.scene().world()) {
+        if (!stage.scene().world() && stage.scene() != Scene.LABY_TRYON) {
             if (expectedScreen == null) throw new AssertionError("Wardrobe did not open");
-            HarnessLayout.check(expectedScreen);
+            if (stage.scene() != Scene.MODS) HarnessLayout.check(expectedScreen);
         }
         if (stage.scene() == Scene.BAD_SERVICE) {
             stageDetail = serviceProbe.check();
@@ -394,6 +412,19 @@ public final class UiHarness {
             boolean cloaksOnly = labyBrowse.items().stream().allMatch(item -> "labymod".equals(item.source()) && "cloak".equals(item.kind()));
             if (!cloaksOnly) throw new AssertionError("LabyMod gallery listed something other than LabyMod cloaks");
             stageDetail = "labymod items=" + labyBrowse.items().size() + " first=" + labyBrowse.items().get(0).title();
+            return;
+        }
+        if (stage.scene() == Scene.LABY_TRYON) {
+            if (client.screen != null || client.player == null || CapeBook.draws(client.player.getUUID()) == 0
+                    || dev.quarkos.capes.client.render.CapeTextures.get(dev.quarkos.capes.client.render.CapeDraw.TRY_ON_TEXTURE) == null) {
+                throw new AssertionError("LabyMod try-on cloak did not draw on the player");
+            }
+            stageDetail = "try-on " + labyBrowse.items().get(0).title();
+            return;
+        }
+        if (stage.scene() == Scene.MODS) {
+            if (expectedScreen == null || expectedScreen.getClass().getName().equals(TitleScreen.class.getName())) throw new AssertionError("No mods list screen");
+            stageDetail = "mods " + expectedScreen.getClass().getSimpleName() + (modsFiltered ? " filtered" : "") + (modsSelected ? " selected" : "");
             return;
         }
         if (CapeHttp.sent != sent) throw new AssertionError("UI capture sent a cape service request");
@@ -439,6 +470,57 @@ public final class UiHarness {
         press(button(parent, OPEN_LABEL), "Wardrobe");
         if (!(client.screen instanceof CapeScreen wardrobe)) throw new AssertionError("Wardrobe did not open");
         return wardrobe;
+    }
+
+    private static boolean modsFiltered, modsSelected;
+
+    /** Loader mods list (Forge/NeoForge built in, Fabric via Mod Menu when on the dev runtime), filtered to this mod. */
+    private static Screen modsScreen() {
+        String[] names = {"net.minecraftforge.client.gui.ModListScreen", "net.neoforged.neoforge.client.gui.ModListScreen",
+                "com.terraformersmc.modmenu.gui.ModsScreen"};
+        Screen screen = null;
+        for (String name : names) {
+            try {
+                screen = (Screen) Class.forName(name).getConstructor(Screen.class).newInstance(new TitleScreen());
+                break;
+            } catch (ReflectiveOperationException | LinkageError ignored) { }
+        }
+        if (screen == null) throw new AssertionError("No mods list screen on this loader (Mod Menu absent?)");
+        return screen;
+    }
+
+    /** After init: type the mod name into the search box and select the first match. Best effort. */
+    private static void filterMods(Screen screen) {
+        for (var child : screen.children()) {
+            if (child instanceof net.minecraft.client.gui.components.EditBox box) {
+                box.setValue("Quark");
+                modsFiltered = true;
+                break;
+            }
+        }
+        try {
+            for (Class<?> c = screen.getClass(); c != null && c != Screen.class; c = c.getSuperclass()) {
+                for (var field : c.getDeclaredFields()) {
+                    if (!net.minecraft.client.gui.components.AbstractSelectionList.class.isAssignableFrom(field.getType())) continue;
+                    field.setAccessible(true);
+                    var list = (net.minecraft.client.gui.components.AbstractSelectionList<?>) field.get(screen);
+                    if (list == null) continue;
+                    for (var entry : list.children()) {
+                        if (!entry.toString().isEmpty()) {
+                            for (var m : screen.getClass().getDeclaredMethods()) {
+                                if (m.getName().equals("setSelected") && m.getParameterCount() == 1 && m.getParameterTypes()[0].isInstance(entry)) {
+                                    m.setAccessible(true); m.invoke(screen, entry); modsSelected = true; return;
+                                }
+                            }
+                            @SuppressWarnings({"unchecked", "rawtypes"}) var raw = (net.minecraft.client.gui.components.AbstractSelectionList) list;
+                            raw.setSelected((net.minecraft.client.gui.components.AbstractSelectionList.Entry) entry);
+                            modsSelected = true;
+                            return;
+                        }
+                    }
+                }
+            }
+        } catch (ReflectiveOperationException | RuntimeException ignored) { }
     }
 
     static Button button(Screen screen, String key) {
